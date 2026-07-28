@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: midas-signal-bot
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.main
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: TELEGRAM_ENABLED
+        value: "false"          # golge mod: 1-2 hafta sessiz dogrulama (plan bolum 7)
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: UNIVERSE_SOURCE
+        value: midas
+      - key: UNIVERSE_MIN_DOLLAR_VOL
+        value: "5000000"
+      - key: UNIVERSE_MIN_PRICE
+        value: "3.0"
+      - key: COARSE_SCAN_INTERVAL_SEC
+        value: "900"
+      - key: FINE_SCAN_INTERVAL_SEC
+        value: "60"
+      - key: WATCHLIST_MAX
+        value: "40"
+      - key: HTF
+        value: 1d
+      - key: MTF
+        value: 1h
+      - key: ATR_TP1_MULT
+        value: "1.0"
+      - key: ATR_TP2_MULT
+        value: "2.0"
+      - key: ATR_STOP_MULT
+        value: "1.2"
+      - key: RISK_REWARD_MIN
+        value: "2.0"
+      - key: MIN_TARGET_PCT
+        value: "2.0"
+      - key: EARNINGS_BLACKOUT_DAYS
+        value: "2"
+      - key: TIME_STOP_DAYS
+        value: "4"
+      - key: SHORT_ENABLED
+        value: "true"
+      - key: SEND_NO_TRADE
+        value: "false"
+      - key: STATE_BACKEND
+        value: sqlite
+      - key: DB_PATH
+        value: data/bot.db
+      - key: LOG_LEVEL
+        value: INFO
