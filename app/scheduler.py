@@ -53,6 +53,8 @@ class Scheduler:
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
+        self._daily_cache: dict = {}
+        self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
         self._eod_date: date | None = None
         self._regime = RegimeResult(regime=MarketRegime.UNKNOWN, detail="not computed")
@@ -133,8 +135,23 @@ class Scheduler:
         return classify_market_regime(spy, qqq)
 
     # -------------------------------------------------------------- kaba tarama
+    def _get_daily_cached(self, fetch_list: list[str], today: date) -> dict:
+        """Gunluk mumlar seans icinde degismez -> gunde BIR kez indirilir.
+        Yahoo rate limitine karsi en buyuk tasarruf noktalarindan biri."""
+        if self._daily_cache_date != today:
+            self._daily_cache = {}
+            self._daily_cache_date = today
+        missing = [s for s in fetch_list if s not in self._daily_cache]
+        if missing:
+            self._daily_cache.update(self._md.get_daily_bulk(missing))
+        return self._daily_cache
+
     def run_coarse_scan(self, send_telegram: bool = True) -> list[Decision]:
-        """Tum filtrelenmis evren; yfinance 1D+1h toplu; ilk fail'de kisa devre."""
+        """Iki gecisli kaba tarama (Yahoo rate limitine gore tasarlandi):
+        1. gecis: SADECE gunluk veri (gunde 1 kez indirilir/cache) ile
+           rejim + trend + bilanco filtreleri -> aday listesi
+        2. gecis: 1h veri YALNIZ adaylar icin indirilir (<= HOURLY_FETCH_MAX)
+           -> setup/hacim/RR filtreleri -> SIGNAL"""
         today = self._calendar.now_et().date()
         symbols = self._universe.get_symbols()
         if not symbols:
@@ -146,8 +163,7 @@ class Scheduler:
                                 if s not in symbols]
         if _BENCH not in fetch_list:
             fetch_list.append(_BENCH)
-        daily = self._md.get_daily_bulk(fetch_list)
-        hourly = self._md.get_hourly_bulk(symbols)
+        daily = self._get_daily_cached(fetch_list, today)
 
         idx = self._settings.regime_symbols
         spy_df = daily.get(idx[0]).to_dataframe() if idx and idx[0] in daily else None
@@ -156,19 +172,42 @@ class Scheduler:
         self._regime = classify_market_regime(spy_df, qqq_df)
         bench_df = daily.get(_BENCH).to_dataframe() if _BENCH in daily else None
 
-        results: list[Decision] = []
-        watch: list[dict] = []
+        # --- 1. gecis: gunluk filtreler (1h verisi olmadan) ---
+        pass1: dict[str, Decision] = {}
+        candidates: list[str] = []
         for symbol in symbols:
             try:
                 e_info = self._earnings.info(symbol, today)
-                d = signal_engine.evaluate(symbol, daily.get(symbol),
-                                           hourly.get(symbol), self._regime,
-                                           self._params, bench_df, e_info)
+                d = signal_engine.evaluate(symbol, daily.get(symbol), None,
+                                           self._regime, self._params,
+                                           bench_df, e_info)
+            except Exception:
+                log.exception(kv(event="scan_error", symbol=symbol, stage=1))
+                continue
+            pass1[symbol] = d
+            if d.data_missing == ["hourly_klines"]:
+                candidates.append(symbol)
+        capped = candidates[: self._settings.HOURLY_FETCH_MAX]
+        if len(candidates) > len(capped):
+            log.warning(kv(event="hourly_fetch_capped",
+                           candidates=len(candidates), cap=len(capped)))
+
+        # --- 2. gecis: adaylar icin 1h veri + tam pipeline ---
+        hourly = self._md.get_hourly_bulk(capped) if capped else {}
+        results: list[Decision] = []
+        watch: list[dict] = []
+        for symbol, d in pass1.items():
+            try:
+                if symbol in hourly:
+                    e_info = self._earnings.info(symbol, today)
+                    d = signal_engine.evaluate(symbol, daily.get(symbol),
+                                               hourly.get(symbol), self._regime,
+                                               self._params, bench_df, e_info)
                 if d.decision is DecisionType.SIGNAL:
                     d.time_stop_date = self._calendar.add_trading_days(
                         today, self._params.time_stop_days).isoformat()
             except Exception:
-                log.exception(kv(event="scan_error", symbol=symbol))
+                log.exception(kv(event="scan_error", symbol=symbol, stage=2))
                 continue
             results.append(d)
             if self._tracker is not None:

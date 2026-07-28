@@ -64,21 +64,18 @@ def evaluate(symbol: str,
     d = Decision.base(symbol, params.htf, params.mtf, now)
     d.market_regime = regime.regime
 
-    # 1. DATA
-    missing = []
+    # 1. DATA (gunluk ayak) - 1h kontrolu SETUP oncesine ertelenir.
+    # Boylece iki gecisli tarama mumkun olur: 1. gecis yalniz gunluk veriyle
+    # rejim/trend/bilanco filtrelerini kosar; 1h verisi SADECE hayatta kalan
+    # adaylar icin indirilir (Yahoo rate limitine karsi kritik tasarruf).
     if daily_series is None or len(daily_series) < params.min_bars_daily:
-        missing.append("daily_klines")
-    if hourly_series is None or len(hourly_series) < params.min_bars_hourly:
-        missing.append("hourly_klines")
-    if missing:
         d.decision = DecisionType.DATA_MISSING
-        d.data_missing = missing
+        d.data_missing = ["daily_klines"]
         d.failed_filters = ["DATA"]
         d.reject_reason = "insufficient data"
         return d
 
     daily = daily_series.to_dataframe()
-    hourly = hourly_series.to_dataframe()
 
     # 2. MARKET_REGIME (endeks) - UNKNOWN ise sinyal uretilmez
     if regime.regime is MarketRegime.UNKNOWN:
@@ -128,6 +125,15 @@ def evaluate(symbol: str,
                                f"({earnings.days_to:+d} islem gunu)")
             d.watch_condition = "bilanco sonrasi yapinin korunmasi"
             return d
+
+    # DATA (1h ayagi) - gunluk filtrelerden sag cikan aday icin
+    if hourly_series is None or len(hourly_series) < params.min_bars_hourly:
+        d.decision = DecisionType.DATA_MISSING
+        d.data_missing = ["hourly_klines"]
+        d.failed_filters = ["DATA"]
+        d.reject_reason = "insufficient data"
+        return d
+    hourly = hourly_series.to_dataframe()
 
     # 5. SETUP (1h)
     setup = structure_analyzer.detect_setup(hourly, direction, params)

@@ -155,7 +155,7 @@ class UniverseProvider:
         """Toplu gunluk veriyle fiyat + dolar hacmi filtresi (plan bolum 5)."""
         if not symbols:
             return []
-        daily = self._md.get_daily_bulk(symbols)
+        daily = self._md.get_daily_bulk(symbols, period="1mo")
         passed: list[tuple[str, float]] = []
         for sym in symbols:
             series: KlineSeries | None = daily.get(sym)

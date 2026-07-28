@@ -26,8 +26,12 @@ class MarketDataService:
         self._daily_period = daily_period
         self._hourly_period = hourly_period
 
-    def get_daily_bulk(self, symbols: list[str]) -> dict[str, KlineSeries]:
-        return self._to_series(self._yf.download_bulk(symbols, "1d", self._daily_period), "1d")
+    def get_daily_bulk(self, symbols: list[str],
+                       period: str | None = None) -> dict[str, KlineSeries]:
+        """period=None -> tam omurga (2y). Hafif kullanimlar (likidite filtresi)
+        icin kisa period gecilebilir (or. '1mo') - istek yuku ayni ama yuk hafif."""
+        return self._to_series(
+            self._yf.download_bulk(symbols, "1d", period or self._daily_period), "1d")
 
     def get_hourly_bulk(self, symbols: list[str]) -> dict[str, KlineSeries]:
         return self._to_series(self._yf.download_bulk(symbols, "1h", self._hourly_period), "1h")

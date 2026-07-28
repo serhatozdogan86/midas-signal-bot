@@ -163,3 +163,22 @@ def test_data_missing(long_inputs):
     assert d.decision is DecisionType.DATA_MISSING
     assert d.data_missing == ["hourly_klines"]
     assert d.failed_filters == ["DATA"]
+
+
+# ------------------------------------------- iki gecisli tarama sozlesmesi
+def test_pass1_no_hourly_fails_at_trend_not_data(long_inputs):
+    """1. gecis (hourly=None): trend'de elenen sembol DATA_MISSING DEGIL
+    NO_TRADE/TREND almali - gunluk filtreler 1h verisiz kosulabilmeli."""
+    _, _, bench = long_inputs
+    daily = _daily(fx.daily_flat_closes())
+    d = signal_engine.evaluate("AAPL", daily, None, BULL, P, bench, E_FAR)
+    assert d.decision is DecisionType.NO_TRADE
+    assert d.failed_filters == ["TREND"]
+
+
+def test_pass1_survivor_flags_hourly_missing(long_inputs):
+    """1. gecis: gunluk filtrelerden gecen sembol 1h aday olarak isaretlenir."""
+    daily, _, bench = long_inputs
+    d = signal_engine.evaluate("AAPL", daily, None, BULL, P, bench, E_FAR)
+    assert d.decision is DecisionType.DATA_MISSING
+    assert d.data_missing == ["hourly_klines"]

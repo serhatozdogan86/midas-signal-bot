@@ -62,6 +62,21 @@ curl localhost:10000/watchlist   # gec asamada takilan adaylar (Faz 2 girdisi)
 4. Free planda disk ephemeral'dir: cooldown restart'ta sifirlanir.
    Kalicilik icin paid disk veya Faz 3 Gist yedeklemesi.
 
+## Yahoo rate limit stratejisi (v1.1)
+Render gibi paylasimli IP'lerde Yahoo cok agresif limit uygular. Onlemler:
+- **yfinance 1.5.2** (curl_cffi tarayici taklidi - eski 0.2.x surumlerine gore
+  engellenmeye cok daha direncli)
+- Istekler **sirali** atilir (thread patlamasi yok), chunk'lar arasi bekleme +
+  bos/limitli chunk'ta ustel backoff ile tekrar (loglarda `yf_rate_backoff`
+  gorulmesi NORMALDIR - bot kendini toparlar)
+- **Gunluk mumlar gunde 1 kez** indirilir ve cache'lenir (seans icinde degismez)
+- Kaba tarama **iki gecislidir**: 1. gecis yalniz gunluk veriyle rejim/trend/
+  bilanco filtrelerini kosar; 1h verisi SADECE sag kalan adaylar icin indirilir
+  (HOURLY_FETCH_MAX, default 120). 15 dk'lik tarama boylece ~300 yerine
+  ~on-yuz arasi istekle tamamlanir.
+- Likidite filtresi (hazirlik, gunde 1 kez) kisa period ("1mo") kullanir.
+  Ham Midas evreni buyuk oldugundan ilk hazirlik taramasi 10-20 dk surebilir.
+
 ## Bilinen sinirlar / bakim
 - yfinance resmi olmayan kutuphanedir; kirilirsa `YFinanceClient` +
   `MarketDataService` degistirilerek Polygon/Twelve Data'ya gecilir.

@@ -54,7 +54,8 @@ def main() -> None:
         store = InMemoryStateStore()
 
     # --- veri katmani (iki kaynakli) ---
-    yf_client = YFinanceClient(settings.YF_CHUNK_SIZE, settings.YF_CHUNK_PAUSE_SEC)
+    yf_client = YFinanceClient(settings.YF_CHUNK_SIZE, settings.YF_CHUNK_PAUSE_SEC,
+                               settings.YF_MAX_RETRIES, settings.YF_BACKOFF_SEC)
     finnhub = FinnhubClient(settings.FINNHUB_API_KEY, settings.FINNHUB_BASE_URL)
     market_data = MarketDataService(yf_client, finnhub,
                                     settings.DAILY_PERIOD, settings.HOURLY_PERIOD)

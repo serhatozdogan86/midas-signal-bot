@@ -36,7 +36,7 @@ class FakeMarketData:
                               volumes=np.full(30, 1_000.0))          # 50K$/gun
         self._data = {"BIG": big, "CHEAP": cheap, "THIN": thin}
 
-    def get_daily_bulk(self, symbols):
+    def get_daily_bulk(self, symbols, period=None):
         return {s: self._data[s] for s in symbols if s in self._data}
 
 

@@ -128,17 +128,27 @@ def test_coarse_scan_with_tracker_and_gist(tmp_path):
                                volumes=fx.spike_volumes(110))
 
     class FakeMD:
-        def get_daily_bulk(self, symbols):
-            return {s: fx.make_series(fx.daily_uptrend_closes(),
-                                      symbol=s, interval="1d", spread=0.02)
-                    for s in symbols}
+        def __init__(self):
+            self.daily_calls = 0
+            self.hourly_requests: list[list[str]] = []
+
+        def get_daily_bulk(self, symbols, period=None):
+            self.daily_calls += 1
+            out = {}
+            for s in symbols:
+                closes = (fx.daily_flat_closes() if s == "FLAT"
+                          else fx.daily_uptrend_closes())
+                out[s] = fx.make_series(closes, symbol=s, interval="1d",
+                                        spread=0.02)
+            return out
 
         def get_hourly_bulk(self, symbols):
+            self.hourly_requests.append(list(symbols))
             return {s: hourly_pb for s in symbols}
 
     class FakeUniverse:
         def get_symbols(self):
-            return ["AAPL"]
+            return ["AAPL", "FLAT"]
 
         def describe(self):
             return {"filtered_count": 1}
@@ -160,14 +170,24 @@ def test_coarse_scan_with_tracker_and_gist(tmp_path):
                       MarketCalendar(), InMemoryStateStore(), notifier,
                       tracker, gist)
 
+    md = sched._md
     results = sched.run_coarse_scan(send_telegram=True)
 
-    assert len(results) == 1
-    assert results[0].decision.value == "SIGNAL"
-    assert results[0].time_stop_date is not None      # takvimle zenginlesti
+    assert len(results) == 2
+    by_sym = {d.symbol: d for d in results}
+    assert by_sym["AAPL"].decision.value == "SIGNAL"
+    assert by_sym["AAPL"].time_stop_date is not None  # takvimle zenginlesti
+    assert by_sym["FLAT"].decision.value == "NO_TRADE"
+    assert by_sym["FLAT"].failed_filters == ["TREND"]
+    # 2. gecis: 1h verisi YALNIZ gunluk filtreleri gecen aday icin istendi
+    assert md.hourly_requests == [["AAPL"]]
+    # gunluk cache: ayni gun ikinci taramada yeniden indirilmez
+    daily_calls_first = md.daily_calls
+    sched.run_coarse_scan(send_telegram=False)
+    assert md.daily_calls == daily_calls_first
     assert any("SINYAL | AAPL | LONG" in m for m in notifier.sent)
     assert len(tracker.recent_signals(5)) == 1        # shadow kayda alindi
     assert tracker.recent_signals(5)[0]["time_stop_date"] is not None
-    assert len(tracker.recent_decisions(5)) == 1
+    assert len(tracker.recent_decisions(9)) == 4      # 2 sembol x 2 tarama
     assert tracker.candles_count() > 0                # 1h + 1d arsivlendi
     assert len(gist_client.store) == 1                # gist olustu ve sync oldu
