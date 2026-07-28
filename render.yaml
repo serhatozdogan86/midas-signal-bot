@@ -58,3 +58,14 @@ services:
         value: data/bot.db
       - key: LOG_LEVEL
         value: INFO
+      # --- Faz 3: golge takip + gist yedekleme + dashboard ---
+      - key: SHADOW_TRACKING
+        value: "true"
+      - key: GIST_SYNC
+        value: "true"
+      - key: GITHUB_TOKEN
+        sync: false             # yalnizca 'gist' scope'lu token yeterli
+      - key: GIST_SYNC_INTERVAL_SEC
+        value: "3600"
+      - key: GIST_CANDLE_MODE
+        value: signals

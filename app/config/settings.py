@@ -124,7 +124,15 @@ class Settings(BaseSettings):
     # Phase 3 rezervleri (gist yedekleme) - kablolama Phase 3'te
     GITHUB_TOKEN: str = ""
     GIST_SYNC: bool = True
-    GIST_ID: str = ""
+    GIST_ID: str = ""                      # bos = MARKER ile otomatik bul/olustur
+    GIST_SYNC_INTERVAL_SEC: int = 3600
+    GIST_CANDLE_MODE: str = "signals"      # signals | all | off
+    GIST_CANDLE_MAX_ROWS: int = 3000
+
+    # Golge takip (shadow tracking - sessiz performans muhasebesi)
+    SHADOW_TRACKING: bool = True
+    FILL_WINDOW_BARS: int = 14             # girise gelmesi beklenen sure (~2 seans, 1h bar)
+    MAX_TRACK_BARS: int = 28               # dolduysa izleme suresi (~4 seans = time-stop)
 
     @property
     def regime_symbols(self) -> list[str]:

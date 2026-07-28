@@ -6,7 +6,8 @@ Faz 1 kablolamasi:
 - STATE_BACKEND=sqlite -> cooldown/sonuclar DB'de (Render free'de disk ephemeral)
 - yfinance (tarihsel) + Finnhub (earnings takvimi; quote Phase 2)
 - Evren: Midas scrape -> cache -> statik yedek zinciri + likidite filtresi
-Phase 3 rezervleri: shadow tracking, gist yedekleme, dashboard.
+Faz 3 aktif: shadow tracking (SHADOW_TRACKING), gist yedekleme (GITHUB_TOKEN
++ GIST_SYNC), /dashboard izleme ekrani.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import os
 
 from app.config.settings import get_settings
 from app.integrations.finnhub_client import FinnhubClient
+from app.integrations.gist_client import GistClient
 from app.integrations.telegram_notifier import TelegramNotifier
 from app.integrations.yfinance_client import YFinanceClient
 from app.logging_setup import kv, setup_logging
@@ -22,8 +24,10 @@ from app.scheduler import Scheduler
 from app.server import create_app
 from app.services.database import Database
 from app.services.earnings_service import EarningsService
+from app.services.gist_backup import GistBackup
 from app.services.market_calendar import MarketCalendar
 from app.services.market_data_service import MarketDataService
+from app.services.signal_tracker import SignalTracker
 from app.services.sqlite_state_store import SQLiteStateStore
 from app.services.state_store import InMemoryStateStore
 from app.services.universe import UniverseProvider
@@ -43,8 +47,9 @@ def main() -> None:
                        note="bilanco takvimi bos kalir; EARNINGS filtresi pasif olur"))
 
     # --- kalicilik ---
+    db = Database(settings.DB_PATH)
     if settings.STATE_BACKEND.lower() == "sqlite":
-        store = SQLiteStateStore(Database(settings.DB_PATH))
+        store = SQLiteStateStore(db)
     else:
         store = InMemoryStateStore()
 
@@ -62,15 +67,41 @@ def main() -> None:
                                 settings.TELEGRAM_CHAT_ID,
                                 settings.TELEGRAM_PARSE_MODE)
 
+    # --- golge takip (Faz 3): sessiz performans muhasebesi + veri arsivi ---
+    tracker = None
+    if settings.SHADOW_TRACKING:
+        tracker = SignalTracker(db, settings.MTF,
+                                settings.FILL_WINDOW_BARS,
+                                settings.MAX_TRACK_BARS)
+
+    # --- gist yedekleme: botun kendi kayit tutma mekanizmasi ---
+    gist_backup = None
+    if settings.GIST_SYNC and settings.GITHUB_TOKEN and tracker is not None:
+        gist_backup = GistBackup(
+            GistClient(settings.GITHUB_TOKEN), tracker,
+            sync_interval_sec=settings.GIST_SYNC_INTERVAL_SEC,
+            pinned_gist_id=settings.GIST_ID,
+            candle_mode=settings.GIST_CANDLE_MODE,
+            candle_max_rows=settings.GIST_CANDLE_MAX_ROWS,
+            meta_provider=lambda: {"universe": universe.describe()})
+        try:
+            gist_backup.restore_if_empty()  # redeploy sonrasi self-healing
+        except Exception:
+            log.exception(kv(event="gist_restore_error"))
+    elif settings.GIST_SYNC and not settings.GITHUB_TOKEN:
+        log.warning(kv(event="gist_env_missing",
+                       note="GITHUB_TOKEN yok; yedekleme kapali, veri restart'ta silinir"))
+
     scheduler = Scheduler(settings, market_data, universe, earnings,
-                          calendar, store, notifier)
-    app = create_app(store, scheduler, universe)
+                          calendar, store, notifier, tracker, gist_backup)
+    app = create_app(store, scheduler, universe, tracker, gist_backup)
 
     scheduler.start_background()
     port = int(os.getenv("PORT", "10000"))
     log.info(kv(event="server_start", port=port,
                 state_backend=settings.STATE_BACKEND,
-                universe_source=settings.UNIVERSE_SOURCE))
+                universe_source=settings.UNIVERSE_SOURCE,
+                shadow=tracker is not None, gist=gist_backup is not None))
     app.run(host="0.0.0.0", port=port)
 
 

@@ -39,7 +39,8 @@ class Scheduler:
     def __init__(self, settings: Settings, market_data: MarketDataService,
                  universe: UniverseProvider, earnings: EarningsService,
                  calendar: MarketCalendar, store: StateStore,
-                 notifier: TelegramNotifier) -> None:
+                 notifier: TelegramNotifier, tracker=None,
+                 gist_backup=None) -> None:
         self._settings = settings
         self._md = market_data
         self._universe = universe
@@ -47,6 +48,8 @@ class Scheduler:
         self._calendar = calendar
         self._store = store
         self._notifier = notifier
+        self._tracker = tracker      # None -> golge takip kapali
+        self._gist = gist_backup     # None -> gist yedekleme kapali
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
@@ -168,6 +171,18 @@ class Scheduler:
                 log.exception(kv(event="scan_error", symbol=symbol))
                 continue
             results.append(d)
+            if self._tracker is not None:
+                try:
+                    if symbol in hourly:
+                        self._tracker.record_candles(hourly[symbol])
+                    if symbol in daily:
+                        self._tracker.record_candles(daily[symbol])
+                    self._tracker.record_decision(d)
+                    if symbol in hourly:
+                        self._tracker.maybe_track(d, hourly[symbol])
+                    self._tracker.evaluate_open(symbol)
+                except Exception:
+                    log.exception(kv(event="tracker_error", symbol=symbol))
             self._store.save_result(symbol, d.contract_dict())
             self._collect_watch(d, watch)
             if send_telegram:
@@ -179,6 +194,8 @@ class Scheduler:
         self._watchlist = watch[: self._settings.WATCHLIST_MAX]
         self._store.record_scan(
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        if self._gist is not None:
+            self._gist.maybe_sync()
         log.info(kv(event="coarse_scan_done", scanned=len(results),
                     signals=sum(1 for r in results
                                 if r.decision is DecisionType.SIGNAL),
@@ -203,15 +220,32 @@ class Scheduler:
     def run_eod(self, today: date) -> None:
         self._eod_date = today
         watch_txt = ", ".join(w["symbol"] for w in self._watchlist[:15]) or "-"
+        shadow_line = ""
+        if self._tracker is not None:
+            try:
+                st = self._tracker.stats()
+                wr = (f"%{st['win_rate'] * 100:.0f}" if st["win_rate"] is not None
+                      else "-")
+                shadow_line = (f"Golge takip: {st['open_signals']} acik | "
+                               f"{st['decided_trades']} sonuclanan | "
+                               f"WR {wr} | Toplam {st['total_r_multiple']:+.2f}R\n")
+            except Exception:
+                log.exception(kv(event="eod_stats_error"))
         if self._settings.SEND_EOD_SUMMARY:
             self._send(
                 f"Gun sonu ozeti ({today.isoformat()})\n"
                 f"Rejim: {self._regime.regime.value}\n"
                 f"Bugunku sinyaller: "
                 f"{', '.join(self._signals_today) or 'yok'}\n"
+                f"{shadow_line}"
                 f"Yarin izlenecekler ({len(self._watchlist)}): {watch_txt}\n"
                 f"Acik pozisyonlarda time-stop kuralini unutmayin."
             )
+        if self._gist is not None:
+            try:
+                self._gist.sync()   # gun sonunda kosulsuz arsivle
+            except Exception:
+                log.exception(kv(event="eod_gist_error"))
         log.info(kv(event="eod_done", signals=len(self._signals_today),
                     watchlist=len(self._watchlist)))
 
@@ -242,5 +276,7 @@ class Scheduler:
             f"Yon: LONG+SHORT (short icin siki esikler) | Min RR: {s.RISK_REWARD_MIN}\n"
             f"Maliyet filtresi: TP1 >= %{s.MIN_TARGET_PCT} | "
             f"Bilanco blackout: +-{s.EARNINGS_BLACKOUT_DAYS} gun\n"
+            f"Golge takip: {'acik' if self._tracker else 'kapali'} | "
+            f"Gist yedek: {'acik' if self._gist else 'kapali'}\n"
             "Seans disi ve tatillerde uyur. Emirler Midas'tan manuel girilir."
         )

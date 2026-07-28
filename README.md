@@ -21,7 +21,8 @@ tasarlanmistir. Tum tasarim kararlari `midas-signal-bot-plan.md` dokumanindadir.
   (ince tarama Faz 2'de Finnhub quote ile eklenecek)
 - 15:45 TR hazirlik + 23:15 TR gun sonu ozeti; hafta sonu/tatilde uyur
   (statik NYSE takvimi 2025-2027 — yillik bakim gerekir)
-- State: SQLite (cooldown + son sonuclar); shadow tracking / Gist / dashboard Faz 3
+- State: SQLite (cooldown + son sonuclar)
+- **Faz 3 (aktif):** golge takip (shadow tracking), Gist yedekleme, /dashboard
 
 ## Tasarim notu: RR tanimi
 Plan TP1 = 1x, TP2 = 2x gunluk ATR ve ATR bazli stop (carpan 1.2) kilitler;
@@ -71,8 +72,31 @@ curl localhost:10000/watchlist   # gec asamada takilan adaylar (Faz 2 girdisi)
 - Finnhub ucretsiz plani bazi sembollerde bilanco tarihi vermeyebilir; tarih
   bilinmiyorsa EARNINGS filtresi gecer, sinyal mesajinda "bilinmiyor" yazar.
 
+## Faz 3: golge takip + Gist + dashboard (kripto projesindeki duzenin uyarlamasi)
+
+**Shadow tracking (SHADOW_TRACKING=true):** Her karar `decisions` tablosuna, her
+1h/1d mum `candles` arsivine, her SIGNAL `signals` tablosuna yazilir ve sonraki
+mumlarla sessizce sonuclandirilir: girise gelmezse NOT_FILLED (~2 seans), gelirse
+stop=LOSS / TP1=WIN / sure asimi=EXPIRED (~4 seans). ABD uyarlamasi: **gap
+muhasebesi** — bar stop/TP'nin otesinde acilirsa cikis ACILIS fiyatindan sayilir;
+gap-through-stop -1R'den derin kayit dusebilir (gercekci olcum).
+
+**Gist yedekleme (GITHUB_TOKEN + GIST_SYNC=true):** Bot verisini saatte bir
+secret gist'e yazar (0_performance / 0_signals / 0_decisions / 0_meta + sinyal
+ureten sembollerin mum CSV'leri). Render free'nin ephemeral disk sorununu cozer:
+restart sonrasi DB bossa gist'ten otomatik geri yuklenir (self-healing) ve gist
+revizyonlari istatistik GECMISINI arsivler.
+Token: github.com -> Settings -> Developer settings -> Personal access tokens
+-> **yalnizca `gist` scope** isaretle (repo erisimi verme).
+
+**Dashboard:** `https://<servis>/dashboard` (veya kok `/`). KPI kartlari
+(win rate, toplam R, acik sinyal, giris isabeti), equity egrisi, karar hatti
+hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,
+izleme listesi ve gist durumu. 60 sn'de bir kendini yeniler.
+Ek uclar: `/performance`, `/signals?limit=N`, `/backup/info`, `POST /backup/now`.
+
 ## Faz haritasi
 - **Faz 2:** Finnhub quote + izleme listesi oncelik kuyrugu + ~1 dk ince tarama
   (giris seviyesi kirilim tetigi)
-- **Faz 3:** shadow tracking, gun sonu performans raporu, Gist arsivi, dashboard
+- ~~Faz 3~~ tamamlandi (bu surumde; one cekildi)
 - **Faz 4:** parametre kalibrasyonu (golge mod verisi), RS/sektor ETF confluence

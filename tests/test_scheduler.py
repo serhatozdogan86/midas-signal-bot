@@ -108,3 +108,66 @@ def test_tick_prep_then_scan_then_eod(monkeypatch):
     assert calls == ["prep", "coarse", "eod"]
     sched.tick(datetime(*day, 16, 30, tzinfo=ET))  # eod tekrar etmez
     assert calls == ["prep", "coarse", "eod"]
+
+
+# --------------------------------------- uctan uca kaba tarama entegrasyonu
+def test_coarse_scan_with_tracker_and_gist(tmp_path):
+    """Tarama -> SIGNAL -> Telegram + shadow kayit + gist sync zinciri."""
+    from datetime import date
+
+    from app.models.decision import EarningsInfo
+    from app.services.database import Database
+    from app.services.gist_backup import GistBackup
+    from app.services.signal_tracker import SignalTracker
+    from tests import fixtures as fx
+    from tests.test_gist_backup import FakeGistClient
+
+    daily_up = fx.make_series(fx.daily_uptrend_closes(), interval="1d",
+                              spread=0.02)
+    hourly_pb = fx.make_series(fx.hourly_pullback_long_closes(),
+                               volumes=fx.spike_volumes(110))
+
+    class FakeMD:
+        def get_daily_bulk(self, symbols):
+            return {s: fx.make_series(fx.daily_uptrend_closes(),
+                                      symbol=s, interval="1d", spread=0.02)
+                    for s in symbols}
+
+        def get_hourly_bulk(self, symbols):
+            return {s: hourly_pb for s in symbols}
+
+    class FakeUniverse:
+        def get_symbols(self):
+            return ["AAPL"]
+
+        def describe(self):
+            return {"filtered_count": 1}
+
+    class FakeEarnings:
+        def refresh(self, today, force=False):
+            pass
+
+        def info(self, symbol, today):
+            return EarningsInfo(next_date="2026-08-20", days_to=8)
+
+    tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
+    gist_client = FakeGistClient()
+    gist = GistBackup(gist_client, tracker, sync_interval_sec=0)
+    settings_kw = dict(TELEGRAM_ENABLED=True, STATE_BACKEND="memory")
+    settings = Settings(**settings_kw)
+    notifier = FakeNotifier()
+    sched = Scheduler(settings, FakeMD(), FakeUniverse(), FakeEarnings(),
+                      MarketCalendar(), InMemoryStateStore(), notifier,
+                      tracker, gist)
+
+    results = sched.run_coarse_scan(send_telegram=True)
+
+    assert len(results) == 1
+    assert results[0].decision.value == "SIGNAL"
+    assert results[0].time_stop_date is not None      # takvimle zenginlesti
+    assert any("SINYAL | AAPL | LONG" in m for m in notifier.sent)
+    assert len(tracker.recent_signals(5)) == 1        # shadow kayda alindi
+    assert tracker.recent_signals(5)[0]["time_stop_date"] is not None
+    assert len(tracker.recent_decisions(5)) == 1
+    assert tracker.candles_count() > 0                # 1h + 1d arsivlendi
+    assert len(gist_client.store) == 1                # gist olustu ve sync oldu
