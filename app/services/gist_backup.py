@@ -141,6 +141,17 @@ class GistBackup:
             except Exception:
                 log.exception(kv(event="gist_sync_error"))
 
+    def heartbeat(self, payload: dict) -> bool:
+        """Hafif nabiz: tek dosyalik guncelleme (0_heartbeat.json).
+        Uzaktan izleme icin onbellege takilmayan taze telemetri kanali;
+        tam sync'ten bagimsiz, 15 dk'da bir cagrilir (1 API cagrisi)."""
+        if self._gist_id is None:
+            self._gist_id = self._client.find_gist(MARKER)
+        if self._gist_id is None:
+            return False   # gist ilk tam sync'te olusur; nabiz o zamana kadar bekler
+        return self._client.update_gist(
+            self._gist_id, {"0_heartbeat.json": json.dumps(payload, indent=2)})
+
     def fetch_meta(self) -> dict | None:
         """Gist'teki 0_meta.json icerigi (evren tohumlama icin)."""
         if self._gist_id is None:

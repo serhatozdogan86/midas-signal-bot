@@ -134,6 +134,7 @@ class Settings(BaseSettings):
     GIST_SYNC: bool = True
     GIST_ID: str = ""                      # bos = MARKER ile otomatik bul/olustur
     GIST_SYNC_INTERVAL_SEC: int = 3600
+    HEARTBEAT_SEC: int = 900           # gist'e hafif nabiz araligi
     GIST_CANDLE_MODE: str = "signals"      # signals | all | off
     GIST_CANDLE_MAX_ROWS: int = 3000
 

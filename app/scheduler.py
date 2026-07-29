@@ -60,6 +60,7 @@ class Scheduler:
         self._zone_notified: set = set()      # sinyal basina tek "bolgede" bildirimi
         self._reeval_at: dict = {}            # sembol -> son tekrar-degerlendirme ts
         self.last_fine_info: dict = {}
+        self._last_heartbeat = 0.0
         self._daily_cache: dict = {}
         self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
@@ -106,6 +107,13 @@ class Scheduler:
         today = now_et.date()
         if self._news is not None:
             self._news.maybe_refresh(self._news_symbols(), today)
+        if self._gist is not None and \
+                time.time() - self._last_heartbeat >= self._settings.HEARTBEAT_SEC:
+            self._last_heartbeat = time.time()
+            try:
+                self._gist.heartbeat(self.build_heartbeat())
+            except Exception:
+                log.exception(kv(event="heartbeat_error"))
         session = self._calendar.session_times(today)
         if session is None:
             return  # hafta sonu / tatil: uyu
@@ -516,6 +524,38 @@ class Scheduler:
             if (probe - today).days > 14:
                 break
         return strip
+
+    def build_heartbeat(self) -> dict:
+        """Uzaktan izleme nabzi: saglik ozetinin tamami tek JSON'da."""
+        from app.logging_setup import get_ring_buffer
+        ring = get_ring_buffer()
+        hb = {
+            "ts_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "uptime_min": ring.uptime_sec() // 60,
+            "progress": self.progress,
+            "regime": self._regime.regime.value,
+            "last_prep": self.last_prep_info,
+            "last_scan": self.last_scan_info,
+            "fine_scan": self.last_fine_info,
+            "gap_watch": self.last_gap_watch,
+            "watchlist_size": len(self._watchlist),
+            "log_counts": dict(ring.counts),
+            "recent_warnings": ring.recent(25),
+        }
+        try:
+            hb["universe_count"] = (self._universe.describe() or {}).get(
+                "filtered_count")
+        except Exception:
+            hb["universe_count"] = None
+        if self._tracker is not None:
+            try:
+                st = self._tracker.stats()
+                hb["shadow"] = {k: st[k] for k in
+                                ("open_signals", "decided_trades",
+                                 "total_r_multiple")}
+            except Exception:
+                hb["shadow"] = None
+        return hb
 
     def _news_symbols(self) -> list[str]:
         """Haber akisi kapsami: acik golge pozisyonlar + bugunun sinyalleri

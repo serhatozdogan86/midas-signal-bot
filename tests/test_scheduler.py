@@ -297,3 +297,27 @@ def test_orphan_signals_still_evaluated(tmp_path):
     sig = tracker.recent_signals(1)[0]
     assert sig["symbol"] == "IONQ"
     assert sig["outcome"] == "WIN"              # TP1 107 ile kesildi -> kapandi
+
+
+def test_heartbeat_fires_even_off_session(monkeypatch):
+    """Nabiz seans/tatil durumundan bagimsiz atar (uzaktan izleme kanali)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    sched, _ = _scheduler()
+    beats = []
+
+    class FakeGist:
+        def heartbeat(self, payload):
+            beats.append(payload)
+            return True
+
+        def maybe_sync(self):
+            pass
+    sched._gist = FakeGist()
+    sched.tick(datetime(2026, 7, 25, 12, 0, tzinfo=ZoneInfo("America/New_York")))  # cumartesi
+    assert len(beats) == 1
+    hb = beats[0]
+    assert "last_scan" in hb and "recent_warnings" in hb and "log_counts" in hb
+    sched.tick(datetime(2026, 7, 25, 12, 1, tzinfo=ZoneInfo("America/New_York")))
+    assert len(beats) == 1     # aralik dolmadan tekrar atmaz
