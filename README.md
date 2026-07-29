@@ -122,6 +122,16 @@ kaynakli derin kayip uyarisi, time-stop orani, orneklem uyarisi. LLM cagrisi
 yoktur; dashboard'da "kural tabanli" olarak etiketlenir. Gun sonu Telegram
 mesajina eklenir, gist'e 0_commentary.json olarak yazilir, /commentary ucundan okunur.
 
+**Acilis oncesi gap nobeti (onayli plan eki, 2026-07-29):** Seans disi SINYAL
+uretilmez (likidite/spread/hacim filtresi gerekceleriyle) ama acilis-30dk
+penceresinde bot, acik golge pozisyonlarini ve guclu adaylari Finnhub pre-market
+fiyatlariyla yoklar: stop'un otesinde acilacak pozisyon icin "Midas'ta
+pre-market LIMIT emirle cikisi degerlendir" uyarisi, TP otesi lehte gap bilgisi,
+>=%3 gap'leyen aday icin setup suphesi notu gonderir. Bildirilecek sey yoksa
+sessiz kalir. (Midas uzatilmis islem saatleri: 11:00-16:30 / 23:00-03:00 TR,
+limit emir.) Finnhub free planin pre-market tazeligi ilk gunlerde loglardan
+dogrulanacak; yetersizse yfinance yedegine gecilir.
+
 **Dashboard:** `https://<servis>/dashboard` (veya kok `/`). KPI kartlari
 (win rate, toplam R, acik sinyal, giris isabeti), equity egrisi, karar hatti
 hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,

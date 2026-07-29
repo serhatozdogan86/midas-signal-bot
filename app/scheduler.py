@@ -24,7 +24,7 @@ from app.logging_setup import kv
 from app.models.decision import Decision, DecisionType, MarketRegime
 from app.services.earnings_service import EarningsService
 from app.services.market_calendar import MarketCalendar
-from app.services import market_report
+from app.services import market_report, premarket_watch
 from app.services.market_data_service import MarketDataService
 from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
@@ -59,12 +59,14 @@ class Scheduler:
         self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
         self._eod_date: date | None = None
+        self._gap_watch_date: date | None = None
         self._regime = RegimeResult(regime=MarketRegime.UNKNOWN, detail="not computed")
         self._watchlist: list[dict] = []
         self._signals_today: list[str] = []
         self.last_scan_info: dict = {}
         self.last_prep_info: dict = {}
         self.last_market_note: str = ""
+        self.last_gap_watch: dict = {}
 
     # ------------------------------------------------------------- disari API
     @property
@@ -105,6 +107,11 @@ class Scheduler:
 
         if now_et >= prep_dt and self._prep_date != today:
             self.run_prep(today)
+        watch_dt = open_dt - timedelta(minutes=self._settings.PREMARKET_LEAD_MIN)
+        if (self._settings.PREMARKET_WATCH and self._prep_date == today
+                and watch_dt <= now_et < open_dt
+                and self._gap_watch_date != today):
+            self.run_gap_watch(today)
         if open_dt <= now_et < close_dt:
             if time.time() - self._last_coarse >= self._settings.COARSE_SCAN_INTERVAL_SEC:
                 self.run_coarse_scan(send_telegram=True)
@@ -303,6 +310,54 @@ class Scheduler:
             watch.append({"symbol": d.symbol, "state": "CANDIDATE",
                           "blocked_by": d.failed_filters[0],
                           "trend": d.trend_bias.value})
+
+    # ------------------------------------------------- acilis oncesi gap nobeti
+    def run_gap_watch(self, today: date) -> None:
+        """Acik pozisyonlar + guclu adaylar icin pre-market quote kontrolu.
+        Sinyal URETMEZ; yalnizca gap istihbarati (onayli plan eki)."""
+        self._gap_watch_date = today
+        if self._tracker is None:
+            return
+        try:
+            open_signals = [s for s in self._tracker.recent_signals(100)
+                            if s.get("status") != "CLOSED"]
+            candidates = [w["symbol"] for w in self._watchlist
+                          if w.get("state") == "CANDIDATE"]
+            pos_syms = [s["symbol"] for s in open_signals]
+            budget = self._settings.PREMARKET_MAX_SYMBOLS
+            symbols = list(dict.fromkeys(
+                pos_syms + candidates))[:budget]
+            candidates = [s for s in symbols if s not in pos_syms]
+            if not symbols:
+                log.info(kv(event="gap_watch_skip", reason="izlenecek sembol yok"))
+                return
+
+            quotes: dict[str, float] = {}
+            for symbol in symbols:
+                q = self._md.get_quote(symbol)
+                if q is not None:
+                    quotes[symbol] = q
+            daily = self._get_daily_cached(symbols, today)
+            prev_closes = {s: daily[s].candles[-1].close
+                           for s in symbols if s in daily and len(daily[s])}
+
+            report = premarket_watch.build_gap_report(
+                open_signals, candidates, quotes, prev_closes,
+                self._settings.PREMARKET_GAP_ALERT_PCT)
+            self.last_gap_watch = {
+                "date": today.isoformat(), "checked": report["checked"],
+                "quotes_received": len(quotes),
+                "position_alerts": len(report["position_alerts"]),
+                "candidate_alerts": len(report["candidate_alerts"])}
+            text = premarket_watch.render_gap_report(report)
+            if text:
+                self._send(text)
+            log.info(kv(event="gap_watch_done", symbols=len(symbols),
+                        quotes=len(quotes),
+                        alerts=len(report["position_alerts"])
+                        + len(report["candidate_alerts"])))
+        except Exception:
+            log.exception(kv(event="gap_watch_error"))
 
     # ---------------------------------------------------------- gun sonu ozeti
     def run_eod(self, today: date) -> None:

@@ -132,6 +132,12 @@ class Settings(BaseSettings):
     GIST_CANDLE_MODE: str = "signals"      # signals | all | off
     GIST_CANDLE_MAX_ROWS: int = 3000
 
+    # Acilis oncesi gap nobeti (onayli plan eki 2026-07-29)
+    PREMARKET_WATCH: bool = True
+    PREMARKET_LEAD_MIN: int = 30       # acilis - N dk'da kontrol penceresi baslar
+    PREMARKET_GAP_ALERT_PCT: float = 3.0
+    PREMARKET_MAX_SYMBOLS: int = 20    # Finnhub 60/dk limitine saygi
+
     # Otomatik degerlendirme (commentary)
     COMMENT_INTERVAL_SEC: int = 3600
 

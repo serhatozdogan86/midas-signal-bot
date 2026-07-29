@@ -55,6 +55,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
                 diag["shadow"] = None
         diag["gist"] = gist_backup.info() if gist_backup is not None else None
         diag["market_note"] = scheduler.last_market_note
+        diag["gap_watch"] = scheduler.last_gap_watch
         diag["commentary_latest"] = (commentary.latest()
                                      if commentary is not None else None)
         return diag
