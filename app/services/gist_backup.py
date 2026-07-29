@@ -61,10 +61,11 @@ class GistBackup:
     def __init__(self, client: GistClient, tracker: SignalTracker,
                  sync_interval_sec: int = 3600, pinned_gist_id: str = "",
                  candle_mode: str = "signals", candle_max_rows: int = 3000,
-                 meta_provider=None) -> None:
+                 meta_provider=None, commentary_provider=None) -> None:
         self._client = client
         self._tracker = tracker
         self._meta = meta_provider or (lambda: {})   # rejim/evren/izleme listesi
+        self._commentary = commentary_provider       # None -> yorum dosyasi yazilmaz
         self._candle_mode = candle_mode              # signals | all | off
         self._candle_max_rows = candle_max_rows
         self._interval = sync_interval_sec
@@ -97,6 +98,12 @@ class GistBackup:
                           "Shadow-tracking stats and backtest dataset for US stocks "
                           "listed on Midas. Managed by the bot - do not edit manually.\n"),
         }
+        if self._commentary is not None:
+            try:
+                files["0_commentary.json"] = json.dumps(
+                    self._commentary(), indent=2)
+            except Exception:
+                log.exception(kv(event="gist_commentary_error"))
         if self._candle_mode == "off":
             return files
         symbols = (self._tracker.signal_symbols() if self._candle_mode == "signals"

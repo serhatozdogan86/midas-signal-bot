@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     GIST_CANDLE_MODE: str = "signals"      # signals | all | off
     GIST_CANDLE_MAX_ROWS: int = 3000
 
+    # Otomatik degerlendirme (commentary)
+    COMMENT_INTERVAL_SEC: int = 3600
+
     # Golge takip (shadow tracking - sessiz performans muhasebesi)
     SHADOW_TRACKING: bool = True
     FILL_WINDOW_BARS: int = 14             # girise gelmesi beklenen sure (~2 seans, 1h bar)

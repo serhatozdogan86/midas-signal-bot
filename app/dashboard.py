@@ -152,6 +152,14 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div id="dir" class="muted">-</div>
       </div>
       <div class="card">
+        <h2>Piyasa notu (gunluk)</h2>
+        <div id="mnote" class="muted" style="white-space:pre-wrap;font-size:12px">-</div>
+      </div>
+      <div class="card">
+        <h2>Bot degerlendirmesi <span class="b grey">kural tabanli</span></h2>
+        <div id="cmt" class="muted" style="white-space:pre-wrap;font-size:12px">-</div>
+      </div>
+      <div class="card">
         <h2>Metodoloji</h2>
         <div class="muted" style="font-size:11.5px">
           Golge muhasebe: girise gelmesi ~2 seans beklenir; dolarsa ~4 seans
@@ -173,9 +181,9 @@ function kpi(l,v,cls){return `<div class="card kpi ${cls||''}">
   <div class="v">${v}</div><div class="l">${l}</div></div>`}
 
 async function loadAll(){
-  const [perf,sigs,status,watch,regime,backup,uni]=await Promise.all([
+  const [perf,sigs,status,watch,regime,backup,uni,dg]=await Promise.all([
     j('/performance'),j('/signals?limit=300'),j('/status'),j('/watchlist'),
-    j('/regime'),j('/backup/info'),j('/universe')]);
+    j('/regime'),j('/backup/info'),j('/universe'),j('/diag')]);
   document.getElementById('dot').className='dot'+(status?'':' err');
 
   // header
@@ -246,6 +254,16 @@ async function loadAll(){
       watch.map(w=>`<span class="b ${w.state==='SIGNAL'?'win':'grey'}"
         title="${w.blocked_by||''}">${w.symbol}</span>`).join('')
       :'<span class="muted">bos</span>';
+  }
+
+  // piyasa notu + bot degerlendirmesi
+  if(dg){
+    document.getElementById('mnote').textContent =
+      dg.market_note || 'Hazirlik taramasiyla olusur (15:45 TR).';
+    const c = dg.commentary_latest;
+    document.getElementById('cmt').textContent =
+      c ? `[${(c.ts_utc||'').slice(0,16).replace('T',' ')} UTC]\n${c.text}`
+        : 'Ilk degerlendirme seans icinde uretilir.';
   }
 
   // signals + equity

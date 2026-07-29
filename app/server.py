@@ -20,7 +20,7 @@ from app.services.universe import UniverseProvider
 
 def create_app(store: StateStore, scheduler: Scheduler,
                universe: UniverseProvider, tracker=None,
-               gist_backup=None) -> Flask:
+               gist_backup=None, commentary=None) -> Flask:
     app = Flask(__name__)
 
     def _build_diag() -> dict:
@@ -54,6 +54,9 @@ def create_app(store: StateStore, scheduler: Scheduler,
             except Exception:
                 diag["shadow"] = None
         diag["gist"] = gist_backup.info() if gist_backup is not None else None
+        diag["market_note"] = scheduler.last_market_note
+        diag["commentary_latest"] = (commentary.latest()
+                                     if commentary is not None else None)
         return diag
 
     @app.get("/")
@@ -111,6 +114,14 @@ def create_app(store: StateStore, scheduler: Scheduler,
         limit = int(request.args.get("limit", "100"))
         return app.response_class(
             json.dumps(tracker.recent_signals(limit), indent=2),
+            mimetype="application/json")
+
+    @app.get("/commentary")
+    def commentary_list():
+        if commentary is None:
+            return jsonify({"error": "commentary disabled"}), 404
+        return app.response_class(
+            json.dumps(commentary.recent(10), indent=2),
             mimetype="application/json")
 
     # --------------------------------------------- gist yedekleme (Faz 3)

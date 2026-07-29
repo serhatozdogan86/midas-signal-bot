@@ -110,6 +110,18 @@ kaynagina `<script id="server-diag">` blogu olarak gomulur. Boylece Render log
 konsoluna girmeden TEK URL'den (kok sayfa) botun sagligi okunabilir: son tarama
 suresi/sayilari, rejim, evren, golge istatistik, gist durumu, son uyarilar.
 
+**Gunluk piyasa notu (market_report):** Hazirlikta (15:45 TR) gunluk verilerden
+uretilir - SPY/QQQ degisimi, genislik (50G MA ustu oran), RS liderleri/zayiflari,
+bilanco blackout sayisi, rejime gore gun plani. Telegram hazirlik mesajina,
+dashboard'a ve /diag'a gider. Dis kaynak yok; saf fonksiyon, offline test edilir.
+
+**Otomatik degerlendirme (commentary):** bybit botundaki CommentaryService'in
+ABD uyarlamasi. Seans icinde saatte bir + gun sonunda kural tabanli oz-degerlendirme
+uretir: basabas konumu, yon bilancosu (rejim baglamli), giris isabeti, gap
+kaynakli derin kayip uyarisi, time-stop orani, orneklem uyarisi. LLM cagrisi
+yoktur; dashboard'da "kural tabanli" olarak etiketlenir. Gun sonu Telegram
+mesajina eklenir, gist'e 0_commentary.json olarak yazilir, /commentary ucundan okunur.
+
 **Dashboard:** `https://<servis>/dashboard` (veya kok `/`). KPI kartlari
 (win rate, toplam R, acik sinyal, giris isabeti), equity egrisi, karar hatti
 hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,

@@ -1,0 +1,12 @@
+# Ortam / sirlar - ASLA commit edilmez
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Calisma zamani verisi
+data/bot.db
+data/universe_cache.json

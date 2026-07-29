@@ -24,6 +24,7 @@ from app.logging_setup import kv
 from app.models.decision import Decision, DecisionType, MarketRegime
 from app.services.earnings_service import EarningsService
 from app.services.market_calendar import MarketCalendar
+from app.services import market_report
 from app.services.market_data_service import MarketDataService
 from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
@@ -40,7 +41,7 @@ class Scheduler:
                  universe: UniverseProvider, earnings: EarningsService,
                  calendar: MarketCalendar, store: StateStore,
                  notifier: TelegramNotifier, tracker=None,
-                 gist_backup=None) -> None:
+                 gist_backup=None, commentary=None) -> None:
         self._settings = settings
         self._md = market_data
         self._universe = universe
@@ -50,6 +51,7 @@ class Scheduler:
         self._notifier = notifier
         self._tracker = tracker      # None -> golge takip kapali
         self._gist = gist_backup     # None -> gist yedekleme kapali
+        self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
@@ -62,6 +64,7 @@ class Scheduler:
         self._signals_today: list[str] = []
         self.last_scan_info: dict = {}
         self.last_prep_info: dict = {}
+        self.last_market_note: str = ""
 
     # ------------------------------------------------------------- disari API
     @property
@@ -116,19 +119,46 @@ class Scheduler:
         self._signals_today = []
         symbols = self._universe.refresh(force=True)
         self._earnings.refresh(today, force=True)
-        self._regime = self._compute_regime()
+
+        # Gunluk cache'i simdiden isit: rejim + piyasa notu buradan cikar,
+        # seans acilisindaki ilk kaba tarama da hazir veriyle baslar.
+        fetch_list = symbols + [s for s in self._settings.regime_symbols
+                                if s not in symbols]
+        if _BENCH not in fetch_list:
+            fetch_list.append(_BENCH)
+        daily = self._get_daily_cached(fetch_list, today)
+        idx = self._settings.regime_symbols
+        spy_df = daily.get(idx[0]).to_dataframe() if idx and idx[0] in daily else None
+        qqq_df = (daily.get(idx[1]).to_dataframe()
+                  if len(idx) > 1 and idx[1] in daily else None)
+        self._regime = classify_market_regime(spy_df, qqq_df)
+
+        try:
+            blackout = sum(
+                1 for s in symbols
+                if (info := self._earnings.info(s, today)).days_to is not None
+                and abs(info.days_to) <= self._params.earnings_blackout_days)
+            snap = market_report.build_market_snapshot(
+                daily, symbols, self._regime.regime.value,
+                earnings_blackout_count=blackout)
+            self.last_market_note = market_report.render_market_note(snap)
+        except Exception:
+            log.exception(kv(event="market_note_error"))
+            self.last_market_note = ""
         self.last_prep_info = {"date": today.isoformat(),
                                "universe": len(symbols),
                                "regime": self._regime.regime.value}
         log.info(kv(event="prep_done", universe=len(symbols),
                     regime=self._regime.regime.value))
         if self._settings.SEND_PREP_SUMMARY:
+            note = f"\n\n{self.last_market_note}" if self.last_market_note else ""
             self._send(
                 f"Hazirlik tamam ({today.isoformat()})\n"
                 f"Evren: {len(symbols)} sembol (likidite filtreli)\n"
                 f"Rejim: {self._regime.regime.value} ({self._regime.detail})\n"
                 f"Kaba tarama seans acilisiyla baslar "
                 f"({self._settings.COARSE_SCAN_INTERVAL_SEC // 60} dk aralik)."
+                f"{note}"
             )
 
     def _compute_regime(self) -> RegimeResult:
@@ -250,6 +280,8 @@ class Scheduler:
             "daily_cached": len(daily),
             "watchlist": len(watch),
         }
+        if self._commentary is not None:
+            self._commentary.maybe_generate(self._regime.regime.value)
         if self._gist is not None:
             self._gist.maybe_sync()
         log.info(kv(event="coarse_scan_done", scanned=len(results),
@@ -287,6 +319,13 @@ class Scheduler:
                                f"WR {wr} | Toplam {st['total_r_multiple']:+.2f}R\n")
             except Exception:
                 log.exception(kv(event="eod_stats_error"))
+        eod_comment = ""
+        if self._commentary is not None:
+            try:
+                row = self._commentary.generate(self._regime.regime.value)
+                eod_comment = f"\n\nBot degerlendirmesi:\n{row['text']}"
+            except Exception:
+                log.exception(kv(event="eod_commentary_error"))
         if self._settings.SEND_EOD_SUMMARY:
             self._send(
                 f"Gun sonu ozeti ({today.isoformat()})\n"
@@ -296,6 +335,7 @@ class Scheduler:
                 f"{shadow_line}"
                 f"Yarin izlenecekler ({len(self._watchlist)}): {watch_txt}\n"
                 f"Acik pozisyonlarda time-stop kuralini unutmayin."
+                f"{eod_comment}"
             )
         if self._gist is not None:
             try:

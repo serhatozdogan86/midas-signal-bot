@@ -191,3 +191,68 @@ def test_coarse_scan_with_tracker_and_gist(tmp_path):
     assert len(tracker.recent_decisions(9)) == 4      # 2 sembol x 2 tarama
     assert tracker.candles_count() > 0                # 1h + 1d arsivlendi
     assert len(gist_client.store) == 1                # gist olustu ve sync oldu
+
+
+def test_run_prep_produces_market_note_and_warms_cache(tmp_path):
+    """Hazirlik: evren + gunluk cache isitma + piyasa notu + Telegram ozeti."""
+    from app.models.decision import EarningsInfo
+    from app.services.commentary import CommentaryService
+    from app.services.database import Database
+    from app.services.signal_tracker import SignalTracker
+    from tests import fixtures as fx
+
+    hourly_pb = fx.make_series(fx.hourly_pullback_long_closes(),
+                               volumes=fx.spike_volumes(110))
+
+    class FakeMD:
+        def __init__(self):
+            self.daily_calls = 0
+
+        def get_daily_bulk(self, symbols, period=None):
+            self.daily_calls += 1
+            return {s: fx.make_series(fx.daily_uptrend_closes(), symbol=s,
+                                      interval="1d", spread=0.02)
+                    for s in symbols}
+
+        def get_hourly_bulk(self, symbols):
+            return {s: hourly_pb for s in symbols}
+
+    class FakeUniverse:
+        def refresh(self, force=False):
+            return ["AAPL"]
+
+        def get_symbols(self):
+            return ["AAPL"]
+
+        def describe(self):
+            return {"filtered_count": 1}
+
+    class FakeEarnings:
+        def refresh(self, today, force=False):
+            pass
+
+        def info(self, symbol, today):
+            return EarningsInfo(next_date="2026-08-20", days_to=8)
+
+    db = Database(str(tmp_path / "p.db"))
+    tracker = SignalTracker(db, "1h")
+    commentary = CommentaryService(db, tracker)
+    settings = Settings(TELEGRAM_ENABLED=True, STATE_BACKEND="memory")
+    notifier = FakeNotifier()
+    sched = Scheduler(settings, FakeMD(), FakeUniverse(), FakeEarnings(),
+                      MarketCalendar(), InMemoryStateStore(), notifier,
+                      tracker, None, commentary)
+
+    today = sched._calendar.now_et().date()
+    sched.run_prep(today)
+
+    assert sched.last_market_note                     # piyasa notu uretildi
+    assert "Gunluk piyasa notu" in sched.last_market_note
+    prep_msgs = [m for m in notifier.sent if "Hazirlik tamam" in m]
+    assert prep_msgs and "Gunluk piyasa notu" in prep_msgs[0]
+    daily_calls_after_prep = sched._md.daily_calls
+    assert daily_calls_after_prep >= 1
+
+    # ayni gun kaba tarama: gunluk cache'ten okur, yeniden indirmez
+    sched.run_coarse_scan(send_telegram=False)
+    assert sched._md.daily_calls == daily_calls_after_prep

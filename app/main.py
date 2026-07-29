@@ -23,6 +23,7 @@ from app.logging_setup import kv, setup_logging
 from app.scheduler import Scheduler
 from app.server import create_app
 from app.services.database import Database
+from app.services.commentary import CommentaryService
 from app.services.earnings_service import EarningsService
 from app.services.gist_backup import GistBackup
 from app.services.market_calendar import MarketCalendar
@@ -75,6 +76,12 @@ def main() -> None:
                                 settings.FILL_WINDOW_BARS,
                                 settings.MAX_TRACK_BARS)
 
+    # --- otomatik degerlendirme (bybit botundaki commentary uyarlamasi) ---
+    commentary = None
+    if tracker is not None:
+        commentary = CommentaryService(db, tracker,
+                                       settings.COMMENT_INTERVAL_SEC)
+
     # --- gist yedekleme: botun kendi kayit tutma mekanizmasi ---
     gist_backup = None
     if settings.GIST_SYNC and settings.GITHUB_TOKEN and tracker is not None:
@@ -84,7 +91,8 @@ def main() -> None:
             pinned_gist_id=settings.GIST_ID,
             candle_mode=settings.GIST_CANDLE_MODE,
             candle_max_rows=settings.GIST_CANDLE_MAX_ROWS,
-            meta_provider=lambda: {"universe": universe.describe()})
+            meta_provider=lambda: {"universe": universe.describe()},
+            commentary_provider=(commentary.recent if commentary else None))
         try:
             gist_backup.restore_if_empty()  # redeploy sonrasi self-healing
         except Exception:
@@ -94,8 +102,10 @@ def main() -> None:
                        note="GITHUB_TOKEN yok; yedekleme kapali, veri restart'ta silinir"))
 
     scheduler = Scheduler(settings, market_data, universe, earnings,
-                          calendar, store, notifier, tracker, gist_backup)
-    app = create_app(store, scheduler, universe, tracker, gist_backup)
+                          calendar, store, notifier, tracker, gist_backup,
+                          commentary)
+    app = create_app(store, scheduler, universe, tracker, gist_backup,
+                     commentary)
 
     scheduler.start_background()
     port = int(os.getenv("PORT", "10000"))
