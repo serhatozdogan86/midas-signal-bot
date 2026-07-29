@@ -1,0 +1,97 @@
+"""
+NewsService - islem gorulen/izlenen hisselerin haber akisi (dashboard beslemesi).
+
+Kaynak: Finnhub ucretsiz plan - /news (genel piyasa) + /company-news (sembol).
+Butce: tur basina 1 genel + en cok NEWS_MAX_SYMBOLS sirket cagrisi (60/dk
+limitinin cok altinda). Semboller donel (rotasyon) taranir ki genis izleme
+listesi zamanla tam kapsansin. Basliklar dis kaynaktan AYNEN aktarilir ve
+dashboard'da boyle etiketlenir; bot haber yorumlamaz (Faz 4+ konusu).
+
+Bellek ici cache: id/url ile tekrarsizlastirilir, zamana gore sirali son
+NEWS_KEEP kayit tutulur. Restart'ta sifirlanir (haber gecici veridir,
+gist'e yazilmaz).
+"""
+from __future__ import annotations
+
+import logging
+import time
+from datetime import date, timedelta
+
+from app.logging_setup import kv
+
+log = logging.getLogger("news")
+
+
+class NewsService:
+    def __init__(self, finnhub, refresh_sec: int = 600,
+                 max_symbols: int = 8, keep: int = 60) -> None:
+        self._fh = finnhub
+        self._interval = refresh_sec
+        self._max_symbols = max_symbols
+        self._keep = keep
+        self._items: list[dict] = []
+        self._seen: set = set()
+        self._offset = 0
+        self._last = 0.0
+        self.last_refresh_utc: str | None = None
+
+    # ------------------------------------------------------------- refresh
+    def maybe_refresh(self, symbols: list[str], today: date) -> None:
+        if time.time() - self._last < self._interval:
+            return
+        self._last = time.time()
+        try:
+            self.refresh(symbols, today)
+        except Exception:
+            log.exception(kv(event="news_refresh_error"))
+
+    def refresh(self, symbols: list[str], today: date) -> int:
+        added = 0
+        for item in self._fh.get_general_news():
+            added += self._add(item, symbol=None)
+
+        picked: list[str] = []
+        if symbols:
+            uniq = list(dict.fromkeys(symbols))
+            # rotasyon: her turda farkli dilim -> genis liste zamanla kapsanir
+            start = self._offset % len(uniq)
+            picked = (uniq[start:] + uniq[:start])[: self._max_symbols]
+            self._offset += self._max_symbols
+            date_from = (today - timedelta(days=3)).isoformat()
+            for symbol in picked:
+                for item in self._fh.get_company_news(
+                        symbol, date_from, today.isoformat()):
+                    added += self._add(item, symbol=symbol)
+
+        self._items.sort(key=lambda x: x["datetime"], reverse=True)
+        del self._items[self._keep:]
+        self.last_refresh_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                              time.gmtime())
+        log.info(kv(event="news_refresh", added=added,
+                    total=len(self._items), symbols=len(picked)))
+        return added
+
+    def _add(self, raw: dict, symbol: str | None) -> int:
+        key = raw.get("id") or raw.get("url")
+        headline = (raw.get("headline") or "").strip()
+        if not key or key in self._seen or not headline:
+            return 0
+        self._seen.add(key)
+        if len(self._seen) > self._keep * 20:
+            self._seen = {i.get("id") or i.get("url") for i in self._items}
+        self._items.append({
+            "datetime": int(raw.get("datetime") or 0),
+            "symbol": symbol or (raw.get("related") or "").split(",")[0] or None,
+            "headline": headline[:200],
+            "source": (raw.get("source") or "")[:40],
+            "url": raw.get("url") or "",
+        })
+        return 1
+
+    # --------------------------------------------------------------- query
+    def items(self, limit: int = 40) -> list[dict]:
+        return self._items[:limit]
+
+    def info(self) -> dict:
+        return {"count": len(self._items),
+                "last_refresh_utc": self.last_refresh_utc}

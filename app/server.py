@@ -20,7 +20,7 @@ from app.services.universe import UniverseProvider
 
 def create_app(store: StateStore, scheduler: Scheduler,
                universe: UniverseProvider, tracker=None,
-               gist_backup=None, commentary=None) -> Flask:
+               gist_backup=None, commentary=None, news=None) -> Flask:
     app = Flask(__name__)
 
     def _build_diag() -> dict:
@@ -56,6 +56,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
         diag["gist"] = gist_backup.info() if gist_backup is not None else None
         diag["market_note"] = scheduler.last_market_note
         diag["gap_watch"] = scheduler.last_gap_watch
+        diag["news"] = news.info() if news is not None else None
         diag["commentary_latest"] = (commentary.latest()
                                      if commentary is not None else None)
         return diag
@@ -116,6 +117,14 @@ def create_app(store: StateStore, scheduler: Scheduler,
         return app.response_class(
             json.dumps(tracker.recent_signals(limit), indent=2),
             mimetype="application/json")
+
+    @app.get("/news")
+    def news_feed():
+        if news is None:
+            return jsonify({"error": "news disabled (FINNHUB_API_KEY not set)"}), 404
+        return app.response_class(
+            json.dumps({"info": news.info(), "items": news.items(40)},
+                       indent=2), mimetype="application/json")
 
     @app.get("/commentary")
     def commentary_list():

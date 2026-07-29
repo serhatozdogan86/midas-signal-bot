@@ -57,6 +57,19 @@ class FinnhubClient:
         price = body.get("c")
         return float(price) if price else None
 
+    def get_company_news(self, symbol: str, date_from: str,
+                         date_to: str) -> list[dict]:
+        """Sirket haberleri (ucretsiz planda ABD hisseleri icin acik).
+        [{'datetime': unix, 'headline': .., 'source': .., 'url': .., ...}]"""
+        body = self._get("/company-news", {"symbol": symbol.upper(),
+                                           "from": date_from, "to": date_to})
+        return list(body) if isinstance(body, list) else []
+
+    def get_general_news(self, category: str = "general") -> list[dict]:
+        """Genel piyasa haberleri."""
+        body = self._get("/news", {"category": category})
+        return list(body) if isinstance(body, list) else []
+
     def get_earnings_calendar(self, date_from: str, date_to: str) -> list[dict]:
         """[{'date': 'YYYY-MM-DD', 'symbol': 'AAPL', ...}, ...]"""
         body = self._get("/calendar/earnings", {"from": date_from, "to": date_to})

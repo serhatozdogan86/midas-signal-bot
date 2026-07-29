@@ -132,7 +132,18 @@ sessiz kalir. (Midas uzatilmis islem saatleri: 11:00-16:30 / 23:00-03:00 TR,
 limit emir.) Finnhub free planin pre-market tazeligi ilk gunlerde loglardan
 dogrulanacak; yetersizse yfinance yedegine gecilir.
 
-**Dashboard:** `https://<servis>/dashboard` (veya kok `/`). KPI kartlari
+**Dashboard (v2, koyu tema):** `https://<servis>/dashboard` (veya kok `/`).
+bybit-signal-bot dashboard duzeninin ABD uyarlamasi: strateji sozlesmesi karti,
+tiklanabilir filtre boru hatti (asama -> elenen semboller), portfoy simulasyonu
+(golge-bilesik: baslangic $ + risk %), WIN/LOSS noktali equity egrisi, yon
+bilancosu (tikla -> tablo filtresi), satir-tikla sinyal detay modali, piyasa
+nabzi, kural tabanli degerlendirme, "Nasil okunur?" egitimi ve HABER AKISI.
+
+**Haber akisi (NewsService):** Finnhub genel piyasa haberleri + izlenen
+hisselerin (acik pozisyon + gunun sinyalleri + izleme listesi, rotasyonla)
+sirket haberleri; 10 dk'da bir sunucu tarafinda tazelenir, dashboard 30sn-5dk
+secilebilir aralikla ceker. Basliklar dis kaynaktan aynen aktarilir; bot haber
+YORUMLAMAZ ve haberi sinyal kararlarina KATMAZ (olasi Faz 4+ konusu). KPI kartlari
 (win rate, toplam R, acik sinyal, giris isabeti), equity egrisi, karar hatti
 hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,
 izleme listesi ve gist durumu. 60 sn'de bir kendini yeniler.

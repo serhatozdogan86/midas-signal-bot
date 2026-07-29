@@ -41,7 +41,7 @@ class Scheduler:
                  universe: UniverseProvider, earnings: EarningsService,
                  calendar: MarketCalendar, store: StateStore,
                  notifier: TelegramNotifier, tracker=None,
-                 gist_backup=None, commentary=None) -> None:
+                 gist_backup=None, commentary=None, news=None) -> None:
         self._settings = settings
         self._md = market_data
         self._universe = universe
@@ -52,6 +52,7 @@ class Scheduler:
         self._tracker = tracker      # None -> golge takip kapali
         self._gist = gist_backup     # None -> gist yedekleme kapali
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
+        self._news = news              # None -> haber akisi kapali
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
@@ -98,6 +99,8 @@ class Scheduler:
         """Tek zamanlayici adimi - test edilebilirlik icin now enjekte edilebilir."""
         now_et = now_et or self._calendar.now_et()
         today = now_et.date()
+        if self._news is not None:
+            self._news.maybe_refresh(self._news_symbols(), today)
         session = self._calendar.session_times(today)
         if session is None:
             return  # hafta sonu / tatil: uyu
@@ -310,6 +313,21 @@ class Scheduler:
             watch.append({"symbol": d.symbol, "state": "CANDIDATE",
                           "blocked_by": d.failed_filters[0],
                           "trend": d.trend_bias.value})
+
+    def _news_symbols(self) -> list[str]:
+        """Haber akisi kapsami: acik golge pozisyonlar + bugunun sinyalleri
+        + izleme listesi adaylari (rotasyonla taranir)."""
+        symbols: list[str] = []
+        if self._tracker is not None:
+            try:
+                symbols += [s["symbol"] for s in
+                            self._tracker.recent_signals(50)
+                            if s.get("status") != "CLOSED"]
+            except Exception:
+                pass
+        symbols += [t.split(" ")[0] for t in self._signals_today]
+        symbols += [w["symbol"] for w in self._watchlist]
+        return list(dict.fromkeys(symbols))
 
     # ------------------------------------------------- acilis oncesi gap nobeti
     def run_gap_watch(self, today: date) -> None:

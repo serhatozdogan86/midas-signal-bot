@@ -27,6 +27,7 @@ from app.services.commentary import CommentaryService
 from app.services.earnings_service import EarningsService
 from app.services.gist_backup import GistBackup
 from app.services.market_calendar import MarketCalendar
+from app.services.news_service import NewsService
 from app.services.market_data_service import MarketDataService
 from app.services.signal_tracker import SignalTracker
 from app.services.sqlite_state_store import SQLiteStateStore
@@ -76,6 +77,12 @@ def main() -> None:
                                 settings.FILL_WINDOW_BARS,
                                 settings.MAX_TRACK_BARS)
 
+    # --- haber akisi (dashboard beslemesi; Finnhub gerektirir) ---
+    news = None
+    if settings.FINNHUB_API_KEY:
+        news = NewsService(finnhub, settings.NEWS_REFRESH_SEC,
+                           settings.NEWS_MAX_SYMBOLS, settings.NEWS_KEEP)
+
     # --- otomatik degerlendirme (bybit botundaki commentary uyarlamasi) ---
     commentary = None
     if tracker is not None:
@@ -103,9 +110,9 @@ def main() -> None:
 
     scheduler = Scheduler(settings, market_data, universe, earnings,
                           calendar, store, notifier, tracker, gist_backup,
-                          commentary)
+                          commentary, news)
     app = create_app(store, scheduler, universe, tracker, gist_backup,
-                     commentary)
+                     commentary, news)
 
     scheduler.start_background()
     port = int(os.getenv("PORT", "10000"))

@@ -31,6 +31,29 @@ def test_dashboard_served(tmp_path):
         r = c.get(path)
         assert r.status_code == 200
         assert b"midas" in r.data and b"Equity" in r.data
+        assert b"--bg:#141110" in r.data                 # koyu tema
+        assert b"Haber Akisi" in r.data                  # haber paneli
+        assert b"Portfoy Simulasyonu" in r.data
+        assert b"Nasil okunur?" in r.data
+
+
+def test_news_endpoint(tmp_path):
+    from datetime import date
+    from app.services.news_service import NewsService
+    from tests.test_news_service import FakeFinnhubNews
+
+    news = NewsService(FakeFinnhubNews(), refresh_sec=0)
+    news.refresh(["AAPL"], date(2026, 7, 29))
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory")
+    store = InMemoryStateStore()
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      store, _NoopNotifier(), None, None, None, news)
+    app = create_app(store, sched, universe=None, news=news)
+    c = app.test_client()
+    body = c.get("/news").get_json()
+    assert body["info"]["count"] >= 3
+    assert any(i["symbol"] == "AAPL" for i in body["items"])
+    assert c.get("/diag").get_json()["news"]["count"] >= 3
 
 
 def test_performance_and_signals_with_tracker(tmp_path):

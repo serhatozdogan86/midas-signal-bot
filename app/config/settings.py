@@ -138,6 +138,11 @@ class Settings(BaseSettings):
     PREMARKET_GAP_ALERT_PCT: float = 3.0
     PREMARKET_MAX_SYMBOLS: int = 20    # Finnhub 60/dk limitine saygi
 
+    # Haber akisi (dashboard)
+    NEWS_REFRESH_SEC: int = 600        # 10 dk'da bir tazele
+    NEWS_MAX_SYMBOLS: int = 8          # tur basina sirket-haberi cagri butcesi
+    NEWS_KEEP: int = 60                # bellekte tutulan haber sayisi
+
     # Otomatik degerlendirme (commentary)
     COMMENT_INTERVAL_SEC: int = 3600
 
