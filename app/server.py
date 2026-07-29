@@ -107,9 +107,14 @@ def create_app(store: StateStore, scheduler: Scheduler,
             f' | log: <a href="{request.host_url.rstrip("/")}/dx">'
             f'{request.host_url.rstrip("/")}/dx</a>')
         payload = json.dumps(diag, ensure_ascii=True).replace("</", "<\\/")
-        html = DASHBOARD_HTML.replace(
+        tape = f'<div class="tape">{status_line}</div>'
+        html = DASHBOARD_HTML
+        if "<!--TAPE-->" in html:               # v3: durum bandi tepede yasar
+            html = html.replace("<!--TAPE-->", tape)
+        else:                                   # eski sablon yedegi
+            html = html.replace("</body>", tape + "</body>")
+        html = html.replace(
             "</body>",
-            f'<div class="foot">{status_line}</div>'
             f'<script type="application/json" id="server-diag">{payload}</script>'
             f"</body>")
         return app.response_class(html, mimetype="text/html")

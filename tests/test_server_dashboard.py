@@ -30,8 +30,8 @@ def test_dashboard_served(tmp_path):
     for path in ("/", "/dashboard"):
         r = c.get(path)
         assert r.status_code == 200
-        assert b"midas" in r.data and b"Equity" in r.data
-        assert b"--bg:#141110" in r.data                 # koyu tema
+        assert b"MIDAS" in r.data and b"Equity" in r.data
+        assert b"--ink0:#0B0E14" in r.data               # terminal palet
         assert b"Haber Akisi" in r.data                  # haber paneli
         assert b"Portfoy Simulasyonu" in r.data
         assert b"Nasil okunur?" in r.data
@@ -39,7 +39,7 @@ def test_dashboard_served(tmp_path):
         assert b"Takvim Seridi" in r.data
         assert b"Gap Nobeti" in r.data
         assert b"Pozisyon buyuklugu" in r.data
-        assert b"JetBrains+Mono" in r.data           # terminal tipografi
+        assert b"IBM+Plex+Mono" in r.data            # terminal tipografi
         assert b"data-tip" in r.data                 # tooltip sistemi
         assert b"STAGE_TIPS" in r.data               # boru hatti aciklamalari
         assert b'id="simSlot"' in r.data            # kapasite modu (INPUT olarak!)
@@ -97,6 +97,14 @@ def test_progress_surfaces_in_diag(tmp_path):
     assert c.get("/diag").get_json()["progress"] == ""
 
 
+def test_tape_injected_at_top(tmp_path):
+    """v3: DURUM OZETI artik tepedeki altin durum bandinda yasar."""
+    c = _client(tmp_path)
+    body = c.get("/").get_data(as_text=True)
+    assert '<div class="tape">DURUM OZETI ::' in body
+    assert body.index('class="tape"') < body.index('class="wrap"')
+
+
 def test_dx_plaintext_diag(tmp_path):
     import logging
     from app.logging_setup import get_ring_buffer
@@ -108,7 +116,7 @@ def test_dx_plaintext_diag(tmp_path):
     assert "ornek hata kaydi" in body
     r = c.get("/")
     assert b"/dx</a>" in r.data                    # kesif linki
-    assert b"arayuz v2.3" in r.data                # surum damgasi
+    assert b"TERMINAL v3.0" in r.data              # surum damgasi
     assert b"window.onerror" in r.data             # hata bandi
     assert b"edge-cache atlatici" in r.data        # cache-buster
 
