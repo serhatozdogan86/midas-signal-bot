@@ -62,6 +62,20 @@ curl localhost:10000/watchlist   # gec asamada takilan adaylar (Faz 2 girdisi)
 4. Free planda disk ephemeral'dir: cooldown restart'ta sifirlanir.
    Kalicilik icin paid disk veya Faz 3 Gist yedeklemesi.
 
+## v2.2: bybit v3.x paritesi (kullanicinin bybit guncellemelerinin portu)
+- **RR tavani 6.0** (RISK_REWARD_MAX): asiri dar stop'tan dogan "fantezi RR"
+  planlari reddedilir (bybit golge verisi dersi)
+- **Orphan sinyal degerlendirme** ("IONQ vakasi"): evren/likidite filtresinden
+  dusen sembollerin acik golge sinyalleri her tarama sonunda ayrica yasatilir
+- **Kalite etiketleri kalici**: confidence + setup_type sinyal kaydina yazilir
+  (DB migration guvenli, tek cagri), tabloda ve modalda rozet olarak gorunur
+- **Dashboard**: JetBrains Mono ile terminal tipografisi, KPI/kart/boru-hatti
+  hover tooltip'leri, A-/A+ yazi boyutu, sinyal tablosunda CANLI fiyat kolonu
+  (/live beslemesi), Portfoy Simulasyonu'na KAPASITE MODU (sermaye K slota
+  bolunur, defter doluyken sinyal atlanir; sinirsiz varsayim referansiyla yan
+  yana). NOT: bybit'teki "market gate" portlanmadi - Midas'ta MARKET_REGIME
+  zaten 2. sirada SERT filtredir (daha guclu esdeger).
+
 ## Yahoo rate limit stratejisi (v1.1)
 Render gibi paylasimli IP'lerde Yahoo cok agresif limit uygular. Onlemler:
 - **yfinance 1.5.2** (curl_cffi tarayici taklidi - eski 0.2.x surumlerine gore

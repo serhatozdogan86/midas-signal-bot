@@ -276,6 +276,8 @@ class Scheduler:
                         direction=d.direction.value,
                         reason=d.reject_reason or d.setup_type.value))
 
+        if self._tracker is not None:
+            self._evaluate_orphans(set(pass1.keys()))
         self._watchlist = watch[: self._settings.WATCHLIST_MAX]
         self._store.record_scan(
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -541,6 +543,34 @@ class Scheduler:
                         + len(report["candidate_alerts"])))
         except Exception:
             log.exception(kv(event="gap_watch_error"))
+
+    def _evaluate_orphans(self, scanned: set) -> None:
+        """Evren disina dusen sembollerin acik sinyallerini yasat (bybit v3.0
+        'IONQ vakasi' portu): sembol likidite filtresinden cikinca taranmiyor,
+        acik golge sinyali sonsuza dek PENDING/FILLED kaliyordu. Artik her tur
+        sonunda taranmamis acik-sinyalli semboller icin 1h mum cekilir ve
+        degerlendirme calistirilir."""
+        try:
+            orphans = [s for s in self._tracker.open_symbols()
+                       if s not in scanned]
+        except Exception:
+            log.exception(kv(event="orphan_list_error"))
+            return
+        if not orphans:
+            return
+        try:
+            hourly = self._md.get_hourly_bulk(orphans)
+        except Exception:
+            log.exception(kv(event="orphan_fetch_error"))
+            return
+        for symbol in orphans:
+            try:
+                if symbol in hourly and len(hourly[symbol]):
+                    self._tracker.record_candles(hourly[symbol])
+                self._tracker.evaluate_open(symbol)
+                log.info(kv(event="orphan_eval", symbol=symbol))
+            except Exception:
+                log.exception(kv(event="orphan_eval_error", symbol=symbol))
 
     # ---------------------------------------------------------- gun sonu ozeti
     def run_eod(self, today: date) -> None:

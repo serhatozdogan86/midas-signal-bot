@@ -15,6 +15,9 @@ DASHBOARD_HTML = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>midas-signal-bot // dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -26,6 +29,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     --blue:#60A5FA;  --blue-bg:#152238;  --blue-ink:#BBD3F8;
     --grey-bg:#2A241D;
     --sans:Inter,Roboto,-apple-system,"SF Pro Text","Segoe UI",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --shadow:0 1px 2px rgba(0,0,0,.35),0 6px 16px rgba(0,0,0,.25);
   }
   *{box-sizing:border-box;margin:0}
@@ -98,7 +102,34 @@ DASHBOARD_HTML = r"""<!doctype html>
   td{padding:6px;border-bottom:1px solid var(--card2);font-size:12.5px}
   tbody tr{cursor:pointer}
   tbody tr:hover td{background:var(--card2)}
-  .num{text-align:right}
+  .num{text-align:right;font-family:var(--mono);font-size:.94em;
+       letter-spacing:-.01em}
+  .clock b{font-family:var(--mono);font-weight:500}
+  /* KPI tooltip balonu (hover) */
+  .kpi{position:relative}
+  .kpi[data-tip]:hover::after{content:attr(data-tip);position:absolute;
+    top:calc(100% + 6px);left:0;z-index:40;background:#0C0A08;
+    border:1px solid var(--line);color:var(--text);padding:8px 11px;
+    border-radius:9px;font-size:11.8px;line-height:1.45;font-weight:400;
+    width:max-content;max-width:250px;white-space:normal;
+    box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  /* kart basligi bilgi balonu */
+  .tipwrap{position:relative;cursor:help;border-bottom:1px dotted var(--muted)}
+  .tipwrap .i{color:var(--blue);font-size:10px;vertical-align:1px}
+  .tipwrap:hover::after{content:attr(data-tip);position:absolute;
+    top:calc(100% + 6px);left:0;z-index:40;background:#0C0A08;
+    border:1px solid var(--line);color:var(--text);padding:9px 12px;
+    border-radius:9px;font-size:11.8px;line-height:1.5;font-weight:400;
+    width:max-content;max-width:310px;white-space:normal;text-transform:none;
+    letter-spacing:0;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  /* boru hatti asama tooltip'i */
+  .stage{position:relative}
+  .stage[data-tip]:hover::after{content:attr(data-tip);position:absolute;
+    left:calc(100% + 8px);top:0;z-index:40;background:#0C0A08;
+    border:1px solid var(--line);color:var(--text);padding:8px 11px;
+    border-radius:9px;font-size:11.5px;line-height:1.45;font-weight:400;
+    width:230px;white-space:normal;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  @media(max-width:1050px){.stage[data-tip]:hover::after{left:0;top:100%}}
   .tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
   .tabs button.on{border-color:var(--blue);background:var(--blue-bg);
                   color:var(--blue-ink)}
@@ -141,6 +172,8 @@ DASHBOARD_HTML = r"""<!doctype html>
     <span class="logo"><span class="dot" id="dot"></span>midas-<b>signal</b>-bot</span>
     <span class="clock">NY <b id="clkNY">--:--</b> · TR <b id="clkTR">--:--</b></span>
     <span class="hinfo" id="hinfo">yukleniyor...</span>
+    <span><button onclick="fontStep(-1)" title="yazi kucult">A&#8722;</button>
+    <button onclick="fontStep(1)" title="yazi buyut">A+</button></span>
     <select id="refsel">
       <option value="30000">30 sn</option>
       <option value="60000" selected>60 sn</option>
@@ -167,7 +200,7 @@ DASHBOARD_HTML = r"""<!doctype html>
   </div>
 
   <div class="card" style="margin-bottom:10px">
-    <h2>Aksiyon Paneli <span class="tag">canli fiyat &#183; kural tabanli oneri</span></h2>
+    <h2><span class="tipwrap" data-tip="Acik golge sinyallerin canli fiyatla durumu. R su an = (fiyat-dolum)/risk. Oneriler kural tabanlidir; karar her zaman senindir. Fiyatlar 60 sn onbelleklidir.">Aksiyon Paneli <span class="i">&#9432;</span></span> <span class="tag">canli fiyat &#183; kural tabanli oneri</span></h2>
     <div style="overflow-x:auto"><table>
       <thead><tr><th>Sembol</th><th>Yon</th><th>Durum</th>
         <th class="num">Fiyat</th><th class="num">R su an</th>
@@ -200,7 +233,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div id="mnote" class="muted pre">Hazirlik taramasiyla olusur (15:45 TR).</div>
       </div>
       <div class="card">
-        <h2>Gap Nobeti <span class="tag">acilis oncesi</span></h2>
+        <h2><span class="tipwrap" data-tip="Her islem gunu acilis-30dk penceresinde acik pozisyonlar ve guclu adaylar pre-market fiyatlariyla yoklanir. Stop otesinde acilis = 'limit emirle cikisi degerlendir' uyarisi. Seans disi sinyal URETILMEZ.">Gap Nobeti <span class="i">&#9432;</span></span> <span class="tag">acilis oncesi</span></h2>
         <div id="gapw" class="muted pre">Bugun henuz kosmadi
 (acilis-30dk penceresi).</div>
       </div>
@@ -216,7 +249,7 @@ DASHBOARD_HTML = r"""<!doctype html>
 
     <div class="col">
       <div class="card">
-        <h2>Portfoy Simulasyonu <span class="tag">golge &#183; bilesik</span></h2>
+        <h2><span class="tipwrap" data-tip="Sonuclanan golge sinyaller kapanis sirasiyla bilesik islenir: her islemde bakiyenin risk %'i kadar tutar riske atilir, sonuc RxRisk olarak eklenir. Kapasite modu: sermaye slot sayisina bolunur; defter doluyken gelen sinyal ATLANIR - gercek hesabin yasayacagi kisiti taklit eder. Komisyon/kayma yok; gercek para degildir.">Portfoy Simulasyonu <span class="i">&#9432;</span></span> <span class="tag">golge &#183; bilesik</span></h2>
         <div class="simrow">
           <label>Baslangic $ <input id="simStart" type="number" value="1000"></label>
           <label>Risk % <input id="simRisk" type="number" value="1" step="0.5"></label>
@@ -239,18 +272,18 @@ DASHBOARD_HTML = r"""<!doctype html>
           <span id="dirFiltNote" class="muted" style="align-self:center"></span>
         </div>
         <div style="overflow-x:auto"><table>
-          <thead><tr><th>Sembol</th><th>Yon</th><th>Durum</th>
-            <th class="num">Giris</th><th class="num">Stop</th>
-            <th class="num">TP1</th><th class="num">R</th>
-            <th>Acilis</th></tr></thead>
-          <tbody id="sigRows"><tr><td colspan="8" class="muted">yukleniyor...</td></tr></tbody>
+          <thead><tr><th>Sembol</th><th>Yon</th><th>Kalite</th><th>Durum</th>
+            <th class="num">Canli</th><th class="num">Giris</th>
+            <th class="num">Stop</th><th class="num">TP1</th>
+            <th class="num">R</th><th>Acilis</th></tr></thead>
+          <tbody id="sigRows"><tr><td colspan="10" class="muted">yukleniyor...</td></tr></tbody>
         </table></div>
       </div>
     </div>
 
     <div class="col">
       <div class="card">
-        <h2>Yon Bilancosu <span class="tag">tikla &#8594; yon filtresi</span></h2>
+        <h2><span class="tipwrap" data-tip="Sonuclanan sinyallerin LONG/SHORT kirilimi (adet ve toplam R). ABD hisselerinin yapisal yukari egilimi nedeniyle short tarafinin uzun vadede daha zayif kalmasi beklenir; veri bunu dogrularsa esikler sikilastirilir.">Yon Bilancosu <span class="i">&#9432;</span></span> <span class="tag">tikla &#8594; yon filtresi</span></h2>
         <div id="dir" class="muted">-</div>
       </div>
       <div class="card">
@@ -327,8 +360,13 @@ setInterval(tickClock,1000);tickClock();
 async function j(u){try{const r=await fetch(u);if(!r.ok)return null;
   return await r.json();}catch(e){return null}}
 
-function kpi(l,v,cls){return `<div class="card kpi ${cls||''}">
+function kpi(l,v,cls,tip){return `<div class="card kpi ${cls||''}"${tip?` data-tip="${tip}"`:''}>
   <div class="v">${v}</div><div class="l">${l}</div></div>`}
+function fontStep(d){
+  const html=document.documentElement;
+  const cur=parseFloat(getComputedStyle(html).fontSize)||16;
+  html.style.fontSize=Math.min(20,Math.max(13,cur+d))+'px';
+}
 
 async function loadAll(){
   const [perf,sigs,status,watch,regime,backup,uni,dg,news,live]=await Promise.all([
@@ -353,12 +391,18 @@ async function loadAll(){
     const nf=co.NOT_FILLED?.count||0;
     const fillRate=(filled+nf)?Math.round(100*filled/(filled+nf))+'%':'&#8212;';
     document.getElementById('kpis').innerHTML=
-      kpi('Win Rate',wr, perf.win_rate>=0.5?'good':(perf.win_rate!=null?'bad':''))+
-      kpi('Toplam R',(tr>0?'+':'')+tr, tr>0?'good':(tr<0?'bad':''))+
-      kpi('Sonuclanan',perf.decided_trades??0)+
-      kpi('Acik sinyal',perf.open_signals??0)+
-      kpi('Giris isabeti',fillRate)+
-      kpi('Kayitli karar',perf.dataset?.decisions_recorded??0);
+      kpi('Win Rate',wr, perf.win_rate>=0.5?'good':(perf.win_rate!=null?'bad':''),
+        'WIN/(WIN+LOSS). Tek basina yanilticidir: kazanclar buyukse dusuk isabet de karli olabilir. Basabas = 1/(1+ort.kazanc R).')+
+      kpi('Toplam R',(tr>0?'+':'')+tr, tr>0?'good':(tr<0?'bad':''),
+        'Tum sonuclanan islemlerin R toplami. +10R = her islemde 100$ riske atilsaydi +1000$ (bilesiksiz). Sistemin gercek karnesi budur.')+
+      kpi('Sonuclanan',perf.decided_trades??0,null,
+        'WIN veya LOSS ile kapanan islem sayisi. 30-50 altindaki orneklemde hicbir orana guvenme.')+
+      kpi('Acik sinyal',perf.open_signals??0,null,
+        'Su an izlenen PENDING (girise gelmedi) + FILLED (pozisyonda) sinyaller.')+
+      kpi('Giris isabeti',fillRate,null,
+        'Sinyallerin ne kadari ~2 seans icinde giris bolgesine geldi. Kalici %40 alti = bolge cok uzak, tartisilir.')+
+      kpi('Kayitli karar',perf.dataset?.decisions_recorded??0,null,
+        'Arsivlenen tum tarama kararlari (NO_TRADE dahil) - ileriki backtest/kalibrasyon veri seti.');
     renderDir(perf);
   }
 
@@ -391,6 +435,14 @@ async function loadAll(){
   if(sigs){SIG=sigs;renderSigs();renderEquity();renderSim();}
 }
 
+const STAGE_TIPS={
+  DATA:'Yeterli gunluk (min ~210 bar) ve saatlik (min ~60 bar) mum var mi? Veri yoksa varsayim yapilmaz.',
+  MARKET_REGIME:'SPY+QQQ 200 gunluk MA konumu ve egimi. BULL: yalniz long. BEAR: yalniz short. UNKNOWN: sinyal yok.',
+  TREND:'Hisse bazinda MA hiyerarsisi (fiyat>50>200) + HH/HL yapisi. Short icin ayna + SPY karsisinda zayif RS sarti.',
+  EARNINGS:'Bilanco tarihine +-2 islem gunu = yasak bolge. Bilanco gecesi gap riski sistematik olarak alinmaz.',
+  SETUP:'1h yapida tetiklenebilir kurulum: yukselen EMA20 pullback (RSI3 asirilik + donus mumu) veya kirilim+retest.',
+  VOLUME:'Tetik mumunda goreli hacim >= 1.3x (NEUTRAL rejimde 1.5x). Katilimsiz kirilima guven olmaz.',
+  RISK_REWARD:'Yapisal stop ile RR >= 2.0 (tavan 6.0 - fantezi RR reddi) VE TP1 mesafesi >= %2 (Midas islem maliyeti).'};
 let SESS=null;
 function renderSession(s){SESS=s;paintSession();}
 function paintSession(){
@@ -406,8 +458,10 @@ function paintSession(){
 }
 setInterval(paintSession,30000);
 
+let LIVEPX={};
 function renderLive(live){
   const rows=(live&&live.rows)||[];
+  LIVEPX={};rows.forEach(r=>{if(r.quote!=null)LIVEPX[r.symbol]=r.quote;});
   const el=document.getElementById('liveRows');
   if(!rows.length){el.innerHTML='<tr><td colspan="9" class="muted">acik sinyal yok'+
     ' - ilk sinyalle birlikte dolar</td></tr>';return;}
@@ -471,7 +525,7 @@ function renderPipeline(results){
     (STAGES[f]=STAGES[f]||[]).push(sym);});
   document.getElementById('pipeline').innerHTML=
     `<div class="stage" style="cursor:default"><b>Taranan</b><span class="n">${total}</span></div>`+
-    stages.map(s=>`<div class="stage" onclick="toggleStage('${s}')">
+    stages.map(s=>`<div class="stage" data-tip="${STAGE_TIPS[s]||''}" onclick="toggleStage('${s}')">
       <b>${s}</b><span class="n">${(STAGES[s]||[]).length}</span></div>
       <div class="stagelist" id="st-${s}"></div>`).join('')+
     `<div class="stage sig"><b>SIGNAL</b><span class="n">${signals}</span></div>`;
@@ -512,22 +566,36 @@ function renderSigs(){
     if(s.status!=='CLOSED')return `<span class="b open">${s.status}</span>`;
     const m={WIN:'win',LOSS:'loss',NOT_FILLED:'grey',AMBIGUOUS:'grey',EXPIRED:'amber'};
     return `<span class="b ${m[s.outcome]||'grey'}">${s.outcome}</span>`;};
+  const qual=s=>{
+    if(!s.confidence&&!s.setup_type)return '<span class="muted">&#8212;</span>';
+    const cmap={HIGH:'win',MEDIUM:'amber',MED:'amber',LOW:'grey'};
+    const st=(s.setup_type||'').replace('trend_pullback','PB')
+      .replace('breakout_retest','BO');
+    return `${s.confidence?`<span class="b ${cmap[s.confidence]||'grey'}">${s.confidence}</span>`:''}
+      ${st?` <span class="b grey">${st}</span>`:''}`;};
+  const livepx=s=>{
+    if(s.status==='CLOSED')return '&#8212;';
+    const p=LIVEPX[s.symbol];
+    return p!=null?p:'&#8212;';};
   document.getElementById('sigRows').innerHTML = rows.length? rows.map((s,i)=>
     `<tr onclick="openSig(${s.id})"><td><b>${s.symbol}</b></td>
      <td><span class="b ${s.direction==='LONG'?'long':'short'}">${s.direction}</span></td>
+     <td>${qual(s)}</td>
      <td>${badge(s)}</td>
+     <td class="num">${livepx(s)}</td>
      <td class="num">${s.entry_min?.toFixed(2)}&#8211;${s.entry_max?.toFixed(2)}</td>
      <td class="num">${s.stop_loss?.toFixed(2)??'-'}</td>
      <td class="num">${s.tp1?.toFixed(2)??'-'}</td>
      <td class="num">${s.r_multiple!=null?(s.r_multiple>0?'+':'')+s.r_multiple:'&#8212;'}</td>
      <td class="muted">${(s.created_utc||'').slice(0,16).replace('T',' ')}</td></tr>`).join('')
-   :'<tr><td colspan="8" class="muted">kayit yok</td></tr>';
+   :'<tr><td colspan="10" class="muted">kayit yok</td></tr>';
 }
 
 function openSig(id){
   const s=SIG.find(x=>x.id===id); if(!s)return;
   const rows=[
-    ['Sembol',s.symbol],['Yon',s.direction],['Durum',s.status],
+    ['Sembol',s.symbol],['Yon',s.direction],
+    ['Kalite',`${s.confidence||'-'} / ${s.setup_type||'-'}`],['Durum',s.status],
     ['Sonuc',s.outcome||'-'],['Olusum',s.created_utc||'-'],
     ['Giris bolgesi',`${s.entry_min} - ${s.entry_max}`],
     ['Stop',s.stop_loss],['TP1 / TP2',`${s.tp1} / ${s.tp2}`],['RR',s.rr],
@@ -602,18 +670,41 @@ function decidedSorted(){
 function renderSim(){
   const start=parseFloat(document.getElementById('simStart').value)||1000;
   const riskPct=(parseFloat(document.getElementById('simRisk').value)||1)/100;
+  const K=Math.max(1,parseInt(document.getElementById('simSlot').value)||4);
   const rows=decidedSorted();
-  let eq=start,peak=start,maxdd=0;
-  rows.forEach(s=>{eq+=eq*riskPct*s.r_multiple;
-    peak=Math.max(peak,eq);maxdd=Math.max(maxdd,(peak-eq)/peak);});
-  const ret=(eq/start-1)*100;
+  // Kapasite-kisitli yurutme (bybit v3.3.1 portu, hisse uyarlamasi:
+  // kaldirac yok -> pozisyon nosyoneli slot payini (bakiye/K) asamaz)
+  const evs=[];
+  rows.forEach(s=>{evs.push([s.created_utc||'',0,s]);
+                  evs.push([s.closed_utc||'',1,s]);});
+  evs.sort((a,b)=>a[0].localeCompare(b[0])||a[1]-b[1]);
+  let eq=start,peak=start,maxdd=0,taken=0,skipped=0;const book={};
+  for(const [t,kind,s] of evs){
+    if(kind===0){
+      if(Object.keys(book).length>=K){skipped++;continue;}
+      const e=(s.entry_min+s.entry_max)/2;
+      const d=e?Math.abs(e-s.stop_loss)/e:0; if(d<=0)continue;
+      let r=eq*riskPct; const notion=r/d, capN=eq/K;
+      if(notion>capN)r*=capN/notion;   // slot payi asilirsa risk kucultulur
+      book[s.id]=r; taken++;
+    }else if(book[s.id]!=null){
+      eq+=book[s.id]*s.r_multiple; delete book[s.id];
+      peak=Math.max(peak,eq); maxdd=Math.max(maxdd,(peak-eq)/peak);
+    }
+  }
+  // sinirsiz varsayim referansi
+  let ref=start; rows.forEach(s=>{ref+=ref*riskPct*s.r_multiple;});
+  const ret=(eq/start-1)*100, refRet=(ref/start-1)*100;
   document.getElementById('simOut').innerHTML=
-    `<div><b>Islem</b><span>${rows.length}</span></div>
-     <div><b>Bakiye</b><span>$${eq.toFixed(0)}</span></div>
+    `<div><b>Bakiye (kapasiteli)</b><span>$${eq.toFixed(0)}</span></div>
      <div><b>Getiri</b><span style="color:${ret>=0?'var(--green)':'var(--red)'}">
        ${ret>=0?'+':''}${ret.toFixed(1)}%</span></div>
-     <div><b>Maks DD</b><span>${(maxdd*100).toFixed(1)}%</span></div>`;
+     <div><b>Maks DD</b><span>${(maxdd*100).toFixed(1)}%</span></div>
+     <div><b>Alinan / Atlanan</b><span>${taken} / ${skipped}</span></div>
+     <div><b>Sinirsiz varsayim</b><span class="muted">$${ref.toFixed(0)}
+       (${refRet>=0?'+':''}${refRet.toFixed(1)}%)</span></div>`;
 }
+document.getElementById('simSlot').addEventListener('input',renderSim);
 document.getElementById('simStart').addEventListener('input',renderSim);
 document.getElementById('simRisk').addEventListener('input',renderSim);
 

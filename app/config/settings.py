@@ -35,7 +35,8 @@ class StrategyParams(BaseModel):
     atr_tp1_mult: float = 1.0
     atr_tp2_mult: float = 2.0
     atr_stop_mult: float = 1.2       # stop mesafesi ust siniri (gunluk ATR carpani)
-    min_rr: float = 2.0              # RR = (TP2 - entry) / risk  (tasarim notu: README)
+    min_rr: float = 2.0
+    rr_max: float = 6.0              # RR = (TP2 - entry) / risk  (tasarim notu: README)
     min_target_pct: float = 2.0      # maliyet filtresi: TP1 mesafesi >= %2 (1.5$/islem)
 
     # Earnings / zaman
@@ -98,6 +99,7 @@ class Settings(BaseSettings):
     ATR_TP2_MULT: float = 2.0
     ATR_STOP_MULT: float = 1.2
     RISK_REWARD_MIN: float = 2.0
+    RISK_REWARD_MAX: float = 6.0       # v3 portu: fantezi RR / asiri dar stop tavani
     MIN_TARGET_PCT: float = 2.0
     VOLUME_MULT: float = 1.3
     EARNINGS_BLACKOUT_DAYS: int = 2
@@ -164,6 +166,7 @@ class Settings(BaseSettings):
             atr_tp2_mult=self.ATR_TP2_MULT,
             atr_stop_mult=self.ATR_STOP_MULT,
             min_rr=self.RISK_REWARD_MIN,
+            rr_max=self.RISK_REWARD_MAX,
             min_target_pct=self.MIN_TARGET_PCT,
             volume_mult=self.VOLUME_MULT,
             earnings_blackout_days=self.EARNINGS_BLACKOUT_DAYS,

@@ -256,3 +256,44 @@ def test_run_prep_produces_market_note_and_warms_cache(tmp_path):
     # ayni gun kaba tarama: gunluk cache'ten okur, yeniden indirmez
     sched.run_coarse_scan(send_telegram=False)
     assert sched._md.daily_calls == daily_calls_after_prep
+
+
+def test_orphan_signals_still_evaluated(tmp_path):
+    """IONQ vakasi portu: evrenden dusen sembolun acik sinyali yasamali."""
+    from app.services.database import Database
+    from app.services.signal_tracker import SignalTracker
+    from tests import fixtures as fx
+
+    db = Database(str(tmp_path / "o.db"))
+    tracker = SignalTracker(db, "1h")
+    # evrende OLMAYAN sembol icin acik sinyal
+    db.execute(
+        "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
+        "entry_min,entry_max,stop_loss,tp1,tp2,rr,status,fill_price) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("IONQ", "LONG", "2026-07-28T14:00:00Z", 0, 100.0, 101.0,
+         98.0, 106.0, 110.0, 2.5, "FILLED", 101.0))
+
+    hourly_win = fx.make_series(
+        __import__("numpy").array([102.0, 103.0, 107.0, 107.0]), symbol="IONQ")
+    for i, c in enumerate(hourly_win.candles):
+        c.ts = 1000 + i * 3_600_000
+        c.high = c.close + 0.3
+        c.low = c.close - 0.3
+
+    class OrphanMD:
+        def get_daily_bulk(self, symbols, period=None):
+            return {}
+
+        def get_hourly_bulk(self, symbols):
+            assert "IONQ" in symbols          # orphan icin veri istendi
+            return {"IONQ": hourly_win}
+
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory")
+    sched = Scheduler(settings, OrphanMD(), None, None, MarketCalendar(),
+                      InMemoryStateStore(), FakeNotifier(), tracker)
+    sched._evaluate_orphans(scanned={"AAPL"})   # IONQ taranmadi
+
+    sig = tracker.recent_signals(1)[0]
+    assert sig["symbol"] == "IONQ"
+    assert sig["outcome"] == "WIN"              # TP1 107 ile kesildi -> kapandi

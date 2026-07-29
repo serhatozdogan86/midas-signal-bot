@@ -45,6 +45,16 @@ class SignalTracker:
         self._mtf = mtf_interval
         self._fill_window = fill_window_bars
         self._max_track = max_track_bars
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Eski DB'lere confidence/setup_type kolonlarini guvenle ekler.
+        (bybit v3.3 portu - oradaki ozyineleme hatasi burada duzeltildi.)"""
+        for col in ("confidence", "setup_type"):
+            try:
+                self._db.execute(f"ALTER TABLE signals ADD COLUMN {col} TEXT")
+            except Exception:
+                pass  # kolon zaten var
 
     # ------------------------------------------------------ veri birikimi
     def record_candles(self, series: KlineSeries) -> None:
@@ -76,12 +86,14 @@ class SignalTracker:
             return False
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
-            "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,contract_json) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
+            "contract_json,confidence,setup_type) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
-             json.dumps(d.contract_dict())))
+             json.dumps(d.contract_dict()),
+             d.confidence.value, d.setup_type.value))
         log.info(kv(event="shadow_track", symbol=d.symbol,
                     direction=d.direction.value))
         return True
@@ -209,7 +221,8 @@ class SignalTracker:
         return self._db.query(
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
-            "exit_price,r_multiple,closed_utc FROM signals ORDER BY id DESC LIMIT ?",
+            "exit_price,r_multiple,closed_utc,confidence,setup_type "
+            "FROM signals ORDER BY id DESC LIMIT ?",
             (limit,))
 
     def recent_decisions(self, limit: int = 2000) -> list[dict]:
@@ -222,6 +235,12 @@ class SignalTracker:
         return self._db.query(
             "SELECT ts,open,high,low,close,volume FROM candles "
             "WHERE symbol=? AND interval=? ORDER BY ts ASC", (symbol, interval))
+
+    def open_symbols(self) -> list[str]:
+        """Acik (PENDING/FILLED) sinyali olan semboller - orphan eval icin."""
+        rows = self._db.query(
+            "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED'")
+        return [r["symbol"] for r in rows]
 
     def signal_symbols(self) -> list[str]:
         """Sinyal kaydi olan semboller (gist candle_mode=signals icin)."""
@@ -254,13 +273,15 @@ class SignalTracker:
             self._db.execute(
                 "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
                 "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,status,"
-                "outcome,fill_price,exit_price,r_multiple,closed_utc) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "outcome,fill_price,exit_price,r_multiple,closed_utc,"
+                "confidence,setup_type) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (r.get("symbol"), r.get("direction"), r.get("created_utc"),
                  r.get("entry_candle_ts"), r.get("entry_min"), r.get("entry_max"),
                  r.get("stop_loss"), r.get("tp1"), r.get("tp2"), r.get("rr"),
                  r.get("time_stop_date"), r.get("status", "PENDING"),
                  r.get("outcome"), r.get("fill_price"), r.get("exit_price"),
-                 r.get("r_multiple"), r.get("closed_utc")))
+                 r.get("r_multiple"), r.get("closed_utc"),
+                 r.get("confidence"), r.get("setup_type")))
             imported += 1
         return imported

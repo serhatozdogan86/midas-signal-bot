@@ -182,3 +182,13 @@ def test_pass1_survivor_flags_hourly_missing(long_inputs):
     d = signal_engine.evaluate("AAPL", daily, None, BULL, P, bench, E_FAR)
     assert d.decision is DecisionType.DATA_MISSING
     assert d.data_missing == ["hourly_klines"]
+
+
+def test_rr_ceiling_rejects_fantasy_plans(long_inputs):
+    """v3 portu: asiri dar stop'tan dogan fantezi RR tavani asar -> red."""
+    daily, hourly, bench = long_inputs
+    params = StrategyParams(rr_max=0.5)   # her plani tavana takan yapay esik
+    d = signal_engine.evaluate("AAPL", daily, hourly, BULL, params, bench, E_FAR)
+    assert d.decision is DecisionType.NO_TRADE
+    assert d.failed_filters == ["RISK_REWARD"]
+    assert "tavan" in d.reject_reason

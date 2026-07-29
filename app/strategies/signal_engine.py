@@ -170,6 +170,14 @@ def evaluate(symbol: str,
         d.failed_filters = ["RISK_REWARD"]
         d.reject_reason = "trade plani kurulamadi (risk<=0)"
         return d
+    if plan.rr > params.rr_max:
+        # v3 portu (bybit golge verisi dersi): asiri dar stop'tan dogan
+        # "fantezi RR" planlari gercekte tutmaz; tavani asan plan reddedilir.
+        d.failed_filters = ["RISK_REWARD"]
+        d.reject_reason = (f"RR {plan.rr:.2f} > tavan {params.rr_max:.1f} "
+                           f"(asiri dar stop suphesi)")
+        d.watch_condition = "daha genis/yapisal stop ile makul RR"
+        return d
     if plan.rr < min_rr:
         d.failed_filters = ["RISK_REWARD"]
         d.reject_reason = f"RR {plan.rr:.2f} < min {min_rr:.1f}"
