@@ -35,6 +35,10 @@ def test_dashboard_served(tmp_path):
         assert b"Haber Akisi" in r.data                  # haber paneli
         assert b"Portfoy Simulasyonu" in r.data
         assert b"Nasil okunur?" in r.data
+        assert b"Aksiyon Paneli" in r.data
+        assert b"Takvim Seridi" in r.data
+        assert b"Gap Nobeti" in r.data
+        assert b"Pozisyon buyuklugu" in r.data
 
 
 def test_news_endpoint(tmp_path):
@@ -63,6 +67,16 @@ def test_performance_and_signals_with_tracker(tmp_path):
     assert r.status_code == 200 and r.get_json()["open_signals"] == 0
     r = c.get("/signals?limit=5")
     assert r.status_code == 200 and r.get_json() == []
+
+
+def test_live_and_candles_endpoints(tmp_path):
+    tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
+    c = _client(tmp_path, tracker=tracker)
+    body = c.get("/live").get_json()
+    assert body["rows"] == [] and body["session"]["phase"]
+    assert c.get("/candles?symbol=AAPL").get_json() == []
+    diag = c.get("/diag").get_json()
+    assert "session" in diag and "calendar_strip" in diag
 
 
 def test_endpoints_404_when_disabled(tmp_path):

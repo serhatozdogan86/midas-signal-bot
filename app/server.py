@@ -57,6 +57,11 @@ def create_app(store: StateStore, scheduler: Scheduler,
         diag["market_note"] = scheduler.last_market_note
         diag["gap_watch"] = scheduler.last_gap_watch
         diag["news"] = news.info() if news is not None else None
+        try:
+            diag["session"] = scheduler.session_info()
+            diag["calendar_strip"] = scheduler.build_calendar_strip()
+        except Exception:
+            diag["session"], diag["calendar_strip"] = None, []
         diag["commentary_latest"] = (commentary.latest()
                                      if commentary is not None else None)
         return diag
@@ -117,6 +122,24 @@ def create_app(store: StateStore, scheduler: Scheduler,
         return app.response_class(
             json.dumps(tracker.recent_signals(limit), indent=2),
             mimetype="application/json")
+
+    @app.get("/live")
+    def live():
+        """Aksiyon Paneli: acik sinyallerin canli fiyatla durumu."""
+        return app.response_class(
+            json.dumps({"rows": scheduler.get_live_status(),
+                        "session": scheduler.session_info()}, indent=2),
+            mimetype="application/json")
+
+    @app.get("/candles")
+    def candles():
+        if tracker is None:
+            return jsonify({"error": "shadow tracking disabled"}), 404
+        symbol = request.args.get("symbol", "").upper()
+        interval = request.args.get("interval", "1h")
+        limit = int(request.args.get("limit", "80"))
+        rows = tracker.export_candles(symbol, interval)[-limit:]
+        return app.response_class(json.dumps(rows), mimetype="application/json")
 
     @app.get("/news")
     def news_feed():

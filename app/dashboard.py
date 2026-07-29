@@ -166,6 +166,23 @@ DASHBOARD_HTML = r"""<!doctype html>
     </div>
   </div>
 
+  <div class="card" style="margin-bottom:10px">
+    <h2>Aksiyon Paneli <span class="tag">canli fiyat &#183; kural tabanli oneri</span></h2>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Sembol</th><th>Yon</th><th>Durum</th>
+        <th class="num">Fiyat</th><th class="num">R su an</th>
+        <th class="num">Stop'a</th><th class="num">TP1'e</th>
+        <th>Time-stop</th><th>Oneri</th></tr></thead>
+      <tbody id="liveRows"><tr><td colspan="9" class="muted">acik sinyal yok -
+        ilk sinyalle birlikte dolar</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="card" style="margin-bottom:10px">
+    <h2>Takvim Seridi <span class="tag">5 islem gunu</span></h2>
+    <div id="calStrip" class="wl muted">-</div>
+  </div>
+
   <div class="kpis" id="kpis"></div>
 
   <div class="grid">
@@ -181,6 +198,11 @@ DASHBOARD_HTML = r"""<!doctype html>
       <div class="card">
         <h2>Piyasa Nabzi <span class="tag">gunluk not</span></h2>
         <div id="mnote" class="muted pre">Hazirlik taramasiyla olusur (15:45 TR).</div>
+      </div>
+      <div class="card">
+        <h2>Gap Nobeti <span class="tag">acilis oncesi</span></h2>
+        <div id="gapw" class="muted pre">Bugun henuz kosmadi
+(acilis-30dk penceresi).</div>
       </div>
       <div class="card">
         <h2>Izleme listesi</h2>
@@ -273,6 +295,18 @@ DASHBOARD_HTML = r"""<!doctype html>
   <div class="overlay" id="ovl" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <h2 id="mTitle">Detay</h2>
+      <canvas id="mChart" width="440" height="220"
+        style="width:100%;background:var(--bg);border-radius:8px"></canvas>
+      <div class="muted" id="mChartNote" style="font-size:10.5px;margin:2px 0 8px"></div>
+      <div class="card2" style="background:var(--card2);border-radius:8px;
+        padding:8px 10px;margin-bottom:8px">
+        <h2 style="margin-bottom:4px">Pozisyon buyuklugu</h2>
+        <div class="simrow" style="margin-bottom:6px">
+          <label>Hesap $ <input id="psAcct" type="number" value="1000"></label>
+          <label>Risk % <input id="psRisk" type="number" value="1" step="0.5"></label>
+        </div>
+        <div id="psOut" class="muted" style="font-size:12.5px">-</div>
+      </div>
       <div id="mBody"></div>
       <div style="margin-top:10px;text-align:right">
         <button onclick="closeModal()">Kapat</button></div>
@@ -297,9 +331,13 @@ function kpi(l,v,cls){return `<div class="card kpi ${cls||''}">
   <div class="v">${v}</div><div class="l">${l}</div></div>`}
 
 async function loadAll(){
-  const [perf,sigs,status,watch,regime,backup,uni,dg,news]=await Promise.all([
+  const [perf,sigs,status,watch,regime,backup,uni,dg,news,live]=await Promise.all([
     j('/performance'),j('/signals?limit=300'),j('/status'),j('/watchlist'),
-    j('/regime'),j('/backup/info'),j('/universe'),j('/diag'),j('/news')]);
+    j('/regime'),j('/backup/info'),j('/universe'),j('/diag'),j('/news'),
+    j('/live')]);
+  renderLive(live);
+  if(dg){renderSession(dg.session);renderCal(dg.calendar_strip);
+    renderGapWatch(dg.gap_watch);}
   document.getElementById('dot').className='dot'+(status?'':' err');
 
   const meta=(status&&status.meta)||{};
@@ -351,6 +389,76 @@ async function loadAll(){
   }
   renderNews(news);
   if(sigs){SIG=sigs;renderSigs();renderEquity();renderSim();}
+}
+
+let SESS=null;
+function renderSession(s){SESS=s;paintSession();}
+function paintSession(){
+  const el=document.getElementById('sessBadge'); if(!SESS){el.textContent='seans: -';return;}
+  let txt=SESS.phase==='ACIK'?'SEANS ACIK':SESS.phase==='PRE'?'PRE-MARKET':'KAPALI';
+  let cls=SESS.phase==='ACIK'?'b win':SESS.phase==='PRE'?'b amber':'b grey';
+  if(SESS.next_event_ms){
+    const ms=SESS.next_event_ms-Date.now();
+    if(ms>0){const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);
+      txt+=` \u00b7 ${SESS.next_event} ${h>0?h+'s ':''}${m}dk`;}
+  }
+  el.className=cls; el.textContent=txt;
+}
+setInterval(paintSession,30000);
+
+function renderLive(live){
+  const rows=(live&&live.rows)||[];
+  const el=document.getElementById('liveRows');
+  if(!rows.length){el.innerHTML='<tr><td colspan="9" class="muted">acik sinyal yok'+
+    ' - ilk sinyalle birlikte dolar</td></tr>';return;}
+  const pct=v=>v==null?'\u2014':v.toFixed(1)+'%';
+  const act=a=>{
+    const hot=a.includes('IHLALI')||a.includes('KOVALAMAK')||a.includes('doldu');
+    const good=a.includes('TP1')||a.includes('BOLGES');
+    return `<span class="b ${hot?'loss':good?'win':'grey'}">${a}</span>`;};
+  el.innerHTML=rows.map(r=>
+    `<tr onclick="openSigBySym('${r.symbol}')"><td><b>${r.symbol}</b></td>
+     <td><span class="b ${r.direction==='LONG'?'long':'short'}">${r.direction}</span></td>
+     <td><span class="b open">${r.status}</span></td>
+     <td class="num">${r.quote??'\u2014'}</td>
+     <td class="num">${r.r_now!=null?(r.r_now>0?'+':'')+r.r_now+'R':'\u2014'}</td>
+     <td class="num">${pct(r.dist_stop_pct)}</td>
+     <td class="num">${pct(r.dist_tp1_pct)}</td>
+     <td>${r.time_stop_days_left!=null?r.time_stop_days_left+' gun':'\u2014'}</td>
+     <td>${act(r.action)}</td></tr>`).join('');
+}
+function openSigBySym(sym){
+  const s=SIG.find(x=>x.symbol===sym&&x.status!=='CLOSED')||SIG.find(x=>x.symbol===sym);
+  if(s)openSig(s.id);
+}
+
+function renderCal(strip){
+  const el=document.getElementById('calStrip');
+  if(!strip||!strip.length){el.textContent='-';return;}
+  const gun={Mon:'Pzt',Tue:'Sal',Wed:'Car',Thu:'Per',Fri:'Cum'};
+  el.innerHTML=strip.map(d=>{
+    if(d.holiday)return `<div class="stage" style="cursor:default;flex-direction:column;align-items:flex-start;min-width:120px">
+      <b>${gun[d.weekday]||d.weekday} ${d.date.slice(5)}</b>
+      <span class="b grey">TATIL</span></div>`;
+    const ev=[];
+    if(d.early_close)ev.push('<span class="b amber">erken kapanis 13:00</span>');
+    d.time_stops.forEach(s=>ev.push(`<span class="b loss">T-stop: ${s}</span>`));
+    d.earnings.forEach(s=>ev.push(`<span class="b amber">Bilanco: ${s}</span>`));
+    return `<div class="stage" style="cursor:default;flex-direction:column;align-items:flex-start;gap:3px;min-width:120px">
+      <b>${gun[d.weekday]||d.weekday} ${d.date.slice(5)}</b>
+      <span style="display:flex;flex-wrap:wrap;gap:3px">${ev.join('')||'<span class="muted">-</span>'}</span></div>`;
+  }).join('');
+}
+
+function renderGapWatch(g){
+  const el=document.getElementById('gapw');
+  if(!g||!g.date){el.textContent='Bugun henuz kosmadi\n(acilis-30dk penceresi).';return;}
+  const pos=g.position_alerts||[], cand=g.candidate_alerts||[];
+  if(!pos.length&&!cand.length){
+    el.textContent=`${g.date}: ${g.checked} sembol kontrol edildi - kayda deger gap yok.`;
+    return;}
+  el.textContent=[`${g.date}:`,
+    ...pos.map(a=>'! '+a), ...cand.map(a=>'- '+a)].join('\n');
 }
 
 function renderPipeline(results){
@@ -430,7 +538,58 @@ function openSig(id){
   document.getElementById('mTitle').textContent=`${s.symbol} ${s.direction} sinyali`;
   document.getElementById('mBody').innerHTML=rows.map(([k,v])=>
     `<div class="kvrow"><b>${k}</b><span>${v}</span></div>`).join('');
+  CURSIG=s; renderPS(); drawCandles(s);
   document.getElementById('ovl').classList.add('on');
+}
+let CURSIG=null;
+function renderPS(){
+  if(!CURSIG)return;
+  const acct=parseFloat(document.getElementById('psAcct').value)||0;
+  const riskPct=(parseFloat(document.getElementById('psRisk').value)||0)/100;
+  const entry=(CURSIG.entry_min+CURSIG.entry_max)/2;
+  const perShare=Math.abs(entry-CURSIG.stop_loss);
+  const el=document.getElementById('psOut');
+  if(!acct||!riskPct||!perShare){el.textContent='-';return;}
+  const riskAmt=acct*riskPct, shares=riskAmt/perShare;
+  el.innerHTML=`Risk tutari <b>$${riskAmt.toFixed(2)}</b> \u00b7 hisse basi risk
+   <b>$${perShare.toFixed(2)}</b> \u2192 <b style="color:var(--accent);font-size:15px">
+   ${shares.toFixed(2)} adet</b> (~$${(shares*entry).toFixed(0)} pozisyon).
+   Midas kusurat destekler; stop ${CURSIG.stop_loss} disiplinine baglidir.`;
+}
+document.getElementById('psAcct').addEventListener('input',renderPS);
+document.getElementById('psRisk').addEventListener('input',renderPS);
+
+async function drawCandles(s){
+  const cv=document.getElementById('mChart'),ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const note=document.getElementById('mChartNote');
+  const data=await j(`/candles?symbol=${s.symbol}&interval=1h&limit=80`);
+  if(!data||data.length<5){note.textContent='mum arsivi henuz olusmadi';return;}
+  note.textContent=`${s.symbol} 1h \u00b7 son ${data.length} bar \u00b7 mavi bant: giris, kirmizi: stop, yesil: TP1/TP2`;
+  const W=cv.width,H=cv.height,P=34;
+  const lows=data.map(c=>c.low),highs=data.map(c=>c.high);
+  let lo=Math.min(...lows,s.stop_loss),hi=Math.max(...highs,s.tp2||s.tp1);
+  const pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
+  const y=v=>H-8-(v-lo)/(hi-lo)*(H-16);
+  const n=data.length,bw=Math.max(2,(W-P-6)/n*0.66),step=(W-P-6)/n;
+  // seviye cizgileri
+  const line=(v,color,dash)=>{if(v==null)return;ctx.strokeStyle=color;
+    ctx.setLineDash(dash||[]);ctx.beginPath();ctx.moveTo(P,y(v));
+    ctx.lineTo(W-4,y(v));ctx.stroke();ctx.setLineDash([]);};
+  ctx.fillStyle='rgba(96,165,250,.14)';
+  ctx.fillRect(P,y(s.entry_max),W-P-4,y(s.entry_min)-y(s.entry_max));
+  line(s.stop_loss,'#F87171');line(s.tp1,'#4ADE80',[4,3]);
+  line(s.tp2,'#4ADE80',[2,4]);
+  // mumlar
+  data.forEach((c,i)=>{
+    const x=P+i*step+step/2,up=c.close>=c.open;
+    ctx.strokeStyle=ctx.fillStyle=up?'#4ADE80':'#F87171';
+    ctx.beginPath();ctx.moveTo(x,y(c.high));ctx.lineTo(x,y(c.low));ctx.stroke();
+    const top=y(Math.max(c.open,c.close)),bot=y(Math.min(c.open,c.close));
+    ctx.fillRect(x-bw/2,top,bw,Math.max(1,bot-top));});
+  // y ekseni etiketleri
+  ctx.fillStyle='#9C917C';ctx.font='10px sans-serif';
+  [lo+pad,(lo+hi)/2,hi-pad].forEach(v=>ctx.fillText(v.toFixed(1),2,y(v)+3));
 }
 function closeModal(){document.getElementById('ovl').classList.remove('on')}
 

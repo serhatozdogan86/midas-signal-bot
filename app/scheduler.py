@@ -314,6 +314,171 @@ class Scheduler:
                           "blocked_by": d.failed_filters[0],
                           "trend": d.trend_bias.value})
 
+    # ------------------------------------------ canli durum (Aksiyon Paneli)
+    _LIVE_QUOTE_TTL = 60.0
+
+    def _quote_cached(self, symbol: str) -> float | None:
+        """Finnhub 60/dk limitine saygi: sembol basi 60 sn onbellek."""
+        if not hasattr(self, "_live_cache"):
+            self._live_cache = {}
+        ts, price = self._live_cache.get(symbol, (0.0, None))
+        if time.time() - ts < self._LIVE_QUOTE_TTL:
+            return price
+        try:
+            price = self._md.get_quote(symbol)
+        except Exception:
+            price = None
+        self._live_cache[symbol] = (time.time(), price)
+        return price
+
+    def get_live_status(self) -> list[dict]:
+        """Acik golge sinyallerin canli fiyatla durumu + eylem onerisi.
+        Kural tabanli oneridir; karar her zaman kullanicinindir."""
+        if self._tracker is None or self._md is None:
+            return []
+        today = self._calendar.now_et().date()
+        rows: list[dict] = []
+        try:
+            open_signals = [s for s in self._tracker.recent_signals(50)
+                            if s.get("status") != "CLOSED"]
+        except Exception:
+            return []
+        for sig in open_signals[:20]:
+            quote = self._quote_cached(sig["symbol"])
+            is_long = sig["direction"] == "LONG"
+            row = {"symbol": sig["symbol"], "direction": sig["direction"],
+                   "status": sig["status"], "quote": quote,
+                   "entry_min": sig["entry_min"], "entry_max": sig["entry_max"],
+                   "stop": sig["stop_loss"], "tp1": sig["tp1"],
+                   "tp2": sig["tp2"], "time_stop_date": sig.get("time_stop_date"),
+                   "fill_price": sig.get("fill_price")}
+            days_left = None
+            if sig.get("time_stop_date"):
+                try:
+                    ts_date = date.fromisoformat(sig["time_stop_date"])
+                    days_left = self._calendar.trading_days_between(today, ts_date)
+                except ValueError:
+                    pass
+            row["time_stop_days_left"] = days_left
+            if quote is not None:
+                sign = 1 if is_long else -1
+                row["dist_stop_pct"] = round(
+                    sign * (quote - sig["stop_loss"]) / quote * 100, 2)
+                row["dist_tp1_pct"] = round(
+                    sign * (sig["tp1"] - quote) / quote * 100, 2)
+                fill = sig.get("fill_price")
+                if sig["status"] == "FILLED" and fill:
+                    risk = abs(fill - sig["stop_loss"]) or 1e-9
+                    row["r_now"] = round(sign * (quote - fill) / risk, 2)
+            row["action"] = self._live_action(row, is_long)
+            rows.append(row)
+        return rows
+
+    @staticmethod
+    def _live_action(row: dict, is_long: bool) -> str:
+        quote, status = row.get("quote"), row.get("status")
+        days_left = row.get("time_stop_days_left")
+        if quote is None:
+            return "fiyat alinamadi"
+        if status == "FILLED":
+            stop_hit = quote <= row["stop"] if is_long else quote >= row["stop"]
+            tp1_hit = quote >= row["tp1"] if is_long else quote <= row["tp1"]
+            if stop_hit:
+                return "STOP IHLALI - cikisi degerlendir"
+            if tp1_hit:
+                return "TP1 asildi - kar realizasyonu / stop'u girise cek"
+            if row.get("dist_tp1_pct") is not None and row["dist_tp1_pct"] <= 1.0:
+                return "TP1'e cok yakin - kismi kar planini hazirla"
+            if days_left is not None and days_left <= 0:
+                return "TIME-STOP doldu - kapanisa kadar cikis"
+            if days_left == 1:
+                return "time-stop yarin - hedefe yurumuyorsa cikisa hazirlan"
+            return "izle - plan gecerli"
+        # PENDING
+        in_zone = row["entry_min"] <= quote <= row["entry_max"]
+        if in_zone:
+            return "GIRIS BOLGESINDE - emir firsati"
+        ran_away = quote > row["entry_max"] * 1.02 if is_long             else quote < row["entry_min"] * 0.98
+        if ran_away:
+            return "bolgeden uzaklasti - KOVALAMAK YOK"
+        return "girise gelmesi bekleniyor"
+
+    # ------------------------------------------------- seans fazi + takvim
+    def session_info(self, now_et: datetime | None = None) -> dict:
+        now_et = now_et or self._calendar.now_et()
+        today = now_et.date()
+        session = self._calendar.session_times(today)
+        info: dict = {"is_trading_day": session is not None}
+        if session:
+            open_dt, close_dt = session
+            if now_et < open_dt:
+                info.update(phase="PRE", next_event="acilis",
+                            next_event_ms=int(open_dt.timestamp() * 1000))
+            elif now_et < close_dt:
+                info.update(phase="ACIK", next_event="kapanis",
+                            next_event_ms=int(close_dt.timestamp() * 1000))
+            else:
+                session = None  # bugunku seans bitti -> sonraki acilisi bul
+                info["phase"] = "KAPALI"
+        if session is None:
+            info.setdefault("phase", "KAPALI")
+            probe = today
+            for _ in range(10):
+                probe = probe + timedelta(days=1)
+                nxt = self._calendar.session_times(probe)
+                if nxt:
+                    info.update(next_event="acilis",
+                                next_event_ms=int(nxt[0].timestamp() * 1000))
+                    break
+        return info
+
+    def build_calendar_strip(self, days: int = 5) -> list[dict]:
+        """Onumuzdeki N islem gunu: time-stop dolumlari, bilancolar, erken
+        kapanislar - 'carsamba cakismasi' onceden gorulsun."""
+        today = self._calendar.now_et().date()
+        time_stops: dict[str, list[str]] = {}
+        if self._tracker is not None:
+            try:
+                for s in self._tracker.recent_signals(50):
+                    if s.get("status") != "CLOSED" and s.get("time_stop_date"):
+                        time_stops.setdefault(
+                            s["time_stop_date"], []).append(s["symbol"])
+            except Exception:
+                pass
+        watch_syms = list(dict.fromkeys(
+            [s for lst in time_stops.values() for s in lst]
+            + [w["symbol"] for w in self._watchlist]))[:40]
+        earnings: dict[str, list[str]] = {}
+        if self._earnings is not None:
+            for symbol in watch_syms:
+                try:
+                    info = self._earnings.info(symbol, today)
+                    if info.next_date:
+                        earnings.setdefault(info.next_date, []).append(symbol)
+                except Exception:
+                    continue
+
+        strip: list[dict] = []
+        probe = today
+        while len(strip) < days:
+            session = self._calendar.session_times(probe)
+            iso = probe.isoformat()
+            if session:
+                _, close_dt = session
+                strip.append({
+                    "date": iso, "weekday": probe.strftime("%a"),
+                    "early_close": close_dt.hour < 16,
+                    "time_stops": time_stops.get(iso, []),
+                    "earnings": earnings.get(iso, []),
+                })
+            elif probe.weekday() < 5:
+                strip.append({"date": iso, "weekday": probe.strftime("%a"),
+                              "holiday": True})
+            probe = probe + timedelta(days=1)
+            if (probe - today).days > 14:
+                break
+        return strip
+
     def _news_symbols(self) -> list[str]:
         """Haber akisi kapsami: acik golge pozisyonlar + bugunun sinyalleri
         + izleme listesi adaylari (rotasyonla taranir)."""
@@ -365,8 +530,8 @@ class Scheduler:
             self.last_gap_watch = {
                 "date": today.isoformat(), "checked": report["checked"],
                 "quotes_received": len(quotes),
-                "position_alerts": len(report["position_alerts"]),
-                "candidate_alerts": len(report["candidate_alerts"])}
+                "position_alerts": report["position_alerts"],
+                "candidate_alerts": report["candidate_alerts"]}
             text = premarket_watch.render_gap_report(report)
             if text:
                 self._send(text)
