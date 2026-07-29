@@ -145,3 +145,16 @@ def test_diag_endpoint_and_embedded_block(tmp_path):
     raw = r.data.split(b'id="server-diag">')[1].split(b"</script>")[0]
     embedded = _json.loads(raw.decode().replace("<\\/", "</"))
     assert "regime" in embedded and "log_counts" in embedded
+
+
+def test_no_phantom_element_ids():
+    """Yapisal koruma: JS'in getElementById ile istedigi HER id HTML'de
+    tanimli olmali. (simSlot ve sessBadge vakalarinin sinif-duzeyi yasagi:
+    sessiz yama kaymalari bir daha script'i olduremez.)"""
+    import re
+
+    from app.dashboard import DASHBOARD_HTML
+    html_part, js_part = DASHBOARD_HTML.split("<script>", 1)
+    real = set(re.findall(r'id="([^"]+)"', html_part))
+    used = set(re.findall(r"getElementById\('([^']+)'\)", js_part))
+    assert used - real == set(), f"hayalet id'ler: {sorted(used - real)}"

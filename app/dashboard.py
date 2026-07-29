@@ -172,6 +172,7 @@ DASHBOARD_HTML = r"""<!doctype html>
     <span class="logo"><span class="dot" id="dot"></span>midas-<b>signal</b>-bot
       <span class="b grey" style="font-size:10px">arayuz v2.3</span></span>
     <span class="clock">NY <b id="clkNY">--:--</b> · TR <b id="clkTR">--:--</b></span>
+    <span class="b grey" id="sessBadge">seans: -</span>
     <span class="hinfo" id="hinfo">yukleniyor...</span>
     <span><button onclick="fontStep(-1)" title="yazi kucult">A&#8722;</button>
     <button onclick="fontStep(1)" title="yazi buyut">A+</button></span>
@@ -466,7 +467,8 @@ const STAGE_TIPS={
 let SESS=null;
 function renderSession(s){SESS=s;paintSession();}
 function paintSession(){
-  const el=document.getElementById('sessBadge'); if(!SESS){el.textContent='seans: -';return;}
+  const el=document.getElementById('sessBadge'); if(!el)return;
+  if(!SESS){el.textContent='seans: -';return;}
   let txt=SESS.phase==='ACIK'?'SEANS ACIK':SESS.phase==='PRE'?'PRE-MARKET':'KAPALI';
   let cls=SESS.phase==='ACIK'?'b win':SESS.phase==='PRE'?'b amber':'b grey';
   if(SESS.next_event_ms){
