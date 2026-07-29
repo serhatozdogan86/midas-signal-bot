@@ -42,7 +42,7 @@ def test_dashboard_served(tmp_path):
         assert b"JetBrains+Mono" in r.data           # terminal tipografi
         assert b"data-tip" in r.data                 # tooltip sistemi
         assert b"STAGE_TIPS" in r.data               # boru hatti aciklamalari
-        assert b"simSlot" in r.data                  # kapasite modu
+        assert b'id="simSlot"' in r.data            # kapasite modu (INPUT olarak!)
         assert b"fontStep" in r.data                 # yazi boyutu secici
         assert b">Kalite<" in r.data and b">Canli<" in r.data
 

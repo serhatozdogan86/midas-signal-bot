@@ -254,6 +254,7 @@ DASHBOARD_HTML = r"""<!doctype html>
         <div class="simrow">
           <label>Baslangic $ <input id="simStart" type="number" value="1000"></label>
           <label>Risk % <input id="simRisk" type="number" value="1" step="0.5"></label>
+          <label>Slot <input id="simSlot" type="number" value="4" min="1" max="20"></label>
         </div>
         <div class="simout" id="simOut"><div><b>durum</b><span class="muted">hesaplaniyor...</span></div></div>
       </div>
@@ -349,6 +350,8 @@ DASHBOARD_HTML = r"""<!doctype html>
 
 <script>
 let SIG=[], FILT="all", DIRF="ALL", CHART=null, STAGES={}, TIMER=null;
+function on(id,ev,fn){const el=document.getElementById(id);
+  if(el)el.addEventListener(ev,fn);}
 window.onerror=function(msg,src_,line){
   const el=document.getElementById('hinfo');
   if(el)el.innerHTML=`<span class="b loss">ARAYUZ HATASI: ${msg} (satir ${line}) - bu mesaji Claude'a ilet</span>`;
@@ -641,8 +644,8 @@ function renderPS(){
    ${shares.toFixed(2)} adet</b> (~$${(shares*entry).toFixed(0)} pozisyon).
    Midas kusurat destekler; stop ${CURSIG.stop_loss} disiplinine baglidir.`;
 }
-document.getElementById('psAcct').addEventListener('input',renderPS);
-document.getElementById('psRisk').addEventListener('input',renderPS);
+on('psAcct','input',renderPS);
+on('psRisk','input',renderPS);
 
 async function drawCandles(s){
   const cv=document.getElementById('mChart'),ctx=cv.getContext('2d');
@@ -687,7 +690,8 @@ function decidedSorted(){
 function renderSim(){
   const start=parseFloat(document.getElementById('simStart').value)||1000;
   const riskPct=(parseFloat(document.getElementById('simRisk').value)||1)/100;
-  const K=Math.max(1,parseInt(document.getElementById('simSlot').value)||4);
+  const slotEl=document.getElementById('simSlot');
+  const K=Math.max(1,parseInt(slotEl?slotEl.value:'4')||4);
   const rows=decidedSorted();
   // Kapasite-kisitli yurutme (bybit v3.3.1 portu, hisse uyarlamasi:
   // kaldirac yok -> pozisyon nosyoneli slot payini (bakiye/K) asamaz)
@@ -721,9 +725,9 @@ function renderSim(){
      <div><b>Sinirsiz varsayim</b><span class="muted">$${ref.toFixed(0)}
        (${refRet>=0?'+':''}${refRet.toFixed(1)}%)</span></div>`;
 }
-document.getElementById('simSlot').addEventListener('input',renderSim);
-document.getElementById('simStart').addEventListener('input',renderSim);
-document.getElementById('simRisk').addEventListener('input',renderSim);
+on('simSlot','input',renderSim);
+on('simStart','input',renderSim);
+on('simRisk','input',renderSim);
 
 function renderEquity(){
   const closed=decidedSorted();
