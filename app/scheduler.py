@@ -56,6 +56,10 @@ class Scheduler:
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
+        self._last_fine = 0.0
+        self._zone_notified: set = set()      # sinyal basina tek "bolgede" bildirimi
+        self._reeval_at: dict = {}            # sembol -> son tekrar-degerlendirme ts
+        self.last_fine_info: dict = {}
         self._daily_cache: dict = {}
         self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
@@ -120,6 +124,12 @@ class Scheduler:
             if time.time() - self._last_coarse >= self._settings.COARSE_SCAN_INTERVAL_SEC:
                 self.run_coarse_scan(send_telegram=True)
                 self._last_coarse = time.time()
+            if time.time() - self._last_fine >= self._settings.FINE_SCAN_INTERVAL_SEC:
+                try:
+                    self.run_fine_scan()      # ince tarama kaba taramayi ASLA dusurmez
+                except Exception:
+                    log.exception(kv(event="fine_scan_error"))
+                self._last_fine = time.time()
         if now_et >= eod_dt and self._eod_date != today and self._prep_date == today:
             self.run_eod(today)
 
@@ -278,7 +288,7 @@ class Scheduler:
                 except Exception:
                     log.exception(kv(event="tracker_error", symbol=symbol))
             self._store.save_result(symbol, d.contract_dict())
-            self._collect_watch(d, watch)
+            self._collect_watch(d, watch, hourly.get(symbol))
             if send_telegram:
                 self._dispatch(d)
             log.info(kv(event="scan", symbol=symbol, decision=d.decision.value,
@@ -312,7 +322,8 @@ class Scheduler:
                     watchlist=len(self._watchlist)))
         return results
 
-    def _collect_watch(self, d: Decision, watch: list[dict]) -> None:
+    def _collect_watch(self, d: Decision, watch: list[dict],
+                       hourly_series=None) -> None:
         """Izleme listesi adayi: trend gecmis, yalnizca gec asamada takilmis.
         Phase 2'de bu liste ince taramanin (1 dk quote) girdisi olacak."""
         if d.decision is DecisionType.SIGNAL:
@@ -322,9 +333,24 @@ class Scheduler:
         late = {"SETUP", "VOLUME", "RISK_REWARD"}
         if (d.decision is DecisionType.NO_TRADE
                 and set(d.failed_filters) <= late and d.failed_filters):
-            watch.append({"symbol": d.symbol, "state": "CANDIDATE",
-                          "blocked_by": d.failed_filters[0],
-                          "trend": d.trend_bias.value})
+            entry = {"symbol": d.symbol, "state": "CANDIDATE",
+                     "blocked_by": d.failed_filters[0],
+                     "trend": d.trend_bias.value}
+            # Faz 2: SETUP'ta takilan aday icin kirilim tetik seviyesi.
+            # Long: son yapinin tepesi (son 2 bar haric 30 barin en yuksegi);
+            # short ayna. Ince tarama bu seviyenin kirilmasini canli izler.
+            if (d.failed_filters[0] == "SETUP" and hourly_series is not None
+                    and len(hourly_series) >= 32):
+                df = hourly_series.to_dataframe()
+                if d.trend_bias.value == "bullish":
+                    entry["direction"] = "LONG"
+                    entry["trigger_level"] = round(
+                        float(df["high"].iloc[-32:-2].max()), 4)
+                elif d.trend_bias.value == "bearish":
+                    entry["direction"] = "SHORT"
+                    entry["trigger_level"] = round(
+                        float(df["low"].iloc[-32:-2].min()), 4)
+            watch.append(entry)
 
     # ------------------------------------------ canli durum (Aksiyon Paneli)
     _LIVE_QUOTE_TTL = 60.0
@@ -505,6 +531,98 @@ class Scheduler:
         symbols += [t.split(" ")[0] for t in self._signals_today]
         symbols += [w["symbol"] for w in self._watchlist]
         return list(dict.fromkeys(symbols))
+
+    # -------------------------------------------------- Faz 2: ince tarama
+    def run_fine_scan(self) -> None:
+        """~1 dk'da bir canli fiyat yoklamasi (plan bolum 5, Faz 2):
+        1) PENDING sinyalin fiyati giris bolgesine girdi -> ani bildirim
+        2) SETUP'ta takilan adayin kirilim seviyesi asildi -> aninda tam
+           yeniden degerlendirme (1h tek sembol) -> SIGNAL ise dispatch.
+        Sinyal gecikmesi <=15 dk'dan ~1 dk'ya iner."""
+        if self._tracker is None:
+            return
+        checked = zone_hits = trigger_hits = 0
+        budget = self._settings.FINE_MAX_SYMBOLS
+
+        # --- 1) bekleyen sinyaller: bolgeye giris ani ---
+        pending = [s for s in self._tracker.recent_signals(50)
+                   if s.get("status") == "PENDING"][:budget]
+        for sig in pending:
+            quote = self._quote_cached(sig["symbol"])
+            if quote is None:
+                continue
+            checked += 1
+            if sig["entry_min"] <= quote <= sig["entry_max"]                     and sig["id"] not in self._zone_notified:
+                self._zone_notified.add(sig["id"])
+                zone_hits += 1
+                self._send(
+                    f"GIRIS TETIKLENDI | {sig['symbol']} {sig['direction']}\n"
+                    f"Canli fiyat {quote:g} giris bolgesinde "
+                    f"({sig['entry_min']:g} - {sig['entry_max']:g}).\n"
+                    f"Plan: stop {sig['stop_loss']:g} | TP1 {sig['tp1']:g} | "
+                    f"TP2 {sig['tp2']:g}\n"
+                    f"Emir Midas'tan manuel girilir; LIMIT emir onerilir.")
+                log.info(kv(event="fine_zone_touch", symbol=sig["symbol"],
+                            quote=quote))
+
+        # --- 2) adaylar: kirilim tetigi -> aninda tam degerlendirme ---
+        armed = [w for w in self._watchlist
+                 if w.get("state") == "CANDIDATE" and w.get("trigger_level")]
+        for w in armed[: max(0, budget - checked)]:
+            quote = self._quote_cached(w["symbol"])
+            if quote is None:
+                continue
+            checked += 1
+            buf = 1 + self._settings.FINE_TRIGGER_BUFFER_PCT / 100
+            crossed = (quote >= w["trigger_level"] * buf
+                       if w.get("direction") == "LONG"
+                       else quote <= w["trigger_level"] / buf)
+            if not crossed:
+                continue
+            now = time.time()
+            if now - self._reeval_at.get(w["symbol"], 0) <                     self._settings.FINE_REEVAL_COOLDOWN_SEC:
+                continue
+            self._reeval_at[w["symbol"]] = now
+            trigger_hits += 1
+            log.info(kv(event="fine_trigger", symbol=w["symbol"],
+                        level=w["trigger_level"], quote=quote))
+            try:
+                self._fine_reevaluate(w["symbol"])
+            except Exception:
+                log.exception(kv(event="fine_reeval_error", symbol=w["symbol"]))
+
+        self.last_fine_info = {
+            "ts_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "checked": checked, "zone_hits": zone_hits,
+            "trigger_hits": trigger_hits,
+            "pending": len(pending), "armed": len(armed)}
+
+    def _fine_reevaluate(self, symbol: str) -> None:
+        """Kirilim ani icin tek sembolluk tam pipeline kosusu."""
+        today = self._calendar.now_et().date()
+        daily = self._daily_cache if self._daily_cache_date == today else {}
+        if symbol not in daily:
+            return
+        hourly = self._md.get_hourly_bulk([symbol]).get(symbol)
+        if hourly is None:
+            return
+        bench_df = (daily[_BENCH].to_dataframe()
+                    if _BENCH in daily else None)
+        e_info = self._earnings.info(symbol, today)
+        d = signal_engine.evaluate(symbol, daily.get(symbol), hourly,
+                                   self._regime, self._params, bench_df, e_info)
+        if d.decision is DecisionType.SIGNAL:
+            d.time_stop_date = self._calendar.add_trading_days(
+                today, self._params.time_stop_days).isoformat()
+            if self._tracker is not None:
+                self._tracker.record_candles(hourly)
+                self._tracker.record_decision(d)
+                self._tracker.maybe_track(d, hourly)
+                self._tracker.evaluate_open(symbol)
+            self._store.save_result(symbol, d.contract_dict())
+            self._dispatch(d)
+            log.info(kv(event="fine_signal", symbol=symbol,
+                        direction=d.direction.value))
 
     # ------------------------------------------------- acilis oncesi gap nobeti
     def run_gap_watch(self, today: date) -> None:

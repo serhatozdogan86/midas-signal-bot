@@ -81,7 +81,10 @@ class Settings(BaseSettings):
 
     # Tarama ritmi (plan bolum 5)
     COARSE_SCAN_INTERVAL_SEC: int = 900
-    HOURLY_FETCH_MAX: int = 120        # 2. geciste 1h verisi cekilecek max aday      # 15 dk kaba tarama
+    HOURLY_FETCH_MAX: int = 120        # 2. geciste 1h verisi cekilecek max aday
+    FINE_MAX_SYMBOLS: int = 30         # ince tarama tur butcesi (Finnhub 60/dk)
+    FINE_REEVAL_COOLDOWN_SEC: int = 300  # ayni aday icin tekrar-degerlendirme araligi
+    FINE_TRIGGER_BUFFER_PCT: float = 0.05  # kirilim teyit tamponu (%)      # 15 dk kaba tarama
     FINE_SCAN_INTERVAL_SEC: int = 60         # Phase 2 (rezerve)
     WATCHLIST_MAX: int = 40
     PREP_LEAD_MIN: int = 45                  # acilistan once hazirlik (08:45 ET ~ 15:45 TR)

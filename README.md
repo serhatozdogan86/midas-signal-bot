@@ -163,8 +163,21 @@ hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,
 izleme listesi ve gist durumu. 60 sn'de bir kendini yeniler.
 Ek uclar: `/performance`, `/signals?limit=N`, `/backup/info`, `POST /backup/now`.
 
+## Faz 2: ince tarama (v2.4 - AKTIF)
+Seans icinde ~1 dk'da bir (FINE_SCAN_INTERVAL_SEC) canli fiyat yoklamasi:
+1. **Bolge tetigi:** PENDING sinyalin fiyati giris bolgesine girdigi AN
+   Telegram'a "GIRIS TETIKLENDI" bildirimi (sinyal basina bir kez).
+2. **Kirilim tetigi:** Kaba tarama SETUP'ta takilan adaya son yapinin
+   tepesinden (long; short ayna) tetik seviyesi takar. Canli fiyat seviyeyi
+   (+%0.05 tampon) kirdiginda tek sembolluk TAM pipeline aninda kosulur ->
+   SIGNAL ise dispatch. Sinyal gecikmesi <=15 dk'dan ~1 dk'ya iner.
+Butce: tur basina en cok FINE_MAX_SYMBOLS (30) quote; sembol basi 60 sn
+onbellek; aday basina 5 dk tekrar-degerlendirme cooldown'u. Ince tarama
+hatasi kaba taramayi ASLA etkilemez (izole try/except).
+
 ## Faz haritasi
-- **Faz 2:** Finnhub quote + izleme listesi oncelik kuyrugu + ~1 dk ince tarama
-  (giris seviyesi kirilim tetigi)
-- ~~Faz 3~~ tamamlandi (bu surumde; one cekildi)
-- **Faz 4:** parametre kalibrasyonu (golge mod verisi), RS/sektor ETF confluence
+- ~~Faz 2~~ tamamlandi (v2.4)
+- ~~Faz 3~~ tamamlandi (one cekildi)
+- **Faz 4:** parametre kalibrasyonu - 30-50 sonuclanmis golge sinyalden SONRA
+  (veri kilidi); RS/sektor ETF confluence; "HIGH guven gercekten daha mi iyi"
+  analizi (kalite etiketleri hazir)
