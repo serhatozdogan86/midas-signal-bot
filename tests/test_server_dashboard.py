@@ -34,11 +34,11 @@ def test_dashboard_served(tmp_path):
         assert b"--ink0:#0B0E14" in r.data               # terminal palet
         assert b"Haber Akisi" in r.data                  # haber paneli
         assert b"Portfoy Simulasyonu" in r.data
-        assert b"Nasil okunur?" in r.data
+        assert b"Nasil Okunur?" in r.data
         assert b"Aksiyon Paneli" in r.data
         assert b"Takvim Seridi" in r.data
         assert b"Gap Nobeti" in r.data
-        assert b"Pozisyon buyuklugu" in r.data
+        assert b"Pozisyon Buyuklugu" in r.data
         assert b"IBM+Plex+Mono" in r.data            # terminal tipografi
         assert b"data-tip" in r.data                 # tooltip sistemi
         assert b"STAGE_TIPS" in r.data               # boru hatti aciklamalari
