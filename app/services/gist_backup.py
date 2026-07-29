@@ -141,6 +141,20 @@ class GistBackup:
             except Exception:
                 log.exception(kv(event="gist_sync_error"))
 
+    def fetch_meta(self) -> dict | None:
+        """Gist'teki 0_meta.json icerigi (evren tohumlama icin)."""
+        if self._gist_id is None:
+            self._gist_id = self._client.find_gist(MARKER)
+        if self._gist_id is None:
+            return None
+        files = self._client.fetch_gist(self._gist_id)
+        if not files or "0_meta.json" not in files:
+            return None
+        try:
+            return json.loads(files["0_meta.json"])
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     # ----------------------------------------------------------- restore
     def restore_if_empty(self) -> bool:
         """DB bos ise gist'ten geri yukle (redeploy sonrasi self-healing)."""

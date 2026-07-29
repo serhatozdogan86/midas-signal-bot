@@ -121,3 +121,26 @@ def test_parse_candles_csv_tolerates_garbage():
     text = "ts,open,high,low,close,volume\n1,2,3,4,5,6\nbozuk,satir\n7,8,9,10,11,12\n"
     rows = _parse_candles_csv(text)
     assert len(rows) == 2 and rows[0][0] == 1
+
+
+def test_fetch_meta_and_universe_seed(tmp_path):
+    from datetime import date
+
+    from app.config.settings import Settings
+    from app.services.universe import UniverseProvider
+
+    client = FakeGistClient()
+    backup = GistBackup(client, _tracker_with_signal(tmp_path),
+                        meta_provider=lambda: {"universe": {
+                            "symbols": ["AAPL", "MSFT"],
+                            "filtered_date": date.today().isoformat()}})
+    backup.sync()
+
+    meta = GistBackup(client, _tracker_with_signal(tmp_path / "b")).fetch_meta()
+    uni_meta = meta["universe"]
+    settings = Settings(UNIVERSE_SOURCE="static",
+                        UNIVERSE_CACHE_PATH=str(tmp_path / "c.json"))
+    provider = UniverseProvider(settings, market_data=None)
+    assert provider.restore(uni_meta["symbols"], uni_meta["filtered_date"])
+    assert provider.get_symbols() == ["AAPL", "MSFT"]      # grind atlandi
+    assert not provider.restore(["X"], "2020-01-01")       # bayat yedek reddi

@@ -104,6 +104,15 @@ def main() -> None:
             gist_backup.restore_if_empty()  # redeploy sonrasi self-healing
         except Exception:
             log.exception(kv(event="gist_restore_error"))
+        try:
+            meta = gist_backup.fetch_meta() or {}
+            uni = meta.get("universe") or {}
+            if universe.restore(uni.get("symbols") or [],
+                               uni.get("filtered_date")):
+                log.info(kv(event="universe_seeded_from_gist",
+                            count=len(uni.get("symbols") or [])))
+        except Exception:
+            log.exception(kv(event="universe_seed_error"))
     elif settings.GIST_SYNC and not settings.GITHUB_TOKEN:
         log.warning(kv(event="gist_env_missing",
                        note="GITHUB_TOKEN yok; yedekleme kapali, veri restart'ta silinir"))

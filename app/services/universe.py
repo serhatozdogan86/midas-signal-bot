@@ -86,6 +86,25 @@ class UniverseProvider:
         log.info(kv(event="universe_refresh", raw=len(raw), filtered=len(filtered)))
         return list(filtered)
 
+    def restore(self, symbols: list[str], filtered_date: str | None) -> bool:
+        """Deploy sonrasi gist yedeginden evreni tohumla (BUGUNSE gecerli).
+        Amac: her yeniden baslatmada 15-20 dk'lik scrape+likidite elemesini
+        tekrarlamamak. Eski tarihli yedek kabul edilmez - ertesi gun evren
+        yine 15:45 hazirliginda taze kurulur."""
+        if not symbols or not filtered_date:
+            return False
+        try:
+            d = date.fromisoformat(filtered_date)
+        except ValueError:
+            return False
+        if d != date.today():
+            return False
+        with self._lock:
+            self._filtered = list(symbols)
+            self._filtered_date = d
+            self._raw_count = self._raw_count or len(symbols)
+        return True
+
     def describe(self) -> dict:
         with self._lock:
             return {"source": self._s.UNIVERSE_SOURCE, "raw_count": self._raw_count,
