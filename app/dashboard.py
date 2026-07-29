@@ -357,8 +357,13 @@ function tickClock(){
 }
 setInterval(tickClock,1000);tickClock();
 
-async function j(u){try{const r=await fetch(u);if(!r.ok)return null;
-  return await r.json();}catch(e){return null}}
+async function j(u){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),12000);   // tek yavas uc sayfayi kilitleyemez
+  try{const r=await fetch(u,{signal:ctl.signal,cache:'no-store'});
+    if(!r.ok)return null;return await r.json();}
+  catch(e){return null}
+  finally{clearTimeout(t)}}
 
 function kpi(l,v,cls,tip){return `<div class="card kpi ${cls||''}"${tip?` data-tip="${tip}"`:''}>
   <div class="v">${v}</div><div class="l">${l}</div></div>`}
@@ -379,7 +384,8 @@ async function loadAll(){
   document.getElementById('dot').className='dot'+(status?'':' err');
 
   const meta=(status&&status.meta)||{};
-  document.getElementById('hinfo').innerHTML=
+  const prog=dg&&dg.progress?`<span class="b amber">&#9881; ${dg.progress}</span> `:'';
+  document.getElementById('hinfo').innerHTML=prog+
     `Son tarama: <b>${meta.last_scan_utc||'-'}</b> &#183; #${meta.scan_count??'-'}`+
     (uni?` &#183; Evren: <b>${uni.filtered_count??'-'}</b> (${uni.source||'-'})`:'');
 

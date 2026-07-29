@@ -23,6 +23,13 @@ def create_app(store: StateStore, scheduler: Scheduler,
                gist_backup=None, commentary=None, news=None) -> Flask:
     app = Flask(__name__)
 
+    @app.after_request
+    def no_store(resp):
+        # Ara katman/istemci onbellegini kapat: dashboard ve /diag her zaman
+        # TAZE veri dondurmeli (bayat 10 saatlik /diag vakasi, 2026-07-29).
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+        return resp
+
     def _build_diag() -> dict:
         """Uzaktan tani sozlesmesi: botun sagligiyla ilgili her sey tek JSON'da.
         Hem /diag ucundan hem dashboard HTML'ine gomulu olarak sunulur ki
@@ -39,6 +46,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
             "watchlist": scheduler.watchlist[:15],
             "log_counts": dict(ring.counts),
             "recent_warnings": ring.recent(60),
+            "progress": getattr(scheduler, "progress", ""),
         }
         try:
             diag["universe"] = universe.describe() if universe else None

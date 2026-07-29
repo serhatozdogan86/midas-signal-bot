@@ -120,7 +120,7 @@ def main() -> None:
                 state_backend=settings.STATE_BACKEND,
                 universe_source=settings.UNIVERSE_SOURCE,
                 shadow=tracker is not None, gist=gist_backup is not None))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, threaded=True)
 
 
 if __name__ == "__main__":

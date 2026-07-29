@@ -85,6 +85,18 @@ def test_live_and_candles_endpoints(tmp_path):
     assert "session" in diag and "calendar_strip" in diag
 
 
+def test_no_store_headers_everywhere(tmp_path):
+    c = _client(tmp_path)
+    for path in ("/", "/healthz", "/diag"):
+        assert "no-store" in c.get(path).headers.get("Cache-Control", "")
+
+
+def test_progress_surfaces_in_diag(tmp_path):
+    tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
+    c = _client(tmp_path, tracker=tracker)
+    assert c.get("/diag").get_json()["progress"] == ""
+
+
 def test_endpoints_404_when_disabled(tmp_path):
     c = _client(tmp_path)
     assert c.get("/performance").status_code == 404

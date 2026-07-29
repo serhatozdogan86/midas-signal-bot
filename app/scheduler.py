@@ -68,6 +68,7 @@ class Scheduler:
         self.last_prep_info: dict = {}
         self.last_market_note: str = ""
         self.last_gap_watch: dict = {}
+        self.progress: str = ""
 
     # ------------------------------------------------------------- disari API
     @property
@@ -127,8 +128,11 @@ class Scheduler:
         log.info(kv(event="prep_start", date=today.isoformat()))
         self._prep_date = today
         self._signals_today = []
+        self.progress = "hazirlik: evren cekiliyor + likidite filtresi"
         symbols = self._universe.refresh(force=True)
+        self.progress = f"hazirlik: bilanco takvimi ({len(symbols)} sembol)"
         self._earnings.refresh(today, force=True)
+        self.progress = f"hazirlik: gunluk veri isitiliyor ({len(symbols)} sembol)"
 
         # Gunluk cache'i simdiden isit: rejim + piyasa notu buradan cikar,
         # seans acilisindaki ilk kaba tarama da hazir veriyle baslar.
@@ -158,6 +162,7 @@ class Scheduler:
         self.last_prep_info = {"date": today.isoformat(),
                                "universe": len(symbols),
                                "regime": self._regime.regime.value}
+        self.progress = ""
         log.info(kv(event="prep_done", universe=len(symbols),
                     regime=self._regime.regime.value))
         if self._settings.SEND_PREP_SUMMARY:
@@ -209,6 +214,7 @@ class Scheduler:
                                 if s not in symbols]
         if _BENCH not in fetch_list:
             fetch_list.append(_BENCH)
+        self.progress = f"tarama: gunluk veri ({len(fetch_list)} sembol)"
         daily = self._get_daily_cached(fetch_list, today)
 
         idx = self._settings.regime_symbols
@@ -218,6 +224,7 @@ class Scheduler:
         self._regime = classify_market_regime(spy_df, qqq_df)
         bench_df = daily.get(_BENCH).to_dataframe() if _BENCH in daily else None
 
+        self.progress = "tarama: 1. gecis (gunluk filtreler)"
         # --- 1. gecis: gunluk filtreler (1h verisi olmadan) ---
         pass1: dict[str, Decision] = {}
         candidates: list[str] = []
@@ -239,7 +246,9 @@ class Scheduler:
                            candidates=len(candidates), cap=len(capped)))
 
         # --- 2. gecis: adaylar icin 1h veri + tam pipeline ---
+        self.progress = f"tarama: 1h verisi indiriliyor ({len(capped)} aday)"
         hourly = self._md.get_hourly_bulk(capped) if capped else {}
+        self.progress = "tarama: 2. gecis (setup/hacim/RR)"
         results: list[Decision] = []
         watch: list[dict] = []
         for symbol, d in pass1.items():
@@ -296,6 +305,7 @@ class Scheduler:
             self._commentary.maybe_generate(self._regime.regime.value)
         if self._gist is not None:
             self._gist.maybe_sync()
+        self.progress = ""
         log.info(kv(event="coarse_scan_done", scanned=len(results),
                     signals=sum(1 for r in results
                                 if r.decision is DecisionType.SIGNAL),
