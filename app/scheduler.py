@@ -60,6 +60,8 @@ class Scheduler:
         self._regime = RegimeResult(regime=MarketRegime.UNKNOWN, detail="not computed")
         self._watchlist: list[dict] = []
         self._signals_today: list[str] = []
+        self.last_scan_info: dict = {}
+        self.last_prep_info: dict = {}
 
     # ------------------------------------------------------------- disari API
     @property
@@ -115,6 +117,9 @@ class Scheduler:
         symbols = self._universe.refresh(force=True)
         self._earnings.refresh(today, force=True)
         self._regime = self._compute_regime()
+        self.last_prep_info = {"date": today.isoformat(),
+                               "universe": len(symbols),
+                               "regime": self._regime.regime.value}
         log.info(kv(event="prep_done", universe=len(symbols),
                     regime=self._regime.regime.value))
         if self._settings.SEND_PREP_SUMMARY:
@@ -152,6 +157,7 @@ class Scheduler:
            rejim + trend + bilanco filtreleri -> aday listesi
         2. gecis: 1h veri YALNIZ adaylar icin indirilir (<= HOURLY_FETCH_MAX)
            -> setup/hacim/RR filtreleri -> SIGNAL"""
+        scan_t0 = time.time()
         today = self._calendar.now_et().date()
         symbols = self._universe.get_symbols()
         if not symbols:
@@ -233,6 +239,17 @@ class Scheduler:
         self._watchlist = watch[: self._settings.WATCHLIST_MAX]
         self._store.record_scan(
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        self.last_scan_info = {
+            "ts_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "duration_s": round(time.time() - scan_t0, 1),
+            "scanned": len(results),
+            "signals": sum(1 for r in results
+                           if r.decision is DecisionType.SIGNAL),
+            "hourly_candidates": len(candidates),
+            "hourly_received": len(hourly),
+            "daily_cached": len(daily),
+            "watchlist": len(watch),
+        }
         if self._gist is not None:
             self._gist.maybe_sync()
         log.info(kv(event="coarse_scan_done", scanned=len(results),

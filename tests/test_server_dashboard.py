@@ -46,3 +46,29 @@ def test_endpoints_404_when_disabled(tmp_path):
     c = _client(tmp_path)
     assert c.get("/performance").status_code == 404
     assert c.get("/backup/info").status_code == 404
+
+
+def test_diag_endpoint_and_embedded_block(tmp_path):
+    import json as _json
+    import logging
+
+    from app.logging_setup import get_ring_buffer
+    get_ring_buffer()
+    logging.getLogger("testdiag").warning("ornek uyari kaydi")
+
+    tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
+    c = _client(tmp_path, tracker=tracker)
+
+    r = c.get("/diag")
+    assert r.status_code == 200
+    diag = r.get_json()
+    assert "meta" in diag and "regime" in diag and "shadow" in diag
+    assert diag["log_counts"]["WARNING"] >= 1
+    assert any("ornek uyari" in w["msg"] for w in diag["recent_warnings"])
+
+    # dashboard sayfasina gomulu server-diag blogu (uzaktan tani sozlesmesi)
+    r = c.get("/")
+    assert b'id="server-diag"' in r.data
+    raw = r.data.split(b'id="server-diag">')[1].split(b"</script>")[0]
+    embedded = _json.loads(raw.decode().replace("<\\/", "</"))
+    assert "regime" in embedded and "log_counts" in embedded

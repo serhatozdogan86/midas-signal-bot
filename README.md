@@ -104,6 +104,12 @@ revizyonlari istatistik GECMISINI arsivler.
 Token: github.com -> Settings -> Developer settings -> Personal access tokens
 -> **yalnizca `gist` scope** isaretle (repo erisimi verme).
 
+**Uzaktan tani (/diag):** Son WARNING/ERROR loglari bellekte tutulur (ring
+buffer) ve `/diag` ucundan JSON olarak sunulur; ayni JSON dashboard sayfasinin
+kaynagina `<script id="server-diag">` blogu olarak gomulur. Boylece Render log
+konsoluna girmeden TEK URL'den (kok sayfa) botun sagligi okunabilir: son tarama
+suresi/sayilari, rejim, evren, golge istatistik, gist durumu, son uyarilar.
+
 **Dashboard:** `https://<servis>/dashboard` (veya kok `/`). KPI kartlari
 (win rate, toplam R, acik sinyal, giris isabeti), equity egrisi, karar hatti
 hunisi (son taramada filtre bazinda elenen sayilar), sinyal tablosu, rejim,

@@ -12,6 +12,7 @@ import json
 from flask import Flask, jsonify, request
 
 from app.dashboard import DASHBOARD_HTML
+from app.logging_setup import get_ring_buffer
 from app.scheduler import Scheduler
 from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
@@ -22,10 +23,53 @@ def create_app(store: StateStore, scheduler: Scheduler,
                gist_backup=None) -> Flask:
     app = Flask(__name__)
 
+    def _build_diag() -> dict:
+        """Uzaktan tani sozlesmesi: botun sagligiyla ilgili her sey tek JSON'da.
+        Hem /diag ucundan hem dashboard HTML'ine gomulu olarak sunulur ki
+        Render log konsoluna girmeden tek URL'den durum okunabilsin."""
+        ring = get_ring_buffer()
+        diag = {
+            "now_utc": __import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "uptime_sec": ring.uptime_sec(),
+            "meta": store.get_meta(),
+            "regime": scheduler.regime.model_dump(mode="json"),
+            "last_scan": scheduler.last_scan_info,
+            "last_prep": scheduler.last_prep_info,
+            "watchlist": scheduler.watchlist[:15],
+            "log_counts": dict(ring.counts),
+            "recent_warnings": ring.recent(60),
+        }
+        try:
+            diag["universe"] = universe.describe() if universe else None
+        except Exception:
+            diag["universe"] = None
+        if tracker is not None:
+            try:
+                st = tracker.stats()
+                diag["shadow"] = {k: st[k] for k in
+                                  ("open_signals", "decided_trades", "win_rate",
+                                   "total_r_multiple", "closed_by_outcome",
+                                   "dataset")}
+            except Exception:
+                diag["shadow"] = None
+        diag["gist"] = gist_backup.info() if gist_backup is not None else None
+        return diag
+
     @app.get("/")
     @app.get("/dashboard")
     def dashboard():
-        return app.response_class(DASHBOARD_HTML, mimetype="text/html")
+        # server-diag blogu: sayfa kaynagindan (JS calismadan) durum okunabilsin
+        payload = json.dumps(_build_diag(), ensure_ascii=True).replace("</", "<\\/")
+        html = DASHBOARD_HTML.replace(
+            "</body>",
+            f'<script type="application/json" id="server-diag">{payload}</script></body>')
+        return app.response_class(html, mimetype="text/html")
+
+    @app.get("/diag")
+    def diag():
+        return app.response_class(json.dumps(_build_diag(), indent=2),
+                                  mimetype="application/json")
 
     # --------------------------------------------- golge takip (Faz 3)
     @app.get("/performance")
