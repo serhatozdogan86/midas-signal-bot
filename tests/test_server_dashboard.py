@@ -69,6 +69,8 @@ def test_diag_endpoint_and_embedded_block(tmp_path):
     # dashboard sayfasina gomulu server-diag blogu (uzaktan tani sozlesmesi)
     r = c.get("/")
     assert b'id="server-diag"' in r.data
+    assert b"DURUM OZETI ::" in r.data          # gorunur ozet satiri
+    assert b"/diag</a>" in r.data               # tam adresli detay linki
     raw = r.data.split(b'id="server-diag">')[1].split(b"</script>")[0]
     embedded = _json.loads(raw.decode().replace("<\\/", "</"))
     assert "regime" in embedded and "log_counts" in embedded

@@ -59,11 +59,36 @@ def create_app(store: StateStore, scheduler: Scheduler,
     @app.get("/")
     @app.get("/dashboard")
     def dashboard():
-        # server-diag blogu: sayfa kaynagindan (JS calismadan) durum okunabilsin
-        payload = json.dumps(_build_diag(), ensure_ascii=True).replace("</", "<\\/")
+        # Uzaktan tani: HTML sadelestiricileri <script> icerigini attigi icin
+        # durum ozeti GORUNUR metin olarak + /diag'a TAM ADRESLI link olarak
+        # gomulur. Boylece sayfayi ceken bir arac (or. Claude) once ozeti okur,
+        # detay icin linkteki ham JSON'a gecebilir.
+        diag = _build_diag()
+        last = diag.get("last_scan") or {}
+        prep = diag.get("last_prep") or {}
+        shadow = diag.get("shadow") or {}
+        diag_url = request.host_url.rstrip("/") + "/diag"
+        status_line = (
+            f'DURUM OZETI :: son tarama: {last.get("ts_utc", "henuz yok")}'
+            f' | taranan: {last.get("scanned", 0)}'
+            f' | sinyal: {last.get("signals", 0)}'
+            f' | 1h aday/alinan: {last.get("hourly_candidates", 0)}'
+            f'/{last.get("hourly_received", 0)}'
+            f' | sure: {last.get("duration_s", "-")}s'
+            f' | evren: {prep.get("universe", "-")}'
+            f' | rejim: {diag["regime"].get("regime", "-")}'
+            f' | golge acik/sonuclanan: {shadow.get("open_signals", 0)}'
+            f'/{shadow.get("decided_trades", 0)}'
+            f' | uyari/hata: {diag["log_counts"]["WARNING"]}'
+            f'/{diag["log_counts"]["ERROR"]}'
+            f' | uptime: {diag["uptime_sec"] // 60}dk'
+            f' | detay: <a href="{diag_url}">{diag_url}</a>')
+        payload = json.dumps(diag, ensure_ascii=True).replace("</", "<\\/")
         html = DASHBOARD_HTML.replace(
             "</body>",
-            f'<script type="application/json" id="server-diag">{payload}</script></body>')
+            f'<div class="foot">{status_line}</div>'
+            f'<script type="application/json" id="server-diag">{payload}</script>'
+            f"</body>")
         return app.response_class(html, mimetype="text/html")
 
     @app.get("/diag")
