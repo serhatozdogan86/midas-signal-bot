@@ -97,6 +97,22 @@ def test_progress_surfaces_in_diag(tmp_path):
     assert c.get("/diag").get_json()["progress"] == ""
 
 
+def test_dx_plaintext_diag(tmp_path):
+    import logging
+    from app.logging_setup import get_ring_buffer
+    get_ring_buffer()
+    logging.getLogger("testdx").error("ornek hata kaydi")
+    c = _client(tmp_path)
+    body = c.get("/dx").get_data(as_text=True)
+    assert "warn=" in body and "err=" in body
+    assert "ornek hata kaydi" in body
+    r = c.get("/")
+    assert b"/dx</a>" in r.data                    # kesif linki
+    assert b"arayuz v2.3" in r.data                # surum damgasi
+    assert b"window.onerror" in r.data             # hata bandi
+    assert b"edge-cache atlatici" in r.data        # cache-buster
+
+
 def test_endpoints_404_when_disabled(tmp_path):
     c = _client(tmp_path)
     assert c.get("/performance").status_code == 404

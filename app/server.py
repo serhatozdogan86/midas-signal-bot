@@ -87,7 +87,9 @@ def create_app(store: StateStore, scheduler: Scheduler,
         shadow = diag.get("shadow") or {}
         diag_url = request.host_url.rstrip("/") + "/diag"
         status_line = (
-            f'DURUM OZETI :: son tarama: {last.get("ts_utc", "henuz yok")}'
+            f'DURUM OZETI :: '
+            f'{("[" + diag["progress"] + "] ") if diag.get("progress") else ""}'
+            f'son tarama: {last.get("ts_utc", "henuz yok")}'
             f' | taranan: {last.get("scanned", 0)}'
             f' | sinyal: {last.get("signals", 0)}'
             f' | 1h aday/alinan: {last.get("hourly_candidates", 0)}'
@@ -100,7 +102,9 @@ def create_app(store: StateStore, scheduler: Scheduler,
             f' | uyari/hata: {diag["log_counts"]["WARNING"]}'
             f'/{diag["log_counts"]["ERROR"]}'
             f' | uptime: {diag["uptime_sec"] // 60}dk'
-            f' | detay: <a href="{diag_url}">{diag_url}</a>')
+            f' | detay: <a href="{diag_url}">{diag_url}</a>'
+            f' | log: <a href="{request.host_url.rstrip("/")}/dx">'
+            f'{request.host_url.rstrip("/")}/dx</a>')
         payload = json.dumps(diag, ensure_ascii=True).replace("</", "<\\/")
         html = DASHBOARD_HTML.replace(
             "</body>",
@@ -108,6 +112,28 @@ def create_app(store: StateStore, scheduler: Scheduler,
             f'<script type="application/json" id="server-diag">{payload}</script>'
             f"</body>")
         return app.response_class(html, mimetype="text/html")
+
+    @app.get("/dx")
+    def dx():
+        """Duz metin tani: basliklar + son uyari/hata loglari.
+        /diag'in kenar-onbellek zehirlenmesine karsi taze dogan yedek kanal."""
+        ring = get_ring_buffer()
+        d = _build_diag()
+        last = d.get("last_scan") or {}
+        lines = [
+            f"now={d['now_utc']} uptime_min={d['uptime_sec'] // 60}",
+            f"scan_last={last.get('ts_utc')} scanned={last.get('scanned')} "
+            f"signals={last.get('signals')} dur_s={last.get('duration_s')}",
+            f"regime={d['regime'].get('regime')} "
+            f"universe={d.get('universe', {}).get('filtered_count') if d.get('universe') else '-'} "
+            f"shadow_open={d.get('shadow', {}).get('open_signals') if d.get('shadow') else '-'}",
+            f"progress={d.get('progress') or '-'}",
+            f"warn={ring.counts['WARNING']} err={ring.counts['ERROR']}",
+            "--- son kayitlar (WARNING+) ---",
+        ]
+        for r in ring.recent(40):
+            lines.append(f"{r['ts']} {r['level']} {r['logger']}: {r['msg']}")
+        return app.response_class("\n".join(lines), mimetype="text/plain")
 
     @app.get("/diag")
     def diag():

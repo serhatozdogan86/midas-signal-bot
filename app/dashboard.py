@@ -169,7 +169,8 @@ DASHBOARD_HTML = r"""<!doctype html>
 </head>
 <body>
   <div class="hdr card">
-    <span class="logo"><span class="dot" id="dot"></span>midas-<b>signal</b>-bot</span>
+    <span class="logo"><span class="dot" id="dot"></span>midas-<b>signal</b>-bot
+      <span class="b grey" style="font-size:10px">arayuz v2.3</span></span>
     <span class="clock">NY <b id="clkNY">--:--</b> · TR <b id="clkTR">--:--</b></span>
     <span class="hinfo" id="hinfo">yukleniyor...</span>
     <span><button onclick="fontStep(-1)" title="yazi kucult">A&#8722;</button>
@@ -348,6 +349,10 @@ DASHBOARD_HTML = r"""<!doctype html>
 
 <script>
 let SIG=[], FILT="all", DIRF="ALL", CHART=null, STAGES={}, TIMER=null;
+window.onerror=function(msg,src_,line){
+  const el=document.getElementById('hinfo');
+  if(el)el.innerHTML=`<span class="b loss">ARAYUZ HATASI: ${msg} (satir ${line}) - bu mesaji Claude'a ilet</span>`;
+};
 
 function tickClock(){
   const f=tz=>new Date().toLocaleTimeString('tr-TR',
@@ -358,6 +363,7 @@ function tickClock(){
 setInterval(tickClock,1000);tickClock();
 
 async function j(u){
+  u += (u.includes('?')?'&':'?') + '_=' + Date.now();  // edge-cache atlatici
   const ctl=new AbortController();
   const t=setTimeout(()=>ctl.abort(),12000);   // tek yavas uc sayfayi kilitleyemez
   try{const r=await fetch(u,{signal:ctl.signal,cache:'no-store'});
@@ -374,6 +380,7 @@ function fontStep(d){
 }
 
 async function loadAll(){
+ try{
   const [perf,sigs,status,watch,regime,backup,uni,dg,news,live]=await Promise.all([
     j('/performance'),j('/signals?limit=300'),j('/status'),j('/watchlist'),
     j('/regime'),j('/backup/info'),j('/universe'),j('/diag'),j('/news'),
@@ -439,6 +446,10 @@ async function loadAll(){
   }
   renderNews(news);
   if(sigs){SIG=sigs;renderSigs();renderEquity();renderSim();}
+ }catch(e){
+  document.getElementById('hinfo').innerHTML=
+    `<span class="b loss">ARAYUZ HATASI: ${e.message} - bu mesaji Claude'a ilet</span>`;
+ }
 }
 
 const STAGE_TIPS={
