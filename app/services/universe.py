@@ -29,6 +29,11 @@ from app.models.candle import KlineSeries
 
 log = logging.getLogger("universe")
 
+
+def _et_today() -> date:
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("America/New_York")).date()
+
 _TICKER_RE = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
 _HREF_RE = re.compile(r"/([A-Za-z][A-Za-z0-9\.\-]{0,5})-hisse", re.IGNORECASE)
 _UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -70,7 +75,10 @@ class UniverseProvider:
     def get_symbols(self) -> list[str]:
         """Gunun filtrelenmis listesi; yoksa refresh tetiklenir."""
         with self._lock:
-            if self._filtered and self._filtered_date == date.today():
+            if self._filtered and self._filtered_date is not None and \
+                    (_et_today() - self._filtered_date).days <= 4:
+                # 4 gun toleransi: hafta sonu/yeniden baslatma arasinda eldeki
+                # liste servis edilir; gunluk tazelik 15:45 hazirliginin isi.
                 return list(self._filtered)
         return self.refresh()
 
@@ -82,7 +90,7 @@ class UniverseProvider:
         with self._lock:
             if filtered:
                 self._filtered = filtered
-                self._filtered_date = date.today()
+                self._filtered_date = _et_today()
         log.info(kv(event="universe_refresh", raw=len(raw), filtered=len(filtered)))
         return list(filtered)
 
@@ -99,10 +107,9 @@ class UniverseProvider:
         except ValueError:
             return False
         if today is None:
-            from zoneinfo import ZoneInfo
-            today = datetime.now(ZoneInfo("America/New_York")).date()
-        if d != today:
-            return False
+            today = _et_today()
+        if (today - d).days > 4 or d > today:
+            return False   # cok bayat yedek: hazirlik sifirdan kurar
         with self._lock:
             self._filtered = list(symbols)
             self._filtered_date = d

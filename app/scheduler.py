@@ -121,13 +121,16 @@ class Scheduler:
         prep_dt = open_dt - timedelta(minutes=self._settings.PREP_LEAD_MIN)
         eod_dt = close_dt + timedelta(minutes=self._settings.EOD_DELAY_MIN)
 
-        if now_et >= prep_dt and self._prep_date != today:
-            self.run_prep(today)
         watch_dt = open_dt - timedelta(minutes=self._settings.PREMARKET_LEAD_MIN)
-        if (self._settings.PREMARKET_WATCH and self._prep_date == today
+        # Not (30 Tem): hazirlik sarti kaldirildi - restart sonrasi nobet
+        # gecikmesin. Nobetin girdisi gist'ten donen pozisyonlar + quote;
+        # izleme listesi adaylari o an bos olabilir, kritik olan pozisyonlar.
+        if (self._settings.PREMARKET_WATCH
                 and watch_dt <= now_et < open_dt
                 and self._gap_watch_date != today):
             self.run_gap_watch(today)
+        if now_et >= prep_dt and self._prep_date != today:
+            self.run_prep(today)
         if open_dt <= now_et < close_dt:
             if time.time() - self._last_coarse >= self._settings.COARSE_SCAN_INTERVAL_SEC:
                 self.run_coarse_scan(send_telegram=True)
@@ -430,6 +433,28 @@ class Scheduler:
             row["action"] = self._live_action(row, is_long)
             rows.append(row)
         return rows
+
+    _INDEX_PULSE_TTL = 60.0
+
+    def index_pulse(self) -> list[dict]:
+        """SPY/QQQ canli % degisim (dashboard komut cubugu; 60 sn onbellek)."""
+        if self._md is None:
+            return []
+        if not hasattr(self, "_idx_cache"):
+            self._idx_cache = (0.0, [])
+        ts, cached = self._idx_cache
+        if time.time() - ts < self._INDEX_PULSE_TTL:
+            return cached
+        out = []
+        for sym in ("SPY", "QQQ"):
+            try:
+                q = self._md.get_quote_change(sym)
+                if q:
+                    out.append({"symbol": sym, **q})
+            except Exception:
+                pass
+        self._idx_cache = (time.time(), out)
+        return out
 
     @staticmethod
     def _live_action(row: dict, is_long: bool) -> str:

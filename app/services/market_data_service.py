@@ -42,6 +42,11 @@ class MarketDataService:
             return None
         return self._finnhub.get_quote(symbol)
 
+    def get_quote_change(self, symbol: str) -> dict | None:
+        if self._finnhub is None:
+            return None
+        return self._finnhub.get_quote_change(symbol)
+
     @staticmethod
     def _to_series(frames: dict, interval: str) -> dict[str, KlineSeries]:
         out: dict[str, KlineSeries] = {}

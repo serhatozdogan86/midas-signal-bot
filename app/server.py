@@ -170,6 +170,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
         """Aksiyon Paneli: acik sinyallerin canli fiyatla durumu."""
         return app.response_class(
             json.dumps({"rows": scheduler.get_live_status(),
+                        "indices": scheduler.index_pulse(),
                         "session": scheduler.session_info()}, indent=2),
             mimetype="application/json")
 

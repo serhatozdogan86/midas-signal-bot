@@ -165,3 +165,18 @@ def test_golive_status_progress(tmp_path):
     assert g["criteria"]["max_dd_r"]["now"] == 1.0     # +1.5 -> +0.5 dususu
     assert g["met"] is True
     assert "Go-live kriteri" in sched.build_eod_extras()
+
+
+def test_universe_interim_seed_and_tolerant_get(tmp_path):
+    """Bayat-ama-yakin (<=4 gun) yedek ara-tohum kabul edilir ve servis
+    edilir; hazirlik gunluk tazeligi ayrica saglar."""
+    from datetime import date, timedelta
+
+    from app.services.universe import UniverseProvider
+    settings = Settings(UNIVERSE_SOURCE="static",
+                        UNIVERSE_CACHE_PATH=str(tmp_path / "u.json"))
+    p = UniverseProvider(settings, market_data=None)
+    yesterday = (date(2026, 7, 30) - timedelta(days=1)).isoformat()
+    assert p.restore(["AAPL", "MSFT"], yesterday, today=date(2026, 7, 30))
+    assert p.get_symbols() == ["AAPL", "MSFT"]      # ara-tohum servis edildi
+    assert not p.restore(["X"], "2026-07-20", today=date(2026, 7, 30))

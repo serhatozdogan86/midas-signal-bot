@@ -46,7 +46,13 @@ DASHBOARD_HTML = r"""<!doctype html>
   button:hover,select:hover{border-color:var(--gold-dim)}
   :focus-visible{outline:2px solid var(--gold);outline-offset:1px}
   input{cursor:text;font-family:var(--mono);width:84px}
-  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;
+    animation:none!important}}
+  @keyframes flup{0%{background:rgba(47,191,113,.28)}100%{background:transparent}}
+  @keyframes fldn{0%{background:rgba(229,72,77,.28)}100%{background:transparent}}
+  .flup{animation:flup 1.2s ease-out}
+  .fldn{animation:fldn 1.2s ease-out}
+  .ndx-up{color:var(--up)} .ndx-dn{color:var(--dn)}
 
   /* -------- komut cubugu -------- */
   .cmd{position:sticky;top:0;z-index:30;display:flex;align-items:center;
@@ -236,6 +242,8 @@ DASHBOARD_HTML = r"""<!doctype html>
     <span class="clock">NY <b id="clkNY">--:--:--</b></span>
     <span class="clock">TR <b id="clkTR">--:--:--</b></span>
     <span class="b grey" id="sessBadge">seans: -</span>
+    <span id="ndx" class="clock"></span>
+    <span id="upd" class="clock" style="font-size:10.5px"></span>
     <span class="sp"></span>
     <span id="hinfo">baglaniyor...</span>
     <button onclick="fontStep(-1)" title="yazi kucult">A&#8722;</button>
@@ -317,7 +325,7 @@ olusur (15:45 TR).</div>
             <span class="tag">golge &#183; bilesik &#183; kapasiteli</span></div>
           <div class="sec-b">
             <div class="simrow">
-              <label>Baslangic $ <input id="simStart" type="number" value="1000"></label>
+              <label>Baslangic $ <input id="simStart" type="number" value="10000"></label>
               <label>Risk % <input id="simRisk" type="number" value="1" step="0.5"></label>
               <label>Slot <input id="simSlot" type="number" value="4" min="1" max="20"></label>
             </div>
@@ -424,7 +432,7 @@ icinde uretilir.</div>
         <div class="sec-h" style="border:0;padding:0 0 6px">
           <h2>Pozisyon Buyuklugu</h2></div>
         <div class="simrow" style="margin-bottom:6px">
-          <label>Hesap $ <input id="psAcct" type="number" value="1000"></label>
+          <label>Hesap $ <input id="psAcct" type="number" value="10000"></label>
           <label>Risk % <input id="psRisk" type="number" value="1" step="0.5"></label>
         </div>
         <div id="psOut" class="muted" style="font-size:12.3px">-</div>
@@ -444,6 +452,14 @@ window.onerror=function(msg,src_,line){
   if(el)el.innerHTML=`<span class="b loss">ARAYUZ HATASI: ${msg} (satir ${line}) - bu mesaji Claude'a ilet</span>`;
 };
 
+function tickFresh(){
+  const el=document.getElementById('upd'); if(!el)return;
+  if(!LAST_OK){el.textContent='';return;}
+  const s=Math.round((Date.now()-LAST_OK)/1000);
+  el.textContent=s<3?'canli':s+' sn once';
+  el.style.color=s>90?'var(--warn)':'var(--faint)';
+}
+setInterval(tickFresh,1000);
 function tickClock(){
   const f=tz=>new Date().toLocaleTimeString('tr-TR',
     {timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -463,10 +479,12 @@ async function j(u){
 
 function kpi(l,v,cls,tip){return `<div class="kpi ${cls||''}"${tip?` data-tip="${tip}"`:''}>
   <div class="l">${l}</div><div class="v">${v}</div></div>`}
+let ZOOM=1;
 function fontStep(d){
-  const html=document.documentElement;
-  const cur=parseFloat(getComputedStyle(html).fontSize)||16;
-  html.style.fontSize=Math.min(20,Math.max(13,cur+d))+'px';
+  ZOOM=Math.min(1.35,Math.max(0.8,ZOOM+d*0.08));
+  document.body.style.zoom=ZOOM;
+  if(!document.body.style.zoom)                      // Firefox yedegi
+    document.body.style.fontSize=(13*ZOOM)+'px';
 }
 
 async function loadAll(){
@@ -523,13 +541,17 @@ async function loadAll(){
     :'<span class="muted">kapali</span>';
   if(watch){
     document.getElementById('watch').innerHTML = watch.length?
-      watch.map(w=>`<span class="b ${w.state==='SIGNAL'?'win':'grey'}"
-        title="${w.blocked_by||''}">${w.symbol}</span>`).join('')
-      :'<span class="muted">bos</span>';
+      watch.map(w=>`<span class="b ${w.state==='SIGNAL'?'win':(w.trigger_level?'amber':'grey')}"
+        title="${w.blocked_by||''}${w.trigger_level?' | tetik '+w.trigger_level:''}">${w.symbol}${w.trigger_level?' \u26A1':''}</span>`).join('')
+      :'<span class="muted">Ilk taramayla dolar (16:30 TR). \u26A1 = kirilim tetigi kurulu.</span>';
   }
   if(dg){
+    const busy=dg.progress?`\u2699 ${dg.progress}...`:null;
     document.getElementById('mnote').textContent =
-      dg.market_note || 'Hazirlik taramasiyla olusur (15:45 TR).';
+      dg.market_note || busy || 'Hazirlik taramasiyla olusur (15:45 TR).';
+    if(!(status&&status.results&&Object.keys(status.results).length)&&busy)
+      document.getElementById('pipeline').innerHTML=
+        `<span class="muted">${busy}</span>`;
     const c=dg.commentary_latest;
     document.getElementById('cmt').textContent =
       c ? `[${(c.ts_utc||'').slice(0,16).replace('T',' ')} UTC]\n${c.text}`
@@ -537,6 +559,7 @@ async function loadAll(){
   }
   renderNews(news);
   if(sigs){SIG=sigs;renderSigs();renderEquity();renderSim();}
+  LAST_OK=Date.now();
  }catch(e){
   document.getElementById('hinfo').innerHTML=
     `<span class="b loss">ARAYUZ HATASI: ${e.message} - bu mesaji Claude'a ilet</span>`;
@@ -567,10 +590,15 @@ function paintSession(){
 }
 setInterval(paintSession,30000);
 
-let LIVEPX={};
+let LIVEPX={}, PREVPX={}, LAST_OK=0;
 function renderLive(live){
   const rows=(live&&live.rows)||[];
-  LIVEPX={};rows.forEach(r=>{if(r.quote!=null)LIVEPX[r.symbol]=r.quote;});
+  PREVPX=LIVEPX; LIVEPX={};
+  rows.forEach(r=>{if(r.quote!=null)LIVEPX[r.symbol]=r.quote;});
+  const nx=(live&&live.indices)||[];
+  document.getElementById('ndx').innerHTML=nx.map(i=>
+    `${i.symbol} <b class="${i.pct>=0?'ndx-up':'ndx-dn'}">${i.pct>=0?'+':''}${i.pct}%</b>`
+  ).join(' &#183; ');
   const el=document.getElementById('liveRows');
   if(!rows.length){el.innerHTML='<tr><td colspan="9" class="muted">acik sinyal yok'+
     ' - ilk sinyalle birlikte dolar</td></tr>';return;}
@@ -583,7 +611,7 @@ function renderLive(live){
     `<tr onclick="openSigBySym('${r.symbol}')"><td class="sym">${r.symbol}</td>
      <td><span class="b ${r.direction==='LONG'?'long':'short'}">${r.direction}</span></td>
      <td><span class="b open">${r.status}</span></td>
-     <td class="num">${r.quote??'\u2014'}</td>
+     <td class="num${PREVPX[r.symbol]!=null&&r.quote!=null&&r.quote!==PREVPX[r.symbol]?(r.quote>PREVPX[r.symbol]?' flup':' fldn'):''}">${r.quote??'\u2014'}</td>
      <td class="num">${r.r_now!=null?(r.r_now>0?'+':'')+r.r_now+'R':'\u2014'}</td>
      <td class="num">${pct(r.dist_stop_pct)}</td>
      <td class="num">${pct(r.dist_tp1_pct)}</td>
@@ -778,7 +806,7 @@ function decidedSorted(){
 }
 
 function renderSim(){
-  const start=parseFloat(document.getElementById('simStart').value)||1000;
+  const start=parseFloat(document.getElementById('simStart').value)||10000;
   const riskPct=(parseFloat(document.getElementById('simRisk').value)||1)/100;
   const slotEl=document.getElementById('simSlot');
   const K=Math.max(1,parseInt(slotEl?slotEl.value:'4')||4);

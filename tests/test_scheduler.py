@@ -321,3 +321,20 @@ def test_heartbeat_fires_even_off_session(monkeypatch):
     assert "last_scan" in hb and "recent_warnings" in hb and "log_counts" in hb
     sched.tick(datetime(2026, 7, 25, 12, 1, tzinfo=ZoneInfo("America/New_York")))
     assert len(beats) == 1     # aralik dolmadan tekrar atmaz
+
+
+def test_gap_watch_runs_before_prep_in_window(monkeypatch):
+    """Restart 16:00-16:30 penceresine denk gelirse gap nobeti UZUN
+    hazirligi BEKLEMEZ (30 Tem karari: 8 pozisyonun sabah sinavi korunur)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    sched, _ = _scheduler()
+    order = []
+    monkeypatch.setattr(sched, "run_prep", lambda d: order.append("prep"))
+    monkeypatch.setattr(sched, "run_gap_watch", lambda d: order.append("gap"))
+    monkeypatch.setattr(sched, "run_coarse_scan",
+                        lambda **k: order.append("scan"))
+    sched.tick(datetime(2026, 7, 30, 9, 10,
+                        tzinfo=ZoneInfo("America/New_York")))
+    assert order[0] == "gap" and "prep" in order

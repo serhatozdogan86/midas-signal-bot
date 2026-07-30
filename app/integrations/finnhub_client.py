@@ -57,6 +57,14 @@ class FinnhubClient:
         price = body.get("c")
         return float(price) if price else None
 
+    def get_quote_change(self, symbol: str) -> dict | None:
+        """Anlik fiyat + onceki kapanisa gore % degisim (header endeks cipi)."""
+        body = self._get("/quote", {"symbol": symbol.upper()})
+        if not body or not body.get("c") or not body.get("pc"):
+            return None
+        c, pc = float(body["c"]), float(body["pc"])
+        return {"price": c, "pct": round((c / pc - 1) * 100, 2)}
+
     def get_company_news(self, symbol: str, date_from: str,
                          date_to: str) -> list[dict]:
         """Sirket haberleri (ucretsiz planda ABD hisseleri icin acik).
