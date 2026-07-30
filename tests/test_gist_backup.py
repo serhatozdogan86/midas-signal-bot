@@ -141,6 +141,8 @@ def test_fetch_meta_and_universe_seed(tmp_path):
     settings = Settings(UNIVERSE_SOURCE="static",
                         UNIVERSE_CACHE_PATH=str(tmp_path / "c.json"))
     provider = UniverseProvider(settings, market_data=None)
-    assert provider.restore(uni_meta["symbols"], uni_meta["filtered_date"])
+    from datetime import date as _d
+    assert provider.restore(uni_meta["symbols"], uni_meta["filtered_date"],
+                            today=_d.today())
     assert provider.get_symbols() == ["AAPL", "MSFT"]      # grind atlandi
     assert not provider.restore(["X"], "2020-01-01")       # bayat yedek reddi

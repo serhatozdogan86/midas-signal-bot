@@ -32,6 +32,13 @@ class YFinanceClient:
         self._max_retries = max_retries
         self._backoff = backoff_sec
 
+    @staticmethod
+    def _to_yahoo(symbol: str) -> str:
+        """Midas/Finnhub 'BRK.B' bicimini Yahoo 'BRK-B' bicimine cevirir.
+        (30 Tem log bulgusu: nokta-sinifli tum semboller Yahoo'da bos
+        donuyordu - BRK.B/HEI.A/PBR.A vb. evrenden sessizce dusuyordu.)"""
+        return symbol.replace(".", "-")
+
     def download_bulk(self, symbols: list[str], interval: str,
                       period: str) -> dict[str, pd.DataFrame]:
         """
@@ -42,6 +49,8 @@ class YFinanceClient:
 
         out: dict[str, pd.DataFrame] = {}
         symbols = list(dict.fromkeys(s.upper() for s in symbols))
+        yahoo_to_orig = {self._to_yahoo(s): s for s in symbols}
+        symbols = list(yahoo_to_orig)          # istekler Yahoo bicimiyle
         for i in range(0, len(symbols), self._chunk_size):
             chunk = symbols[i:i + self._chunk_size]
             data = self._download_chunk(yf, chunk, interval, period)
@@ -50,7 +59,7 @@ class YFinanceClient:
             for sym in chunk:
                 df = self._extract(data, sym, len(chunk))
                 if df is not None and not df.empty:
-                    out[sym] = df
+                    out[yahoo_to_orig.get(sym, sym)] = df
             if i + self._chunk_size < len(symbols):
                 time.sleep(self._pause)
         log.info(kv(event="yf_bulk_done", interval=interval,

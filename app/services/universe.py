@@ -19,7 +19,7 @@ import logging
 import os
 import re
 import threading
-from datetime import date
+from datetime import date, datetime
 
 import requests
 
@@ -86,7 +86,8 @@ class UniverseProvider:
         log.info(kv(event="universe_refresh", raw=len(raw), filtered=len(filtered)))
         return list(filtered)
 
-    def restore(self, symbols: list[str], filtered_date: str | None) -> bool:
+    def restore(self, symbols: list[str], filtered_date: str | None,
+                today: date | None = None) -> bool:
         """Deploy sonrasi gist yedeginden evreni tohumla (BUGUNSE gecerli).
         Amac: her yeniden baslatmada 15-20 dk'lik scrape+likidite elemesini
         tekrarlamamak. Eski tarihli yedek kabul edilmez - ertesi gun evren
@@ -97,7 +98,10 @@ class UniverseProvider:
             d = date.fromisoformat(filtered_date)
         except ValueError:
             return False
-        if d != date.today():
+        if today is None:
+            from zoneinfo import ZoneInfo
+            today = datetime.now(ZoneInfo("America/New_York")).date()
+        if d != today:
             return False
         with self._lock:
             self._filtered = list(symbols)

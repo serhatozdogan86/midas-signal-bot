@@ -55,6 +55,13 @@ def get_ring_buffer() -> RingBufferHandler:
     return _ring
 
 
+def _silence_noisy_libs() -> None:
+    """yfinance sembol-basi ERROR satirlari basar (rate-limit/delisted);
+    bunlar bizim hata sayacimizi kirletiyordu. Kutuphane logger'i
+    susturulur - toplu basarisizliklar zaten kendi kodumuzda loglanir."""
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
+
 def setup_logging(level: str = "INFO") -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
