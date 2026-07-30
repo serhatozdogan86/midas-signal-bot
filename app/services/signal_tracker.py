@@ -33,6 +33,32 @@ from app.services.database import Database
 
 log = logging.getLogger("tracker")
 
+# KONFIG KILIDI (P0): motor kaynak dosyalarinin kisa parmak izi - her sinyal
+# hangi motor surumuyle uretildigini tasir; kilit-oncesi/sonrasi kohortlar
+# ayri degerlendirilir (docs/config-lock.md).
+def _engine_sha() -> str:
+    import hashlib
+    import os
+    base = os.path.join(os.path.dirname(__file__), "..", "strategies")
+    h = hashlib.sha256()
+    try:
+        for name in sorted(os.listdir(base)):
+            if name.endswith(".py"):
+                with open(os.path.join(base, name), "rb") as f:
+                    h.update(f.read())
+    except OSError:
+        return "unknown"
+    return h.hexdigest()[:12]
+
+
+_ENGINE_SHA = _engine_sha()
+
+
+def _cluster_id(d) -> str:
+    """Kume kimligi: yon + islem gunu. Ayni gun ayni yonde dogan sinyaller
+    tek kumedir (bagimsiz orneklem sayimi + kume tavani icin)."""
+    return f"{d.direction.value}-{(d.timestamp_utc or '')[:10]}"
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -50,9 +76,11 @@ class SignalTracker:
     def _migrate(self) -> None:
         """Eski DB'lere confidence/setup_type kolonlarini guvenle ekler.
         (bybit v3.3 portu - oradaki ozyineleme hatasi burada duzeltildi.)"""
-        for col in ("confidence", "setup_type"):
+        for col in ("confidence", "setup_type", "blocked INTEGER DEFAULT 0",
+                    "block_reason", "cluster_id", "engine_sha"):
             try:
-                self._db.execute(f"ALTER TABLE signals ADD COLUMN {col} TEXT")
+                ddl = col if " " in col else f"{col} TEXT"
+                self._db.execute(f"ALTER TABLE signals ADD COLUMN {ddl}")
             except Exception:
                 pass  # kolon zaten var
 
@@ -87,16 +115,91 @@ class SignalTracker:
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
-            "contract_json,confidence,setup_type) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "contract_json,confidence,setup_type,cluster_id,engine_sha) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              json.dumps(d.contract_dict()),
-             d.confidence.value, d.setup_type.value))
+             d.confidence.value, d.setup_type.value,
+             _cluster_id(d), _ENGINE_SHA))
         log.info(kv(event="shadow_track", symbol=d.symbol,
                     direction=d.direction.value))
         return True
+
+    def track_portfolio_blocked(self, d, mtf: KlineSeries,
+                                reason: str) -> bool:
+        """Portfoy tavanina takilan SIGNAL -> blocked=2 kohortu.
+        Ayni fill/TP/SL/time-stop dongusuyle izlenir ama TUM skor
+        sorgulari blocked=0 filtreler; boylece tavanin maliyeti
+        ('kacirdigimiz R') olculur, karneye karismaz."""
+        dup = self._db.query_one(
+            "SELECT COUNT(*) n FROM signals WHERE symbol=? AND direction=? "
+            "AND status!='CLOSED' AND blocked=2", (d.symbol, d.direction.value))
+        if dup and dup["n"]:
+            return False
+        self._db.execute(
+            "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
+            "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
+            "confidence,setup_type,blocked,block_reason,cluster_id,engine_sha) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,2,?,?,?)",
+            (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
+             d.entry_zone.min, d.entry_zone.max, d.stop_loss,
+             d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
+             d.confidence.value, d.setup_type.value, reason,
+             _cluster_id(d), _ENGINE_SHA))
+        log.info(kv(event="portfolio_blocked_tracked", symbol=d.symbol,
+                    reason=reason))
+        return True
+
+    # ------------------------------------------ net-R (muhafazakar muhasebe)
+    FEE_USD = 1.50
+    SLIP_BPS = 5.0
+    REF_ACCOUNT = 10000.0
+    REF_RISK_PCT = 1.0
+
+    def cost_r(self, row: dict) -> float | None:
+        """Islem maliyeti R cinsinden, referans boyutla (10k$, %1 risk).
+        Midas ucreti SABIT (1.50$ x2) oldugu icin maliyet pozisyon
+        buyuklugune baglidir - bybit'teki %'lik modelden temel fark."""
+        entry = row.get("fill_price") or (
+            ((row.get("entry_min") or 0) + (row.get("entry_max") or 0)) / 2)
+        stop = row.get("stop_loss")
+        if not entry or not stop:
+            return None
+        dist = abs(entry - stop)
+        if dist <= 0:
+            return None
+        risk_usd = self.REF_ACCOUNT * self.REF_RISK_PCT / 100
+        notional = risk_usd / dist * entry
+        cost_usd = 2 * self.FEE_USD + notional * self.SLIP_BPS / 10000
+        return round(cost_usd / risk_usd, 3)
+
+    def net_totals(self) -> dict:
+        """Sonuclanan islemlerde brut ve net R toplamlari + net beklenti."""
+        rows = self._db.query(
+            "SELECT entry_min,entry_max,fill_price,stop_loss,r_multiple "
+            "FROM signals WHERE status='CLOSED' AND blocked=0 AND "
+            "r_multiple IS NOT NULL AND outcome IN ('WIN','LOSS','EXPIRED')")
+        gross = net = 0.0
+        for r in rows:
+            gross += r["r_multiple"]
+            c = self.cost_r(r) or 0.0
+            net += r["r_multiple"] - c
+        n = len(rows)
+        return {"decided": n, "gross_r": round(gross, 2),
+                "net_r": round(net, 2),
+                "net_expectancy": round(net / n, 3) if n else None}
+
+    def blocked_summary(self) -> dict:
+        rows = self._db.query(
+            "SELECT COUNT(*) n, SUM(CASE WHEN status='CLOSED' AND outcome "
+            "IN ('WIN','LOSS','EXPIRED') THEN r_multiple ELSE 0 END) hypo_r, "
+            "SUM(CASE WHEN status!='CLOSED' THEN 1 ELSE 0 END) open_n "
+            "FROM signals WHERE blocked!=0")
+        r = rows[0] if rows else {}
+        return {"total": r.get("n") or 0, "open": r.get("open_n") or 0,
+                "hypo_r": round(r.get("hypo_r") or 0.0, 2)}
 
     def evaluate_open(self, symbol: str) -> None:
         """Acik sinyalleri arsivlenen 1h mumlarla degerlendir."""
@@ -188,19 +291,22 @@ class SignalTracker:
         by_outcome = {r["outcome"]: {"count": r["n"], "sum_r": r["sum_r"] or 0.0}
                       for r in self._db.query(
                           "SELECT outcome, COUNT(*) n, SUM(r_multiple) sum_r "
-                          "FROM signals WHERE status='CLOSED' GROUP BY outcome")}
+                          "FROM signals WHERE status='CLOSED' AND blocked=0 "
+                          "GROUP BY outcome")}
         wins = by_outcome.get("WIN", {}).get("count", 0)
         losses = by_outcome.get("LOSS", {}).get("count", 0)
         decided = wins + losses
         total_r = round(sum(v["sum_r"] for v in by_outcome.values()), 2)
         open_row = self._db.query_one(
-            "SELECT COUNT(*) n FROM signals WHERE status!='CLOSED'")
+            "SELECT COUNT(*) n FROM signals WHERE status!='CLOSED' AND blocked=0")
         per_symbol = self._db.query(
             "SELECT symbol, outcome, COUNT(*) n, ROUND(SUM(r_multiple),2) sum_r "
-            "FROM signals WHERE status='CLOSED' GROUP BY symbol, outcome ORDER BY symbol")
+            "FROM signals WHERE status='CLOSED' AND blocked=0 "
+            "GROUP BY symbol, outcome ORDER BY symbol")
         by_direction = self._db.query(
             "SELECT direction, outcome, COUNT(*) n, ROUND(SUM(r_multiple),2) sum_r "
-            "FROM signals WHERE status='CLOSED' GROUP BY direction, outcome")
+            "FROM signals WHERE status='CLOSED' AND blocked=0 "
+            "GROUP BY direction, outcome")
         counts = self._db.query_one(
             "SELECT (SELECT COUNT(*) FROM decisions) d, (SELECT COUNT(*) FROM candles) c")
         return {
@@ -218,12 +324,19 @@ class SignalTracker:
         }
 
     def recent_signals(self, limit: int = 50) -> list[dict]:
-        return self._db.query(
+        rows = self._db.query(
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
             "exit_price,r_multiple,closed_utc,confidence,setup_type "
-            "FROM signals ORDER BY id DESC LIMIT ?",
+            "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
+        for r in rows:                       # net-R (referans boy) rapora
+            if r.get("r_multiple") is not None:
+                c = self.cost_r(r)
+                if c is not None:
+                    r["cost_r"] = c
+                    r["r_net"] = round(r["r_multiple"] - c, 2)
+        return rows
 
     def recent_decisions(self, limit: int = 2000) -> list[dict]:
         return self._db.query(
@@ -238,15 +351,15 @@ class SignalTracker:
 
     def open_count(self) -> int:
         rows = self._db.query(
-            "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED'")
+            "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED' AND blocked=0")
         return int(rows[0]["n"]) if rows else 0
 
     def max_drawdown_r(self) -> float:
         """Kapanis sirasiyla kumulatif R egrisinin en derin dususu (R)."""
         rows = self._db.query(
-            "SELECT r_multiple FROM signals WHERE status='CLOSED' AND "
-            "r_multiple IS NOT NULL AND outcome NOT IN ('NOT_FILLED','AMBIGUOUS') "
-            "ORDER BY closed_utc")
+            "SELECT r_multiple FROM signals WHERE status='CLOSED' AND blocked=0 "
+            "AND r_multiple IS NOT NULL AND outcome NOT IN "
+            "('NOT_FILLED','AMBIGUOUS') ORDER BY closed_utc")
         cum = peak = dd = 0.0
         for r in rows:
             cum += r["r_multiple"]
@@ -255,7 +368,7 @@ class SignalTracker:
         return round(dd, 2)
 
     def first_signal_utc(self) -> str | None:
-        rows = self._db.query("SELECT MIN(created_utc) AS m FROM signals")
+        rows = self._db.query("SELECT MIN(created_utc) AS m FROM signals WHERE blocked=0")
         return rows[0]["m"] if rows and rows[0]["m"] else None
 
     def fill_quality(self) -> dict | None:
@@ -264,7 +377,8 @@ class SignalTracker:
         onerisi: 'giris bolgesi kovaliyor mu' sorusunun olcusu."""
         rows = self._db.query(
             "SELECT symbol,direction,entry_candle_ts,fill_price,stop_loss "
-            "FROM signals WHERE status='FILLED' AND fill_price IS NOT NULL")
+            "FROM signals WHERE status='FILLED' AND blocked=0 "
+            "AND fill_price IS NOT NULL")
         if not rows:
             return None
         per = []
@@ -307,7 +421,7 @@ class SignalTracker:
     def open_symbols(self) -> list[str]:
         """Acik (PENDING/FILLED) sinyali olan semboller - orphan eval icin."""
         rows = self._db.query(
-            "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED'")
+            "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED'")  # blocked dahil: yasamalilar
         return [r["symbol"] for r in rows]
 
     def archive_symbols(self, retention_days: int = 30) -> list[str]:

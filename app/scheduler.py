@@ -308,6 +308,13 @@ class Scheduler:
                     log.info(kv(event="portfolio_cap_skip", symbol=symbol,
                                 reason=cap_reason))
                     capped_count += 1
+                    if self._tracker is not None and symbol in hourly:
+                        try:
+                            self._tracker.track_portfolio_blocked(
+                                d, hourly[symbol], cap_reason)
+                        except Exception:
+                            log.exception(kv(event="blocked_track_error",
+                                             symbol=symbol))
                 else:
                     self._dispatch(d)
                     cap_reason = self._portfolio_cap_reason()
@@ -592,9 +599,12 @@ class Scheduler:
             c["decided"]["now"] = decided
             c["decided"]["ok"] = decided >= s.GOLIVE_MIN_DECIDED
             if decided:
-                exp = round((st.get("total_r_multiple") or 0) / decided, 3)
+                nt = self._tracker.net_totals()
+                exp = nt.get("net_expectancy")
                 c["expectancy_r"]["now"] = exp
-                c["expectancy_r"]["ok"] = exp >= s.GOLIVE_MIN_EXPECTANCY_R
+                c["expectancy_r"]["ok"] = (exp is not None
+                                           and exp >= s.GOLIVE_MIN_EXPECTANCY_R)
+                c["expectancy_r"]["basis"] = "net"
             dd = self._tracker.max_drawdown_r()
             c["max_dd_r"]["now"] = dd
             c["max_dd_r"]["ok"] = dd <= s.GOLIVE_MAX_DD_R
@@ -652,6 +662,18 @@ class Scheduler:
                 lines.append(line)
         except Exception:
             log.exception(kv(event="eod_mix_error"))
+        try:
+            nt = self._tracker.net_totals()
+            if nt["decided"]:
+                lines.append(f"Toplam R brut/NET: {nt['gross_r']:+.2f} / "
+                             f"{nt['net_r']:+.2f} (10k$ %1 referans)")
+            bs = self._tracker.blocked_summary()
+            if bs["total"]:
+                lines.append(f"Tavan kohortu: {bs['total']} sinyal "
+                             f"({bs['open']} izleniyor) | kacirilanin "
+                             f"varsayimsal toplami {bs['hypo_r']:+.2f}R")
+        except Exception:
+            log.exception(kv(event="eod_net_error"))
         try:
             g = self.golive_status()
             c = g["criteria"]
@@ -809,6 +831,13 @@ class Scheduler:
             if cap_reason:
                 log.info(kv(event="portfolio_cap_skip", symbol=symbol,
                             reason=cap_reason, source="fine"))
+                if self._tracker is not None:
+                    try:
+                        self._tracker.track_portfolio_blocked(
+                            d, hourly, cap_reason)
+                    except Exception:
+                        log.exception(kv(event="blocked_track_error",
+                                         symbol=symbol))
                 return
             d.time_stop_date = self._calendar.add_trading_days(
                 today, self._params.time_stop_days).isoformat()

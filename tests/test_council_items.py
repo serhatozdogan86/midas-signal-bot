@@ -156,12 +156,14 @@ def test_golive_status_progress(tmp_path):
              110, 2.5, "CLOSED", "WIN" if r > 0 else "LOSS", r,
              (now - timedelta(days=3 - i)).strftime("%Y-%m-%dT%H:%M:%SZ")))
     settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
-                        GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5)
+                        GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5)  # net 0.783 > 0.5
     sched = Scheduler(settings, None, None, None, MarketCalendar(),
                       InMemoryStateStore(), FakeNotifier(), tracker)
     g = sched.golive_status()
     assert g["criteria"]["decided"]["now"] == 3
-    assert abs(g["criteria"]["expectancy_r"]["now"] - 0.833) < 0.01
+    # P0'dan itibaren beklenti NET'tir: brut 0.833 - 0.05R referans maliyet
+    assert g["criteria"]["expectancy_r"]["basis"] == "net"
+    assert abs(g["criteria"]["expectancy_r"]["now"] - 0.783) < 0.01
     assert g["criteria"]["max_dd_r"]["now"] == 1.0     # +1.5 -> +0.5 dususu
     assert g["met"] is True
     assert "Go-live kriteri" in sched.build_eod_extras()
@@ -180,3 +182,55 @@ def test_universe_interim_seed_and_tolerant_get(tmp_path):
     assert p.restore(["AAPL", "MSFT"], yesterday, today=date(2026, 7, 30))
     assert p.get_symbols() == ["AAPL", "MSFT"]      # ara-tohum servis edildi
     assert not p.restore(["X"], "2026-07-20", today=date(2026, 7, 30))
+
+
+def test_cost_r_fixed_fee_model(tmp_path):
+    """Midas sabit ucret modeli: dar stop -> buyuk nosyonel -> yuksek maliyet."""
+    tracker = _tracker(tmp_path)
+    tight = tracker.cost_r({"fill_price": 100.0, "stop_loss": 99.5})   # %0.5 stop
+    wide = tracker.cost_r({"fill_price": 100.0, "stop_loss": 95.0})    # %5 stop
+    assert tight > wide                       # dar stop daha pahali (sabit ucret!)
+    assert abs(wide - (3.0 + 2000 * 0.0005) / 100) < 0.001   # 0.04R
+
+
+def test_blocked_cohort_excluded_from_score(tmp_path):
+    """Tavan kohortu yasar ama karneye karismaz; hypo toplami ayri raporlanir."""
+    from app.models.decision import (Bias, Confidence, Decision, DecisionType,
+                                     Direction, EntryZone, SetupType, Targets)
+    tracker = _tracker(tmp_path)
+    d = Decision.base("CAPX", "1d", "1h")
+    d.decision = DecisionType.SIGNAL
+    d.direction = Direction.LONG
+    d.timestamp_utc = "2026-07-30T14:00:00Z"
+    d.entry_zone = EntryZone(min=100.0, max=101.0)
+    d.stop_loss = 98.0
+    d.targets = Targets(tp1=106.0, tp2=110.0)
+    d.rr = 2.5
+    d.confidence = Confidence.HIGH
+    d.setup_type = SetupType.BREAKOUT_RETEST
+    hourly = fx.make_series(__import__("numpy").array([100.5, 100.6]),
+                            symbol="CAPX")
+    for i, c in enumerate(hourly.candles):
+        c.ts = 1000 + i * 3_600_000
+    assert tracker.track_portfolio_blocked(d, hourly, "eszamanli tavan (10)")
+    assert not tracker.track_portfolio_blocked(d, hourly, "x")   # dedupe
+    assert tracker.open_count() == 0             # gercek deftere sayilmadi
+    assert tracker.stats()["open_signals"] == 0
+    assert tracker.recent_signals(10) == []      # arayuze karismaz
+    assert "CAPX" in tracker.open_symbols()      # ama yasiyor (eval icin)
+    row = tracker._db.query_one("SELECT blocked,block_reason,cluster_id,"
+                                "engine_sha FROM signals")
+    assert row["blocked"] == 2 and "tavan" in row["block_reason"]
+    assert row["cluster_id"] == "LONG-2026-07-30"
+    assert len(row["engine_sha"]) == 12
+    assert tracker.blocked_summary()["total"] == 1
+
+
+def test_normal_signal_stamped_with_cluster_and_sha(tmp_path):
+    from tests.test_signal_tracker import _signal, _track
+    tracker = _tracker(tmp_path)
+    d = _signal()
+    _track(tracker, d)
+    row = tracker._db.query_one("SELECT cluster_id, engine_sha FROM signals")
+    assert row["cluster_id"].startswith(d.direction.value + "-")
+    assert row["engine_sha"] and row["engine_sha"] != "unknown"

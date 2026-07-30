@@ -27,6 +27,17 @@
   esigi ayri: maksDD 8R'yi asarsa golge mod da durdurulup Faz 4 analizi
   one cekilir.
 
+## Yanlislama Kriterleri (eklendi 2026-07-30 - on-kayit simetriktir)
+Basari gibi basarisizlik da onceden tanimlidir:
+- 40 sonuclanan islemde NET beklenti <= -0.10R -> golge uretim durdurulur,
+  Faz 4 analizi one cekilir (parametre "kurtarma" denemesi YAPILMAZ).
+- Herhangi bir anda maksimum dusus > 8R -> ayni durdurma.
+- 60 sinyalde NOT_FILLED orani > %60 -> giris bolgesi tasarimi gozden
+  gecirilir (tavsiye niteliginde; durdurmaz).
+Not (2026-07-30): 'beklenti' NET-R'dir (maliyet modeli: config-lock.md);
+sayac KONFIG KILIDI aninda sifirdan baslar - kilit oncesi ~14 sinyal
+kohort-0 olarak ayri raporlanir.
+
 ## Portfoy tavanlari (bu kriterle birlikte yururlukte)
 - Eszamanli acik sinyal <= 10 (`MAX_OPEN_SIGNALS`)
 - Gun basina yeni sinyal <= 6 (`MAX_DAILY_SIGNALS`)

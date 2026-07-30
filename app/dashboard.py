@@ -739,7 +739,8 @@ function openSig(id){
     ['Stop',s.stop_loss],['TP1 / TP2',`${s.tp1} / ${s.tp2}`],['RR',s.rr],
     ['Time-stop',s.time_stop_date||'-'],['Dolum fiyati',s.fill_price??'-'],
     ['Cikis fiyati',s.exit_price??'-'],
-    ['R katsayisi',s.r_multiple!=null?s.r_multiple+'R':'-'],
+    ['R katsayisi (brut)',s.r_multiple!=null?s.r_multiple+'R':'-'],
+    ['R net (10k$ ref)',s.r_net!=null?s.r_net+'R (maliyet '+s.cost_r+'R)':'-'],
     ['Kapanis',s.closed_utc||'-']];
   document.getElementById('mTitle').textContent=`${s.symbol} ${s.direction} sinyali`;
   document.getElementById('mBody').innerHTML=rows.map(([k,v])=>
@@ -823,19 +824,23 @@ function renderSim(){
       if(Object.keys(book).length>=K){skipped++;continue;}
       const e=(s.entry_min+s.entry_max)/2;
       const d=e?Math.abs(e-s.stop_loss)/e:0; if(d<=0)continue;
-      let r=eq*riskPct; const notion=r/d, capN=eq/K;
-      if(notion>capN)r*=capN/notion;   // slot payi asilirsa risk kucultulur
-      book[s.id]=r; taken++;
+      let r=eq*riskPct; let notion=r/d; const capN=eq/K;
+      if(notion>capN){r*=capN/notion;notion=capN;}
+      const cost=3+notion*0.0005;      // Midas 2x1.50$ + 5bp kayma (NET)
+      book[s.id]={r,cost}; taken++;
     }else if(book[s.id]!=null){
-      eq+=book[s.id]*s.r_multiple; delete book[s.id];
+      eq+=book[s.id].r*s.r_multiple-book[s.id].cost; delete book[s.id];
       peak=Math.max(peak,eq); maxdd=Math.max(maxdd,(peak-eq)/peak);
     }
   }
   // sinirsiz varsayim referansi
-  let ref=start; rows.forEach(s=>{ref+=ref*riskPct*s.r_multiple;});
+  let ref=start; rows.forEach(s=>{
+    const e=(s.entry_min+s.entry_max)/2, d=e?Math.abs(e-s.stop_loss)/e:0;
+    const r=ref*riskPct, notion=d>0?r/d:0;
+    ref+=r*s.r_multiple-(3+notion*0.0005);});
   const ret=(eq/start-1)*100, refRet=(ref/start-1)*100;
   document.getElementById('simOut').innerHTML=
-    `<div><b>Bakiye (kapasiteli)</b><span>$${eq.toFixed(0)}</span></div>
+    `<div><b>Bakiye (kapasiteli, NET)</b><span>$${eq.toFixed(0)}</span></div>
      <div><b>Getiri</b><span style="color:${ret>=0?'var(--green)':'var(--red)'}">
        ${ret>=0?'+':''}${ret.toFixed(1)}%</span></div>
      <div><b>Maks DD</b><span>${(maxdd*100).toFixed(1)}%</span></div>

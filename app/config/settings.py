@@ -91,6 +91,13 @@ class Settings(BaseSettings):
     MAX_DAILY_SIGNALS: int = 6         # gun basina yeni sinyal tavani
 
     # Yazili go-live kriteri (konsey #3 - gercek para esikleri)
+    # Net-R maliyet modeli (P0): Midas SABIT ucret -> maliyet pozisyon
+    # buyuklugune bagli; referans varsayim uzerinden r_net raporlanir
+    FEE_PER_TRADE_USD: float = 1.50
+    SLIPPAGE_BPS: float = 5.0          # cikista stop kaymasi varsayimi
+    REF_ACCOUNT_USD: float = 10000.0
+    REF_RISK_PCT: float = 1.0
+
     GOLIVE_MIN_DECIDED: int = 40       # min. sonuclanmis islem
     GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
     GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama

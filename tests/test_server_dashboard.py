@@ -45,6 +45,7 @@ def test_dashboard_served(tmp_path):
         assert b'id="simSlot"' in r.data            # kapasite modu (INPUT olarak!)
         assert b"fontStep" in r.data                 # yazi boyutu secici
         assert b">Kalite<" in r.data and b">Canli<" in r.data
+        assert b"Bakiye (kapasiteli, NET)" in r.data     # P0 net muhasebe
 
 
 def test_news_endpoint(tmp_path):
