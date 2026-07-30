@@ -98,6 +98,7 @@ class Settings(BaseSettings):
     REF_ACCOUNT_USD: float = 10000.0
     REF_RISK_PCT: float = 1.0
 
+    CONFIG_LOCK_UTC: str = "2026-07-30T13:18:00Z"  # kilit ani (docs/config-lock.md)
     GOLIVE_MIN_DECIDED: int = 40       # min. sonuclanmis islem
     GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
     GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama

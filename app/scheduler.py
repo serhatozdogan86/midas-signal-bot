@@ -593,19 +593,20 @@ class Scheduler:
         if self._tracker is None:
             return out
         try:
-            st = self._tracker.stats()
-            decided = st.get("decided_trades") or 0
+            lock = s.CONFIG_LOCK_UTC
+            out["cohort_since"] = lock
+            nt = self._tracker.net_totals(since_utc=lock)
+            decided = nt["decided"]
             c = out["criteria"]
             c["decided"]["now"] = decided
             c["decided"]["ok"] = decided >= s.GOLIVE_MIN_DECIDED
             if decided:
-                nt = self._tracker.net_totals()
                 exp = nt.get("net_expectancy")
                 c["expectancy_r"]["now"] = exp
                 c["expectancy_r"]["ok"] = (exp is not None
                                            and exp >= s.GOLIVE_MIN_EXPECTANCY_R)
-                c["expectancy_r"]["basis"] = "net"
-            dd = self._tracker.max_drawdown_r()
+            c["expectancy_r"]["basis"] = "net"
+            dd = self._tracker.max_drawdown_r(since_utc=lock)
             c["max_dd_r"]["now"] = dd
             c["max_dd_r"]["ok"] = dd <= s.GOLIVE_MAX_DD_R
             out["met"] = all(v["ok"] for v in c.values())
@@ -663,10 +664,15 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_mix_error"))
         try:
-            nt = self._tracker.net_totals()
-            if nt["decided"]:
-                lines.append(f"Toplam R brut/NET: {nt['gross_r']:+.2f} / "
-                             f"{nt['net_r']:+.2f} (10k$ %1 referans)")
+            nt_all = self._tracker.net_totals()
+            nt_lock = self._tracker.net_totals(
+                since_utc=self._settings.CONFIG_LOCK_UTC)
+            if nt_all["decided"]:
+                lines.append(
+                    f"Toplam R brut/NET: {nt_all['gross_r']:+.2f} / "
+                    f"{nt_all['net_r']:+.2f} (tum kohortlar) | "
+                    f"KILIT kohortu: {nt_lock['decided']} islem, "
+                    f"NET {nt_lock['net_r']:+.2f}R")
             bs = self._tracker.blocked_summary()
             if bs["total"]:
                 lines.append(f"Tavan kohortu: {bs['total']} sinyal "

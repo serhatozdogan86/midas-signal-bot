@@ -156,7 +156,8 @@ def test_golive_status_progress(tmp_path):
              110, 2.5, "CLOSED", "WIN" if r > 0 else "LOSS", r,
              (now - timedelta(days=3 - i)).strftime("%Y-%m-%dT%H:%M:%SZ")))
     settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
-                        GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5)  # net 0.783 > 0.5
+                        GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5,
+                        CONFIG_LOCK_UTC="2026-07-01T00:00:00Z")  # kohort filtre testte acik
     sched = Scheduler(settings, None, None, None, MarketCalendar(),
                       InMemoryStateStore(), FakeNotifier(), tracker)
     g = sched.golive_status()

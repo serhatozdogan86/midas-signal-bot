@@ -175,12 +175,18 @@ class SignalTracker:
         cost_usd = 2 * self.FEE_USD + notional * self.SLIP_BPS / 10000
         return round(cost_usd / risk_usd, 3)
 
-    def net_totals(self) -> dict:
-        """Sonuclanan islemlerde brut ve net R toplamlari + net beklenti."""
-        rows = self._db.query(
-            "SELECT entry_min,entry_max,fill_price,stop_loss,r_multiple "
-            "FROM signals WHERE status='CLOSED' AND blocked=0 AND "
-            "r_multiple IS NOT NULL AND outcome IN ('WIN','LOSS','EXPIRED')")
+    def net_totals(self, since_utc: str | None = None) -> dict:
+        """Sonuclanan islemlerde brut/net R + net beklenti.
+        since_utc verilirse yalniz o andan sonra DOGAN sinyaller (kilit
+        kohortu) sayilir - config-lock.md sozlesmesi."""
+        q = ("SELECT entry_min,entry_max,fill_price,stop_loss,r_multiple "
+             "FROM signals WHERE status='CLOSED' AND blocked=0 AND "
+             "r_multiple IS NOT NULL AND outcome IN ('WIN','LOSS','EXPIRED')")
+        args: tuple = ()
+        if since_utc:
+            q += " AND created_utc>=?"
+            args = (since_utc,)
+        rows = self._db.query(q, args)
         gross = net = 0.0
         for r in rows:
             gross += r["r_multiple"]
@@ -354,12 +360,16 @@ class SignalTracker:
             "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED' AND blocked=0")
         return int(rows[0]["n"]) if rows else 0
 
-    def max_drawdown_r(self) -> float:
+    def max_drawdown_r(self, since_utc: str | None = None) -> float:
         """Kapanis sirasiyla kumulatif R egrisinin en derin dususu (R)."""
-        rows = self._db.query(
-            "SELECT r_multiple FROM signals WHERE status='CLOSED' AND blocked=0 "
-            "AND r_multiple IS NOT NULL AND outcome NOT IN "
-            "('NOT_FILLED','AMBIGUOUS') ORDER BY closed_utc")
+        q = ("SELECT r_multiple FROM signals WHERE status='CLOSED' AND blocked=0 "
+             "AND r_multiple IS NOT NULL AND outcome NOT IN "
+             "('NOT_FILLED','AMBIGUOUS')")
+        args: tuple = ()
+        if since_utc:
+            q += " AND created_utc>=?"
+            args = (since_utc,)
+        rows = self._db.query(q + " ORDER BY closed_utc", args)
         cum = peak = dd = 0.0
         for r in rows:
             cum += r["r_multiple"]

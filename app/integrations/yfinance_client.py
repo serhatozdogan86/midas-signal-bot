@@ -45,7 +45,14 @@ class YFinanceClient:
         Sembol -> OHLCV DataFrame. Basarisiz sembol sozlukte yer almaz;
         ust katman eksigi DATA_MISSING olarak ele alir - tahmin yapilmaz.
         """
-        import yfinance as yf  # lazy: testler ag/kutuphane olmadan calisir
+        import yfinance as yf
+
+        # yfinance logger'i kutuphanenin kendi ic yapilandirmasi yuzunden
+        # setup_logging'de susturulamiyordu (30 Tem nabiz bulgusu):
+        # import SONRASI bastir + root'a tasima (ring buffer kirlenmesin)
+        _yf_log = logging.getLogger("yfinance")
+        _yf_log.setLevel(logging.CRITICAL)
+        _yf_log.propagate = False
 
         out: dict[str, pd.DataFrame] = {}
         symbols = list(dict.fromkeys(s.upper() for s in symbols))
