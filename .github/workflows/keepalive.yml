@@ -1,0 +1,15 @@
+name: keepalive
+# Render free plan bosta kalinca servisi uyutur -> zamanlayici da uyur
+# (30 Tem gecesi vakasi: 17:50'den sonra tum taramalar ve EOD kacti).
+# Bu cron 10 dk'da bir /healthz'e dokunarak servisi uyanik tutar.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sS -m 20 -o /dev/null -w "healthz %{http_code}\n" \
+            https://midas-signal-bot.onrender.com/healthz || true
