@@ -151,7 +151,9 @@ def create_app(store: StateStore, scheduler: Scheduler,
     def performance():
         if tracker is None:
             return jsonify({"error": "shadow tracking disabled"}), 404
-        return app.response_class(json.dumps(tracker.stats(), indent=2),
+        stats = tracker.stats()
+        stats["benchmark"] = scheduler.benchmark_info()   # SPY ayni donem
+        return app.response_class(json.dumps(stats, indent=2),
                                   mimetype="application/json")
 
     @app.get("/signals")

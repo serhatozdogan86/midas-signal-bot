@@ -525,6 +525,66 @@ class Scheduler:
                 break
         return strip
 
+    def benchmark_info(self) -> dict | None:
+        """Ayni donem SPY al-tut getirisi (konsey: 'beta mi alfa mi').
+        Donem = ilk sinyal tarihinden bugune; SPY kapanislari gunluk cache'ten."""
+        if self._tracker is None:
+            return None
+        try:
+            first = self._tracker.first_signal_utc()
+            if not first or _BENCH not in (self._daily_cache or {}):
+                return None
+            df = self._daily_cache[_BENCH].to_dataframe()
+            start_date = first[:10]
+            if hasattr(df.index, "strftime"):
+                window = df[df.index.strftime("%Y-%m-%d") >= start_date]
+            else:                       # sentetik veri (testler): tum seri
+                window = df
+            if len(window) < 1:
+                return None
+            first_close = float(window["close"].iloc[0])
+            last_close = float(df["close"].iloc[-1])
+            return {"since": start_date,
+                    "spy_return_pct": round((last_close / first_close - 1) * 100, 2)}
+        except Exception:
+            log.exception(kv(event="benchmark_error"))
+            return None
+
+    def build_eod_extras(self) -> str:
+        """Konsey eklentileri: SPY kiyasi, setup dengesi, dolum kalitesi."""
+        if self._tracker is None:
+            return ""
+        lines = []
+        bench = self.benchmark_info()
+        if bench:
+            lines.append(f"SPY ayni donem ({bench['since']}'den beri): "
+                         f"{bench['spy_return_pct']:+.2f}%")
+        try:
+            mix = self._tracker.setup_mix()
+            if mix["setup"]:
+                st = " / ".join(f"{k}:{v}" for k, v in
+                                sorted(mix["setup"].items()))
+                cf = " / ".join(f"{k}:{v}" for k, v in
+                                sorted(mix["confidence"].items()))
+                line = f"Setup dagilimi: {st} | Guven: {cf}"
+                total = sum(mix["setup"].values())
+                top = max(mix["setup"].values())
+                if total >= 5 and top / total >= 0.8:
+                    line += " (tek kanat calisiyor - izlemede)"
+                lines.append(line)
+        except Exception:
+            log.exception(kv(event="eod_mix_error"))
+        try:
+            fq = self._tracker.fill_quality()
+            if fq:
+                lines.append(f"Dolum kalitesi ({fq['n']} poz): "
+                             f"MFE medyan {fq['mfe_median']:+.2f}R | "
+                             f"MAE medyan {fq['mae_median']:+.2f}R | "
+                             f"en derin {fq['worst']}")
+        except Exception:
+            log.exception(kv(event="eod_quality_error"))
+        return ("\n".join(lines) + "\n") if lines else ""
+
     def build_heartbeat(self) -> dict:
         """Uzaktan izleme nabzi: saglik ozetinin tamami tek JSON'da."""
         from app.logging_setup import get_ring_buffer
@@ -769,6 +829,7 @@ class Scheduler:
                 f"Bugunku sinyaller: "
                 f"{', '.join(self._signals_today) or 'yok'}\n"
                 f"{shadow_line}"
+                f"{self.build_eod_extras()}"
                 f"Yarin izlenecekler ({len(self._watchlist)}): {watch_txt}\n"
                 f"Acik pozisyonlarda time-stop kuralini unutmayin."
                 f"{eod_comment}"

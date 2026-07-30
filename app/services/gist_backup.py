@@ -61,13 +61,15 @@ class GistBackup:
     def __init__(self, client: GistClient, tracker: SignalTracker,
                  sync_interval_sec: int = 3600, pinned_gist_id: str = "",
                  candle_mode: str = "signals", candle_max_rows: int = 3000,
-                 meta_provider=None, commentary_provider=None) -> None:
+                 meta_provider=None, commentary_provider=None,
+                 candle_retention_days: int = 30) -> None:
         self._client = client
         self._tracker = tracker
         self._meta = meta_provider or (lambda: {})   # rejim/evren/izleme listesi
         self._commentary = commentary_provider       # None -> yorum dosyasi yazilmaz
         self._candle_mode = candle_mode              # signals | all | off
         self._candle_max_rows = candle_max_rows
+        self._retention_days = candle_retention_days
         self._interval = sync_interval_sec
         self._gist_id: str | None = pinned_gist_id or None
         self._last_sync: float = 0.0
@@ -106,8 +108,7 @@ class GistBackup:
                 log.exception(kv(event="gist_commentary_error"))
         if self._candle_mode == "off":
             return files
-        symbols = (self._tracker.signal_symbols() if self._candle_mode == "signals"
-                   else self._tracker.signal_symbols())  # 'all' Faz 4'te acilabilir
+        symbols = self._tracker.archive_symbols(self._retention_days)
         for symbol in symbols:
             for interval in _INTERVALS:
                 rows = self._tracker.export_candles(symbol, interval)
@@ -124,7 +125,18 @@ class GistBackup:
             self._gist_id = self._client.create_gist(MARKER, files)
             ok = self._gist_id is not None
         else:
-            ok = self._client.update_gist(self._gist_id, dict(files))
+            payload: dict = dict(files)
+            try:
+                existing = self._client.fetch_gist(self._gist_id) or {}
+                stale = [n for n in existing
+                         if n.startswith("candles_") and n not in files]
+                for name in stale:
+                    payload[name] = None          # saklama disi -> gist'ten sil
+                if stale:
+                    log.info(kv(event="gist_prune", removed=len(stale)))
+            except Exception:
+                log.exception(kv(event="gist_prune_error"))
+            ok = self._client.update_gist(self._gist_id, payload)
         if ok:
             self._last_sync = time.time()
             self._last_sync_utc = datetime.now(timezone.utc).strftime(

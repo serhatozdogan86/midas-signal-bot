@@ -436,7 +436,7 @@ icinde uretilir.</div>
   </div>
 
 <script>
-let SIG=[], FILT="all", DIRF="ALL", CHART=null, STAGES={}, TIMER=null;
+let SIG=[], FILT="all", DIRF="ALL", CHART=null, STAGES={}, TIMER=null, PERF=null;
 function on(id,ev,fn){const el=document.getElementById(id);
   if(el)el.addEventListener(ev,fn);}
 window.onerror=function(msg,src_,line){
@@ -487,6 +487,7 @@ async function loadAll(){
     (uni?` &#183; Evren: <b>${uni.filtered_count??'-'}</b> (${uni.source||'-'})`:'');
 
   if(perf){
+    PERF=perf;
     const wr=perf.win_rate==null?'&#8212;':(perf.win_rate*100).toFixed(0)+'%';
     const tr=perf.total_r_multiple??0;
     const co=perf.closed_by_outcome||{};
@@ -812,7 +813,10 @@ function renderSim(){
      <div><b>Maks DD</b><span>${(maxdd*100).toFixed(1)}%</span></div>
      <div><b>Alinan / Atlanan</b><span>${taken} / ${skipped}</span></div>
      <div><b>Sinirsiz varsayim</b><span class="muted">$${ref.toFixed(0)}
-       (${refRet>=0?'+':''}${refRet.toFixed(1)}%)</span></div>`;
+       (${refRet>=0?'+':''}${refRet.toFixed(1)}%)</span></div>
+     <div><b>SPY ayni donem</b><span class="muted">${
+       PERF&&PERF.benchmark?((PERF.benchmark.spy_return_pct>=0?'+':'')+
+       PERF.benchmark.spy_return_pct+'%'):'&#8212;'}</span></div>`;
 }
 on('simSlot','input',renderSim);
 on('simStart','input',renderSim);

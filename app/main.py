@@ -97,6 +97,7 @@ def main() -> None:
             sync_interval_sec=settings.GIST_SYNC_INTERVAL_SEC,
             pinned_gist_id=settings.GIST_ID,
             candle_mode=settings.GIST_CANDLE_MODE,
+            candle_retention_days=settings.CANDLE_RETENTION_DAYS,
             candle_max_rows=settings.GIST_CANDLE_MAX_ROWS,
             meta_provider=lambda: {"universe": universe.describe()},
             commentary_provider=(commentary.recent if commentary else None))

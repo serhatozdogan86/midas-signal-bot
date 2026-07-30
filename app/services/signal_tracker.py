@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.logging_setup import kv
 from app.models.candle import KlineSeries
@@ -236,10 +236,70 @@ class SignalTracker:
             "SELECT ts,open,high,low,close,volume FROM candles "
             "WHERE symbol=? AND interval=? ORDER BY ts ASC", (symbol, interval))
 
+    def first_signal_utc(self) -> str | None:
+        rows = self._db.query("SELECT MIN(created_utc) AS m FROM signals")
+        return rows[0]["m"] if rows and rows[0]["m"] else None
+
+    def fill_quality(self) -> dict | None:
+        """FILLED sinyallerin dolum kalitesi: girisden bu yana MFE/MAE (R).
+        MFE = lehte en iyi hareket, MAE = aleyhte en derin hareket. Konsey
+        onerisi: 'giris bolgesi kovaliyor mu' sorusunun olcusu."""
+        rows = self._db.query(
+            "SELECT symbol,direction,entry_candle_ts,fill_price,stop_loss "
+            "FROM signals WHERE status='FILLED' AND fill_price IS NOT NULL")
+        if not rows:
+            return None
+        per = []
+        for r in rows:
+            cs = self._db.query(
+                "SELECT high,low FROM candles WHERE symbol=? AND interval=? "
+                "AND ts>?", (r["symbol"], self._mtf, r["entry_candle_ts"]))
+            if not cs:
+                continue
+            risk = abs(r["fill_price"] - r["stop_loss"]) or 1e-9
+            sign = 1 if r["direction"] == "LONG" else -1
+            mfe = max(sign * (c["high" if sign > 0 else "low"] - r["fill_price"])
+                      for c in cs) / risk
+            mae = min(sign * (c["low" if sign > 0 else "high"] - r["fill_price"])
+                      for c in cs) / risk
+            per.append({"symbol": r["symbol"], "mfe_r": round(mfe, 2),
+                        "mae_r": round(mae, 2)})
+        if not per:
+            return None
+        mid = len(per) // 2
+        med = lambda k: sorted(p[k] for p in per)[mid]
+        worst = min(per, key=lambda p: p["mae_r"])
+        return {"n": len(per), "mfe_median": med("mfe_r"),
+                "mae_median": med("mae_r"),
+                "worst": f'{worst["symbol"]} {worst["mae_r"]:+.2f}R', "per": per}
+
+    def setup_mix(self) -> dict:
+        """Acik sinyallerde setup/guven dagilimi (denge izlemesi)."""
+        rows = self._db.query(
+            "SELECT setup_type, confidence, COUNT(*) AS n FROM signals "
+            "WHERE status!='CLOSED' GROUP BY setup_type, confidence")
+        mix: dict = {"setup": {}, "confidence": {}}
+        for r in rows:
+            st = (r["setup_type"] or "?").replace("breakout_retest", "BO")                                          .replace("trend_pullback", "PB")
+            mix["setup"][st] = mix["setup"].get(st, 0) + r["n"]
+            cf = r["confidence"] or "?"
+            mix["confidence"][cf] = mix["confidence"].get(cf, 0) + r["n"]
+        return mix
+
     def open_symbols(self) -> list[str]:
         """Acik (PENDING/FILLED) sinyali olan semboller - orphan eval icin."""
         rows = self._db.query(
             "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED'")
+        return [r["symbol"] for r in rows]
+
+    def archive_symbols(self, retention_days: int = 30) -> list[str]:
+        """Mum arsivine girecek semboller: acik sinyali olan VEYA son
+        retention_days icinde kapanan. (Konsey: gist sonsuza buyumesin.)"""
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(days=retention_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = self._db.query(
+            "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED' "
+            "OR closed_utc IS NULL OR closed_utc>=?", (cutoff,))
         return [r["symbol"] for r in rows]
 
     def signal_symbols(self) -> list[str]:
