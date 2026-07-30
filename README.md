@@ -175,6 +175,13 @@ Butce: tur basina en cok FINE_MAX_SYMBOLS (30) quote; sembol basi 60 sn
 onbellek; aday basina 5 dk tekrar-degerlendirme cooldown'u. Ince tarama
 hatasi kaba taramayi ASLA etkilemez (izole try/except).
 
+## Portfoy tavanlari + Go-live kriteri (v3.2)
+Motor artik portfoy duzeyi fren tasiyor: eszamanli acik sinyal <= 10,
+gun basina yeni sinyal <= 6; tavan doluyken sinyal kaydedilir ama takip ve
+bildirim yapilmaz. Golge -> gercek para gecisinin YAZILI kriteri
+`docs/go-live-kriteri.md`'de: >= 40 sonuclanan islem VE beklenti >= +0.15R
+VE maksimum dusus <= 8R. Ilerleme her gun sonu raporunda otomatik yayimlanir.
+
 ## Faz haritasi
 - ~~Faz 2~~ tamamlandi (v2.4)
 - ~~Faz 3~~ tamamlandi (one cekildi)

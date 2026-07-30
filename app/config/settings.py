@@ -84,7 +84,16 @@ class Settings(BaseSettings):
     HOURLY_FETCH_MAX: int = 120        # 2. geciste 1h verisi cekilecek max aday
     FINE_MAX_SYMBOLS: int = 30         # ince tarama tur butcesi (Finnhub 60/dk)
     FINE_REEVAL_COOLDOWN_SEC: int = 300  # ayni aday icin tekrar-degerlendirme araligi
-    FINE_TRIGGER_BUFFER_PCT: float = 0.05  # kirilim teyit tamponu (%)      # 15 dk kaba tarama
+    FINE_TRIGGER_BUFFER_PCT: float = 0.05  # kirilim teyit tamponu (%)
+
+    # Portfoy duzeyi risk tavanlari (konsey #2 - tek gecelik felaket freni)
+    MAX_OPEN_SIGNALS: int = 10         # eszamanli acik golge sinyal tavani
+    MAX_DAILY_SIGNALS: int = 6         # gun basina yeni sinyal tavani
+
+    # Yazili go-live kriteri (konsey #3 - gercek para esikleri)
+    GOLIVE_MIN_DECIDED: int = 40       # min. sonuclanmis islem
+    GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
+    GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama
     FINE_SCAN_INTERVAL_SEC: int = 60         # Phase 2 (rezerve)
     WATCHLIST_MAX: int = 40
     PREP_LEAD_MIN: int = 45                  # acilistan once hazirlik (08:45 ET ~ 15:45 TR)

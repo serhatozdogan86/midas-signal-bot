@@ -269,6 +269,8 @@ class Scheduler:
         self.progress = "tarama: 2. gecis (setup/hacim/RR)"
         results: list[Decision] = []
         watch: list[dict] = []
+        cap_reason = self._portfolio_cap_reason()
+        capped_count = 0
         for symbol, d in pass1.items():
             try:
                 if symbol in hourly:
@@ -290,7 +292,8 @@ class Scheduler:
                     if symbol in daily:
                         self._tracker.record_candles(daily[symbol])
                     self._tracker.record_decision(d)
-                    if symbol in hourly:
+                    if symbol in hourly and not (
+                            d.decision is DecisionType.SIGNAL and cap_reason):
                         self._tracker.maybe_track(d, hourly[symbol])
                     self._tracker.evaluate_open(symbol)
                 except Exception:
@@ -298,7 +301,13 @@ class Scheduler:
             self._store.save_result(symbol, d.contract_dict())
             self._collect_watch(d, watch, hourly.get(symbol))
             if send_telegram:
-                self._dispatch(d)
+                if d.decision is DecisionType.SIGNAL and cap_reason:
+                    log.info(kv(event="portfolio_cap_skip", symbol=symbol,
+                                reason=cap_reason))
+                    capped_count += 1
+                else:
+                    self._dispatch(d)
+                    cap_reason = self._portfolio_cap_reason()
             log.info(kv(event="scan", symbol=symbol, decision=d.decision.value,
                         direction=d.direction.value,
                         reason=d.reject_reason or d.setup_type.value))
@@ -324,6 +333,8 @@ class Scheduler:
         if self._gist is not None:
             self._gist.maybe_sync()
         self.progress = ""
+        if capped_count:
+            self.last_scan_info["portfolio_capped"] = capped_count
         log.info(kv(event="coarse_scan_done", scanned=len(results),
                     signals=sum(1 for r in results
                                 if r.decision is DecisionType.SIGNAL),
@@ -525,6 +536,48 @@ class Scheduler:
                 break
         return strip
 
+    def _portfolio_cap_reason(self) -> str | None:
+        """Portfoy tavani (konsey #2): eszamanli acik sinyal ve gunluk yeni
+        sinyal limitleri. Motor sinyali uretir (veri setine kaydedilir) ama
+        tavan doluyken TAKIP ve BILDIRIM yapilmaz - gap gecesi tum defterin
+        ayni anda yanmasina karsi fren."""
+        if self._tracker is not None and \
+                self._tracker.open_count() >= self._settings.MAX_OPEN_SIGNALS:
+            return f"eszamanli tavan ({self._settings.MAX_OPEN_SIGNALS})"
+        if len(self._signals_today) >= self._settings.MAX_DAILY_SIGNALS:
+            return f"gunluk tavan ({self._settings.MAX_DAILY_SIGNALS})"
+        return None
+
+    def golive_status(self) -> dict:
+        """Yazili go-live kriterine gore ilerleme (konsey #3).
+        Kriter docs/go-live-kriteri.md'de; esikler settings'te."""
+        s = self._settings
+        out = {"criteria": {
+            "decided": {"min": s.GOLIVE_MIN_DECIDED, "now": 0, "ok": False},
+            "expectancy_r": {"min": s.GOLIVE_MIN_EXPECTANCY_R, "now": None,
+                             "ok": False},
+            "max_dd_r": {"max": s.GOLIVE_MAX_DD_R, "now": None, "ok": True},
+        }, "met": False}
+        if self._tracker is None:
+            return out
+        try:
+            st = self._tracker.stats()
+            decided = st.get("decided_trades") or 0
+            c = out["criteria"]
+            c["decided"]["now"] = decided
+            c["decided"]["ok"] = decided >= s.GOLIVE_MIN_DECIDED
+            if decided:
+                exp = round((st.get("total_r_multiple") or 0) / decided, 3)
+                c["expectancy_r"]["now"] = exp
+                c["expectancy_r"]["ok"] = exp >= s.GOLIVE_MIN_EXPECTANCY_R
+            dd = self._tracker.max_drawdown_r()
+            c["max_dd_r"]["now"] = dd
+            c["max_dd_r"]["ok"] = dd <= s.GOLIVE_MAX_DD_R
+            out["met"] = all(v["ok"] for v in c.values())
+        except Exception:
+            log.exception(kv(event="golive_status_error"))
+        return out
+
     def benchmark_info(self) -> dict | None:
         """Ayni donem SPY al-tut getirisi (konsey: 'beta mi alfa mi').
         Donem = ilk sinyal tarihinden bugune; SPY kapanislari gunluk cache'ten."""
@@ -575,6 +628,20 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_mix_error"))
         try:
+            g = self.golive_status()
+            c = g["criteria"]
+            exp = c["expectancy_r"]["now"]
+            lines.append(
+                f"Go-live kriteri: {c['decided']['now']}/{c['decided']['min']} "
+                f"sonuclanan | beklenti "
+                f"{exp if exp is not None else '-'}R"
+                f"/{c['expectancy_r']['min']}R | maksDD "
+                f"{c['max_dd_r']['now'] if c['max_dd_r']['now'] is not None else '-'}R"
+                f"/{c['max_dd_r']['max']}R -> "
+                f"{'KARSILANDI' if g['met'] else 'henuz degil'}")
+        except Exception:
+            log.exception(kv(event="eod_golive_error"))
+        try:
             fq = self._tracker.fill_quality()
             if fq:
                 lines.append(f"Dolum kalitesi ({fq['n']} poz): "
@@ -600,6 +667,7 @@ class Scheduler:
             "gap_watch": self.last_gap_watch,
             "watchlist_size": len(self._watchlist),
             "log_counts": dict(ring.counts),
+            "golive": self.golive_status(),
             "recent_warnings": ring.recent(25),
         }
         try:
@@ -712,6 +780,11 @@ class Scheduler:
         d = signal_engine.evaluate(symbol, daily.get(symbol), hourly,
                                    self._regime, self._params, bench_df, e_info)
         if d.decision is DecisionType.SIGNAL:
+            cap_reason = self._portfolio_cap_reason()
+            if cap_reason:
+                log.info(kv(event="portfolio_cap_skip", symbol=symbol,
+                            reason=cap_reason, source="fine"))
+                return
             d.time_stop_date = self._calendar.add_trading_days(
                 today, self._params.time_stop_days).isoformat()
             if self._tracker is not None:

@@ -236,6 +236,24 @@ class SignalTracker:
             "SELECT ts,open,high,low,close,volume FROM candles "
             "WHERE symbol=? AND interval=? ORDER BY ts ASC", (symbol, interval))
 
+    def open_count(self) -> int:
+        rows = self._db.query(
+            "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED'")
+        return int(rows[0]["n"]) if rows else 0
+
+    def max_drawdown_r(self) -> float:
+        """Kapanis sirasiyla kumulatif R egrisinin en derin dususu (R)."""
+        rows = self._db.query(
+            "SELECT r_multiple FROM signals WHERE status='CLOSED' AND "
+            "r_multiple IS NOT NULL AND outcome NOT IN ('NOT_FILLED','AMBIGUOUS') "
+            "ORDER BY closed_utc")
+        cum = peak = dd = 0.0
+        for r in rows:
+            cum += r["r_multiple"]
+            peak = max(peak, cum)
+            dd = max(dd, peak - cum)
+        return round(dd, 2)
+
     def first_signal_utc(self) -> str | None:
         rows = self._db.query("SELECT MIN(created_utc) AS m FROM signals")
         return rows[0]["m"] if rows and rows[0]["m"] else None

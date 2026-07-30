@@ -100,3 +100,68 @@ def test_eod_extras_text(tmp_path):
     sched._daily_cache_date = sched._calendar.now_et().date()
     txt = sched.build_eod_extras()
     assert "SPY ayni donem" in txt and "Setup dagilimi" in txt
+
+
+def test_portfolio_cap_blocks_dispatch(tmp_path):
+    """Konsey #2: eszamanli tavan doluyken SIGNAL takip/bildirim almaz."""
+    from tests.test_fine_scan import FineMD
+    tracker = _tracker(tmp_path)
+    for i in range(10):                       # tavan dolu (10 acik)
+        _sig(tracker._db, f"S{i}", status="PENDING")
+    settings = Settings(TELEGRAM_ENABLED=True, STATE_BACKEND="memory",
+                        MAX_OPEN_SIGNALS=10)
+    notifier = FakeNotifier()
+    sched = Scheduler(settings, FineMD({}), None, None, MarketCalendar(),
+                      InMemoryStateStore(), notifier, tracker)
+    assert sched._portfolio_cap_reason() is not None
+
+    hourly = fx.make_series(fx.hourly_breakout_closes(),
+                            volumes=fx.spike_volumes(178, spike_at=-1, mult=2.6))
+    sched._daily_cache = sched._md.get_daily_bulk(["AAPL", "SPY"])
+    sched._daily_cache_date = sched._calendar.now_et().date()
+    from app.models.decision import MarketRegime
+    from app.strategies.regime_detector import RegimeResult
+    sched._regime = RegimeResult(regime=MarketRegime.BULL)
+
+    class FakeEarnings:
+        def info(self, symbol, today):
+            from app.models.decision import EarningsInfo
+            return EarningsInfo(next_date="2026-08-20", days_to=8)
+    sched._earnings = FakeEarnings()
+    sched._md.hourly = hourly
+    sched._fine_reevaluate("AAPL")            # motor SIGNAL uretir ama...
+    assert notifier.sent == []                # bildirim yok
+    assert tracker.open_count() == 10         # takibe girmedi
+
+
+def test_daily_cap(tmp_path):
+    tracker = _tracker(tmp_path)
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                        MAX_DAILY_SIGNALS=2)
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      InMemoryStateStore(), FakeNotifier(), tracker)
+    sched._signals_today = ["A LONG", "B LONG"]
+    assert "gunluk tavan" in sched._portfolio_cap_reason()
+
+
+def test_golive_status_progress(tmp_path):
+    tracker = _tracker(tmp_path)
+    now = datetime.now(timezone.utc)
+    for i, r in enumerate([1.5, -1.0, 2.0]):
+        tracker._db.execute(
+            "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
+            "entry_min,entry_max,stop_loss,tp1,tp2,rr,status,outcome,"
+            "r_multiple,closed_utc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (f"G{i}", "LONG", "2026-07-20T14:00:00Z", 1, 100, 101, 98, 106,
+             110, 2.5, "CLOSED", "WIN" if r > 0 else "LOSS", r,
+             (now - timedelta(days=3 - i)).strftime("%Y-%m-%dT%H:%M:%SZ")))
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                        GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5)
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      InMemoryStateStore(), FakeNotifier(), tracker)
+    g = sched.golive_status()
+    assert g["criteria"]["decided"]["now"] == 3
+    assert abs(g["criteria"]["expectancy_r"]["now"] - 0.833) < 0.01
+    assert g["criteria"]["max_dd_r"]["now"] == 1.0     # +1.5 -> +0.5 dususu
+    assert g["met"] is True
+    assert "Go-live kriteri" in sched.build_eod_extras()
