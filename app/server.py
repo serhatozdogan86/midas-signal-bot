@@ -8,9 +8,10 @@ tum evreni tarar ve tam contract JSON dondurur; seans saati kontrolune takilmaz.
 from __future__ import annotations
 
 import json
+import os
 import time
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 from app.dashboard import DASHBOARD_HTML
 from app.logging_setup import get_ring_buffer
@@ -75,6 +76,15 @@ def create_app(store: StateStore, scheduler: Scheduler,
         diag["commentary_latest"] = (commentary.latest()
                                      if commentary is not None else None)
         return diag
+
+    @app.get("/kullanici-el-kitabi.pdf")
+    def handbook_pdf():
+        """Strateji/mekanizma kullanici el kitabi (PDF). app/static altinda
+        saklanir; dashboard sol menusundeki 'Kullanım Kılavuzu' baglantisi
+        buraya cikar."""
+        static_dir = os.path.join(app.root_path, "static")
+        return send_from_directory(static_dir, "kullanici-el-kitabi.pdf",
+                                    mimetype="application/pdf")
 
     @app.get("/")
     @app.get("/dashboard")

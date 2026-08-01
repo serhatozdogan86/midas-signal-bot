@@ -241,3 +241,19 @@ def test_wallet_legacy_symbols_format_still_accepted(tmp_path):
     assert r.get_json()["ok"] is True
     g = c.get("/wallet").get_json()
     assert g["rows"][0]["s"] == "GM" and g["rows"][0]["q"] == 5
+
+
+def test_handbook_pdf_served(tmp_path):
+    """Kullanım kılavuzu PDF'i /kullanici-el-kitabi.pdf ucundan servis edilir."""
+    c = _client(tmp_path)
+    r = c.get("/kullanici-el-kitabi.pdf")
+    assert r.status_code == 200
+    assert r.mimetype == "application/pdf"
+    assert r.data[:4] == b"%PDF"
+    assert len(r.data) > 100_000
+
+
+def test_dashboard_links_to_handbook(tmp_path):
+    c = _client(tmp_path)
+    body = c.get("/dashboard").get_data(as_text=True)
+    assert "kullanici-el-kitabi.pdf" in body
