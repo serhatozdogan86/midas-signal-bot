@@ -8,6 +8,7 @@ tum evreni tarar ve tam contract JSON dondurur; seans saati kontrolune takilmaz.
 from __future__ import annotations
 
 import json
+import time
 
 from flask import Flask, jsonify, request
 
@@ -251,9 +252,33 @@ def create_app(store: StateStore, scheduler: Scheduler,
             json.dumps([d.contract_dict() for d in results], indent=2),
             mimetype="application/json")
 
+    _qcache: dict = {}
+
+    @app.get("/quotes")
+    def quotes():
+        """Cuzdan icin toplu canli fiyat (<=20 sembol, 60sn onbellek)."""
+        md = getattr(scheduler, "_md", None)
+        syms = [s.strip().upper() for s in
+                (request.args.get("symbols") or "").split(",") if s.strip()][:20]
+        out = {}
+        now = time.time()
+        for s in syms:
+            ts, val = _qcache.get(s, (0, None))
+            if now - ts > 60 and md is not None:
+                try:
+                    val = md.get_quote_change(s)
+                except Exception:
+                    val = None
+                _qcache[s] = (now, val)
+            if val:
+                out[s] = val
+        return jsonify(out)
+
     @app.get("/universe")
     def universe_info():
-        return app.response_class(json.dumps(universe.describe(), indent=2),
+        desc = universe.describe()
+        desc["symbols"] = sorted(getattr(universe, "_filtered", []) or [])
+        return app.response_class(json.dumps(desc, indent=2),
                                   mimetype="application/json")
 
     @app.get("/watchlist")

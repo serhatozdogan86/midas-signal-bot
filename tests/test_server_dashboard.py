@@ -178,3 +178,10 @@ def test_v4_serving_contract():
     html_only = re.sub(r"<script[\s\S]*?</script>", "", H)
     assert 'id="server-diag"' not in html_only     # server enjekte eder
     assert "server-diag" in H                      # JS okur
+
+
+def test_quotes_endpoint_graceful(tmp_path):
+    c = _client(tmp_path)
+    r = c.get("/quotes?symbols=AAPL,MSFT")
+    assert r.status_code == 200
+    assert r.get_json() == {}
