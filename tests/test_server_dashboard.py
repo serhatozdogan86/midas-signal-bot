@@ -219,3 +219,25 @@ def test_fundamentals_endpoint(tmp_path, monkeypatch):
     body = r.get_json()
     assert body["PCG"]["sector"] == "Energy"
     assert body["PCG"]["ebitda_margin"] == 22.0
+
+
+def test_wallet_roundtrip_full_rows(tmp_path):
+    """POST tam satirlari (sembol+adet+giris+hedef) saklar; GET geri verir -
+    localStorage'in calismadigi durumlarda dashboard buradan kurtarabilir."""
+    c = _client(tmp_path)
+    payload = {"rows": [{"s": "pcg", "q": 250, "e": 17.82, "t": 19.0},
+                        {"s": "AAPL", "q": 10, "e": 220.5, "t": None}]}
+    r = c.post("/wallet", json=payload)
+    assert r.get_json() == {"ok": True, "count": 2}
+    g = c.get("/wallet").get_json()
+    assert {"s": "PCG", "q": 250, "e": 17.82, "t": 19.0} in g["rows"]
+    assert {"s": "AAPL", "q": 10, "e": 220.5, "t": None} in g["rows"]
+
+
+def test_wallet_legacy_symbols_format_still_accepted(tmp_path):
+    """Eski istemci formati ({symbols:{...}}) hala kabul edilir (uyumluluk)."""
+    c = _client(tmp_path)
+    r = c.post("/wallet", json={"symbols": {"GM": 5}})
+    assert r.get_json()["ok"] is True
+    g = c.get("/wallet").get_json()
+    assert g["rows"][0]["s"] == "GM" and g["rows"][0]["q"] == 5

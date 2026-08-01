@@ -63,6 +63,7 @@ class Scheduler:
         self._last_heartbeat = 0.0
         self._deadman_date = None
         self.wallet: dict = {}
+        self.wallet_rows: list = []
         self._weekly_date = None
         self._daily_cache: dict = {}
         self._daily_cache_date: date | None = None

@@ -26,10 +26,16 @@ class FundamentalsService:
     def __init__(self, ttl_sec: int = _TTL_SEC) -> None:
         self._ttl = ttl_sec
         self._cache: dict[str, tuple[float, dict | None]] = {}
+        self._first_call_logged = False
 
     def get_many(self, symbols: list[str]) -> dict[str, dict]:
         """Verilen sembollerin temel verilerini dondurur (onbellekli+paralel).
         Eksik/basarisiz semboller sonuc sozlugunde YER ALMAZ (dashboard '-')."""
+        if not self._first_call_logged:
+            self._first_call_logged = True
+            # Uzaktan teshis (1 Agu): '/fundamentals hic cagriliyor mu' sorusu
+            # gist nabzindan cevaplanabilsin diye ILK cagriyi WARNING'e yaz.
+            log.warning("fundamentals_first_call symbols=%s", ",".join(symbols[:10]))
         now = time.time()
         need = [s for s in symbols
                 if now - self._cache.get(s, (0, None))[0] >= self._ttl]
@@ -39,14 +45,11 @@ class FundamentalsService:
             for sym, data in zip(need, results):
                 self._cache[sym] = (now, data)
             failed = sum(1 for d in results if d is None)
-            if need and failed == len(need):
-                # TUMU basarisiz oldu (Yahoo tarafi kesintili/degisti olabilir) -
-                # WARNING seviyesinde: gist nabzinda gorunur olsun, uzaktan
-                # teshis edilebilsin (1 Agu geri bildirimi: sessiz kalmasindi).
-                log.warning("fundamentals_batch_all_failed count=%d", len(need))
-            elif failed:
-                log.info("fundamentals_partial_failure failed=%d of %d",
-                         failed, len(need))
+            if failed:
+                # kismi de olsa artik WARNING - gist nabzinda gorunur olsun
+                # (once sessizce yutuluyordu, teshis imkansizdi)
+                log.warning("fundamentals_fetch_failures failed=%d of %d symbols=%s",
+                           failed, len(need), ",".join(need[:10]))
         out = {}
         for s in symbols:
             _, data = self._cache.get(s, (0, None))

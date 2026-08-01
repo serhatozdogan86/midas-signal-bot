@@ -257,13 +257,43 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     @app.post("/wallet")
     def wallet_sync():
-        """Dashboard cuzdanini sunucuya aynalar (Telegram koprusu)."""
+        """Dashboard cuzdanini sunucuya aynalar. Amac: localStorage'in
+        calismadigi/silindigi durumlarda (1 Agu geri bildirimi - sayfa
+        yenilenince veri kayboluyordu) GET /wallet ile geri kurtarma imkani.
+        Tam satirlari (sembol+adet+giris+hedef) saklar - yalniz adet degil,
+        boylece geri yuklemede K/Z hesabi da dogru kurulur."""
         body = request.get_json(silent=True) or {}
-        syms = body.get("symbols") or {}
-        clean = {str(k).upper(): int(v) for k, v in syms.items()
-                 if str(k).strip() and int(v or 0) > 0}
-        scheduler.wallet = clean
+        rows_in = body.get("rows")
+        if rows_in is None:
+            legacy = body.get("symbols") or {}   # eski istemci (v4.3-v4.9) uyumu
+            rows_in = [{"s": k, "q": v} for k, v in legacy.items()]
+        clean = []
+        qty_map: dict = {}
+        for r in rows_in or []:
+            try:
+                sym = str(r.get("s") or "").upper().strip()
+                qty = int(r.get("q") or 0)
+                entry = float(r.get("e") or 0)
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if not sym or qty <= 0:
+                continue
+            tgt = r.get("t")
+            try:
+                tgt = float(tgt) if tgt not in (None, "") else None
+            except (TypeError, ValueError):
+                tgt = None
+            clean.append({"s": sym, "q": qty, "e": entry, "t": tgt})
+            qty_map[sym] = qty_map.get(sym, 0) + qty
+        scheduler.wallet_rows = clean
+        scheduler.wallet = qty_map
         return jsonify({"ok": True, "count": len(clean)})
+
+    @app.get("/wallet")
+    def wallet_get():
+        """Cuzdan yedek kurtarma: dashboard localStorage bossa buradan
+        okur (son basarili POST /wallet anlik goruntusu, bellek-ici)."""
+        return jsonify({"rows": getattr(scheduler, "wallet_rows", [])})
 
     from app.services.fundamentals_service import FundamentalsService
     _fund_svc = FundamentalsService()
