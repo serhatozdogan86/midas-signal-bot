@@ -377,6 +377,63 @@ Tüm basamaklar geçildiyse, bot artık somut bir sinyal üretir. Bu sinyal şun
 
 Bu bilgi paketi Telegram'a gönderilir ve dashboard'a işlenir.
 
+## 4.10 Vaka İncelemesi 1 — Baştan Sona Bir Sinyalin Doğuşu
+
+Aşağıdaki örnek kurgusaldır ("ACME Corp" gerçek bir şirket değil); amaç, 9 basamağın hepsinin
+gerçek sayılarla nasıl geçildiğini somut olarak göstermek. Piyasa BULL rejiminde.
+
+| Basamak | Gözlem | Sonuç |
+|---|---|---|
+| 1. DATA | ACME için 400 günlük geçmiş veri mevcut | GEÇTİ |
+| 2. MARKET_REGIME | SPY 200 günlük ortalamanın %1,8 üstünde ve yükseliyor; QQQ benzer | BULL → GEÇTİ |
+| 3. TREND | Fiyat $84; 50G ort. $79; 200G ort. $71 (doğru sırada); 3 aydır HH/HL yapısı | GEÇTİ |
+| 4. EARNINGS | Sonraki bilanço 11 işlem günü sonra (±2 gün dışında) | GEÇTİ |
+| 5. SETUP | Fiyat 20 saatlik ort. ($81,40) geri çekildi; RSI(3)=14 (aşırı satım); yeşil dönüş mumu | PULLBACK → GEÇTİ |
+| 6. VOLUME | Dönüş mumunda hacim, 20 günlük ort. hacmin 1,6 katı (eşik: 1,3) | GEÇTİ |
+| 7. CONFLUENCE | Sektöründeki hisselerin %82'sinden güçlü + sektör ETF güçlü + 52H zirveye %4 mesafe | GÜVEN: H |
+| 8. RISK_REWARD | Giriş $82,10 · Stop $80,35 (risk $1,75) · TP1 $83,85 (RR 1,0) · TP2 $85,60 (RR 2,0) | GEÇTİ |
+| 9. SIGNAL | Tüm basamaklar geçildi | SİNYAL ÜRETİLDİ |
+
+Sonuç: ACME için LONG sinyali — giriş bölgesi ~$82,10, stop $80,35, TP1 $83,85, TP2 $85,60,
+RR 2,0, güven H. Bu paket olduğu gibi Telegram'a düşer.
+
+## 4.11 Vaka İncelemesi 2 — Bir Hisse Neden Elenir?
+
+Her aday sinyale dönüşmez; asıl işi eleme yapar. Aşağıdaki kurgusal örnek ("BOLT Inc."), teknik
+yapısı gayet iyi görünen bir hissenin nasıl ve neden durdurulduğunu gösterir.
+
+| Basamak | Gözlem | Sonuç |
+|---|---|---|
+| 1. DATA | Yeterli veri mevcut | GEÇTİ |
+| 2. MARKET_REGIME | BULL | GEÇTİ |
+| 3. TREND | Fiyat 50 günlük ortalamanın üstünde, net HH/HL yapısı | GEÇTİ |
+| 4. EARNINGS | Sonraki bilanço SADECE 1 işlem günü sonra | FAIL → NO_TRADE |
+
+> Teknik yapı burada mükemmel görünüyordu; hisse basamak 3'e kadar her şeyi geçti. Ama bilanço
+> riski öngörülemez olduğu için bot durdu. Bilanço iyi gelseydi belki bir fırsat kaçmış olurdu —
+> kötü gelseydi, teknik kurulum bir gecede anlamsızlaşırdı. Bot, öngörülemeyen bir riski,
+> öngörülebilir bir fırsata her zaman tercih eder.
+
+## 4.12 Vaka İncelemesi 3 — SHORT Tarafında Aynalı Bir Örnek
+
+Piyasa BEAR rejiminde. Kurgusal "DUSK Holdings": fiyat 50 günlük ortalamanın altında, 200 günlük
+ortalamanın altında, LH/LL (düşen tepeler/dipler) yapısında.
+
+- **SETUP:** Fiyat, düşen 20 saatlik ortalamaya doğru YUKARI sıçradı; RSI(3) 88'e çıktı (aşırı
+  ALIM — pullback'in ayna görüntüsü); ardından kırmızı bir dönüş mumu oluştu.
+- **Sinyal:** Giriş $45,20 · Stop $46,80 (risk $1,60) · TP1 $43,60 (RR 1,0) · TP2 $42,00 (RR 2,0).
+
+Mantık aynı, yön ters: "Düşüş trendi hâlâ sağlam, sadece kısa bir yukarı soluklanma oldu; ucuza
+(yani pahalıya) satma fırsatı."
+
+## 4.13 Güven Etiketi (H/M/L) Nasıl Belirlenir? — Karşılaştırmalı Örnek
+
+| Etiket | Örnek kriterler | Yorum |
+|---|---|---|
+| H (Yüksek) | Göreceli güç üst %20'de + sektör güçlü + 52H zirveye <%5 | Üç faktör de aynı anda olumlu hizalanmış (Vaka 1'deki ACME gibi) |
+| M (Orta) | Göreceli güç ortalamanın üstünde + sektör nötr + zirveye %15-25 mesafe | Temel şartlar sağlanıyor ama destekleyici faktörler kısmi |
+| L (Düşük) | Göreceli güç sınırda + sektör zayıf + zirveden uzak | Şartlar teknik olarak sağlanıyor ama güven düşük — daha küçük pozisyonla değerlendirilebilir |
+
 ---
 
 # Bölüm 5 — SHORT (Kısa) Pozisyonlar: Neden Daha Sıkı Kurallar?
@@ -420,6 +477,32 @@ Bu tavanlardan biri dolduğunda, motor yeni bir sinyal **üretmeye devam eder** 
 analiz için saklanır) ama o sinyal **takibe alınmaz ve Telegram'a bildirilmez.** Böylece
 "tavanın bize maliyeti ne oldu" sorusu da ayrıca ölçülebilir — belki tavan bizi büyük bir
 kayıptan korudu, belki de iyi bir fırsatı kaçırdık; veri birikince ikisi de görülebilir.
+
+## 6.1 Vaka İncelemesi — Bir Günün Portföy Defteri (Kurgusal)
+
+Aşağıdaki tablo, ısı motorunun bir gün içinde nasıl işlediğini adım adım gösteriyor. Tüm
+semboller ve saatler kurgusaldır.
+
+| Saat | Sinyal | Yön | Küme durumu | Sonuç |
+|---|---|---|---|---|
+| 09:14 | #1 | LONG | Küme L-Pzt: 1/3 | Alındı |
+| 10:02 | #2 | LONG | Küme L-Pzt: 2/3 | Alındı |
+| 11:47 | #3 | LONG | Küme L-Pzt: 3/3 (DOLU) | Alındı |
+| 13:20 | #4 | LONG | Küme L-Pzt: 3/3 → yeni istek reddedildi | BLOKLANDI (küme tavanı) |
+| 14:05 | #5 | SHORT | Küme S-Pzt: 1/3 (ayrı küme, farklı yön) | Alındı |
+| 15:40 | #6 | LONG | Küme L-Pzt: 3/3 (hâlâ dolu) | BLOKLANDI (küme tavanı) |
+
+Dikkat: #5 (SHORT) engellenmedi, çünkü kendi kümesi (S-Pzt) henüz dolu değildi — "aynı yön/gün"
+tanımı gereği LONG kümesinin dolu olması SHORT kümesini etkilemez. #4 ve #6 ise aynı LONG
+kümesine düştüğü için engellendi.
+
+> Peki engellenen #4 ve #6'ya ne oldu? Bot bunları "hayalet pozisyon" olarak (blocked=2)
+> işaretleyip aynı giriş/stop/hedef mantığıyla izlemeye devam eder — gerçek deftere hiç
+> girmeden. Örnek: o gün piyasa öğleden sonra geri çekildi ve L-Pzt kümesindeki 3 gerçek
+> pozisyon ortalama −0,9R ile kapandı. #4 ve #6'nın varsayımsal sonucu da benzer şekilde
+> −0,8R ve −1,1R çıktı — yani bu örnekte tavan, yaklaşık 1,9R'lik ek bir kaybı gerçek deftere
+> hiç yazdırmadan önledi. (Bazı günler tam tersi de olabilir: tavan iyi bir fırsatı kaçırmış
+> olabilir — bu yüzden hypo_r takibi iki yönlü de dürüstçe raporlanır.)
 
 ---
 
