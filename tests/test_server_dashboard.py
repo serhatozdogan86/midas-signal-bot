@@ -185,3 +185,14 @@ def test_quotes_endpoint_graceful(tmp_path):
     r = c.get("/quotes?symbols=AAPL,MSFT")
     assert r.status_code == 200
     assert r.get_json() == {}
+
+
+def test_wallet_sync_and_perf_net(tmp_path):
+    from app.services.database import Database
+    from app.services.signal_tracker import SignalTracker
+    tracker = SignalTracker(Database(str(tmp_path / "w.db")), "1h")
+    c = _client(tmp_path, tracker=tracker)
+    r = c.post("/wallet", json={"symbols": {"aapl": 10, "PCG": 250}})
+    assert r.get_json() == {"ok": True, "count": 2}
+    perf = c.get("/performance").get_json()
+    assert "net" in perf

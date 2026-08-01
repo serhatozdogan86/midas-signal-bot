@@ -163,6 +163,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
             return jsonify({"error": "shadow tracking disabled"}), 404
         stats = tracker.stats()
         stats["benchmark"] = scheduler.benchmark_info()   # SPY ayni donem
+        stats["net"] = tracker.net_totals()               # maliyet sonrasi
         return app.response_class(json.dumps(stats, indent=2),
                                   mimetype="application/json")
 
@@ -253,6 +254,16 @@ def create_app(store: StateStore, scheduler: Scheduler,
             mimetype="application/json")
 
     _qcache: dict = {}
+
+    @app.post("/wallet")
+    def wallet_sync():
+        """Dashboard cuzdanini sunucuya aynalar (Telegram koprusu)."""
+        body = request.get_json(silent=True) or {}
+        syms = body.get("symbols") or {}
+        clean = {str(k).upper(): int(v) for k, v in syms.items()
+                 if str(k).strip() and int(v or 0) > 0}
+        scheduler.wallet = clean
+        return jsonify({"ok": True, "count": len(clean)})
 
     @app.get("/quotes")
     def quotes():

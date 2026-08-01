@@ -62,6 +62,8 @@ class Scheduler:
         self.last_fine_info: dict = {}
         self._last_heartbeat = 0.0
         self._deadman_date = None
+        self.wallet: dict = {}
+        self._weekly_date = None
         self._daily_cache: dict = {}
         self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
@@ -123,6 +125,7 @@ class Scheduler:
         eod_dt = close_dt + timedelta(minutes=self._settings.EOD_DELAY_MIN)
 
         watch_dt = open_dt - timedelta(minutes=self._settings.PREMARKET_LEAD_MIN)
+        self._maybe_weekly(now_et)
         # Not (30 Tem): hazirlik sarti kaldirildi - restart sonrasi nobet
         # gecikmesin. Nobetin girdisi gist'ten donen pozisyonlar + quote;
         # izleme listesi adaylari o an bos olabilir, kritik olan pozisyonlar.
@@ -694,6 +697,14 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_net_error"))
         try:
+            wsyms = set((self.wallet or {}).keys())
+            if wsyms:
+                hits = [s for s in self._tracker.open_symbols() if s in wsyms]
+                if hits:
+                    lines.append("Cuzdan kesisimi (acik sinyalli): " + ", ".join(sorted(hits)))
+        except Exception:
+            pass
+        try:
             g = self.golive_status()
             c = g["criteria"]
             exp = c["expectancy_r"]["now"]
@@ -717,6 +728,56 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_quality_error"))
         return ("\n".join(lines) + "\n") if lines else ""
+
+    def _wallet_note(self, symbol: str) -> str:
+        qty = (self.wallet or {}).get(symbol)
+        return f" • cüzdanında {qty} adet" if qty else ""
+
+    def build_weekly_report(self) -> str | None:
+        """Pazar aksami haftalik ozet (oneri #4)."""
+        if self._tracker is None:
+            return None
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)) \
+            .strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = [r for r in self._tracker.recent_signals(300)
+                if r.get("status") == "CLOSED" and (r.get("closed_utc") or "") >= cutoff
+                and r.get("outcome") in ("WIN", "LOSS", "EXPIRED")]
+        lines = ["HAFTALIK RAPOR (son 7 gun)"]
+        if rows:
+            tot = sum(r.get("r_multiple") or 0 for r in rows)
+            net = sum(r.get("r_net", r.get("r_multiple")) or 0 for r in rows)
+            wins = sum(1 for r in rows if (r.get("r_multiple") or 0) > 0)
+            best = max(rows, key=lambda r: r.get("r_multiple") or 0)
+            worst = min(rows, key=lambda r: r.get("r_multiple") or 0)
+            lines += [
+                f"Sonuclanan: {len(rows)} ({wins} kazanc) | "
+                f"Toplam {tot:+.2f}R | NET {net:+.2f}R",
+                f"En iyi: {best['symbol']} {best.get('r_multiple'):+.2f}R | "
+                f"En kotu: {worst['symbol']} {worst.get('r_multiple'):+.2f}R"]
+        else:
+            lines.append("Bu hafta sonuclanan islem yok.")
+        g = self.golive_status()
+        c = g["criteria"]
+        lines.append(f"Kilit kohortu: {c['decided']['now']}/{c['decided']['min']} "
+                     f"sonuclanan -> {'KARSILANDI' if g['met'] else 'devam'}")
+        if self._tracker.open_count():
+            lines.append(f"Acik sinyal: {self._tracker.open_count()}")
+        bench = self.benchmark_info()
+        if bench:
+            lines.append(f"SPY ayni donem: {bench['spy_return_pct']:+.2f}%")
+        return "\n".join(lines)
+
+    def _maybe_weekly(self, now_et) -> None:
+        if now_et.weekday() == 6 and now_et.hour >= 14 \
+                and self._weekly_date != now_et.date():
+            self._weekly_date = now_et.date()
+            try:
+                text = self.build_weekly_report()
+                if text:
+                    self._send(text)
+            except Exception:
+                log.exception(kv(event="weekly_report_error"))
 
     def _deadman_check(self, now_et, open_dt, today) -> None:
         """Dead-man switch (P1): seans acikken taramalar N dakikadan uzun
@@ -818,7 +879,8 @@ class Scheduler:
                 self._zone_notified.add(sig["id"])
                 zone_hits += 1
                 self._send(
-                    f"GIRIS TETIKLENDI | {sig['symbol']} {sig['direction']}\n"
+                    f"GIRIS TETIKLENDI | {sig['symbol']} {sig['direction']}"
+                    f"{self._wallet_note(sig['symbol'])}\n"
                     f"Canli fiyat {quote:g} giris bolgesinde "
                     f"({sig['entry_min']:g} - {sig['entry_max']:g}).\n"
                     f"Plan: stop {sig['stop_loss']:g} | TP1 {sig['tp1']:g} | "
