@@ -265,6 +265,17 @@ def create_app(store: StateStore, scheduler: Scheduler,
         scheduler.wallet = clean
         return jsonify({"ok": True, "count": len(clean)})
 
+    from app.services.fundamentals_service import FundamentalsService
+    _fund_svc = FundamentalsService()
+
+    @app.get("/fundamentals")
+    def fundamentals():
+        """Sirket temel verileri (sektor, F/K, PD/DD, borc/ozkaynak, FAVOK
+        marji). Sinyal motoruna karismaz - dashboard karti icin bilgi amacli."""
+        syms = [s.strip().upper() for s in
+                (request.args.get("symbols") or "").split(",") if s.strip()][:20]
+        return jsonify(_fund_svc.get_many(syms))
+
     @app.get("/quotes")
     def quotes():
         """Cuzdan icin toplu canli fiyat (<=20 sembol, 60sn onbellek)."""

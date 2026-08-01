@@ -196,3 +196,26 @@ def test_wallet_sync_and_perf_net(tmp_path):
     assert r.get_json() == {"ok": True, "count": 2}
     perf = c.get("/performance").get_json()
     assert "net" in perf
+
+
+def test_fundamentals_endpoint(tmp_path, monkeypatch):
+    from app.services.fundamentals_service import FundamentalsService
+
+    class FakeTicker:
+        def __init__(self, symbol):
+            self.symbol = symbol
+
+        @property
+        def info(self):
+            return {"sector": "Energy", "trailingPE": 12.1, "marketCap": 5e9,
+                    "priceToBook": 0.9, "debtToEquity": 60.0,
+                    "ebitdaMargins": 0.22}
+
+    import yfinance as yf
+    monkeypatch.setattr(yf, "Ticker", FakeTicker)
+    c = _client(tmp_path)
+    r = c.get("/fundamentals?symbols=PCG,GM")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["PCG"]["sector"] == "Energy"
+    assert body["PCG"]["ebitda_margin"] == 22.0
