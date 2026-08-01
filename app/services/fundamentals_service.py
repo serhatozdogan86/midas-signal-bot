@@ -35,9 +35,18 @@ class FundamentalsService:
                 if now - self._cache.get(s, (0, None))[0] >= self._ttl]
         if need:
             with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(need))) as ex:
-                results = ex.map(self._fetch_one, need)
+                results = list(ex.map(self._fetch_one, need))
             for sym, data in zip(need, results):
                 self._cache[sym] = (now, data)
+            failed = sum(1 for d in results if d is None)
+            if need and failed == len(need):
+                # TUMU basarisiz oldu (Yahoo tarafi kesintili/degisti olabilir) -
+                # WARNING seviyesinde: gist nabzinda gorunur olsun, uzaktan
+                # teshis edilebilsin (1 Agu geri bildirimi: sessiz kalmasindi).
+                log.warning("fundamentals_batch_all_failed count=%d", len(need))
+            elif failed:
+                log.info("fundamentals_partial_failure failed=%d of %d",
+                         failed, len(need))
         out = {}
         for s in symbols:
             _, data = self._cache.get(s, (0, None))
@@ -47,19 +56,30 @@ class FundamentalsService:
 
     @staticmethod
     def _fetch_one(symbol: str) -> dict | None:
-        try:
-            import yfinance as yf
+        info = None
+        for attempt in range(2):                    # Yahoo bazen ilk denemede
+            try:                                     # bos/kesintili donebiliyor
+                import yfinance as yf
 
-            # yfinance logger'i gec yapilandiriliyor (bilinen davranis) -
-            # import aninda bastir (universe/candle istemcisindeki ayni desen)
-            _yl = logging.getLogger("yfinance")
-            _yl.setLevel(logging.CRITICAL)
-            _yl.propagate = False
+                # yfinance logger'i gec yapilandiriliyor (bilinen davranis) -
+                # import aninda bastir (universe/candle istemcisindeki ayni desen)
+                _yl = logging.getLogger("yfinance")
+                _yl.setLevel(logging.CRITICAL)
+                _yl.propagate = False
 
-            info = yf.Ticker(symbol).info or {}
-        except Exception:
-            log.info("fundamentals_fetch_failed symbol=%s", symbol)
-            return None
+                tk = yf.Ticker(symbol)
+                info = tk.get_info() if hasattr(tk, "get_info") else tk.info
+            except Exception as e:
+                if attempt == 0:
+                    time.sleep(0.4)
+                    continue
+                log.info("fundamentals_fetch_failed symbol=%s err=%s",
+                         symbol, type(e).__name__)
+                return None
+            if info and info.get("sector"):
+                break
+            if attempt == 0:
+                time.sleep(0.4)
         if not info or not info.get("sector"):
             return None
 
