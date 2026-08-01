@@ -93,8 +93,24 @@ def test_tape_injected_at_top(tmp_path):
     """v3: DURUM OZETI artik tepedeki altin durum bandinda yasar."""
     c = _client(tmp_path)
     body = c.get("/").get_data(as_text=True)
-    assert '<div class="tape">DURUM OZETI ::' in body
-    assert body.index('class="tape"') < body.index("</body>")
+    assert "DURUM OZETI ::" in body           # kacisli veya duz - icerik sart
+
+
+def test_bundler_template_stays_valid_json(tmp_path):
+    """v4 kirilma dersi: TAPE enjeksiyonu sablon JSON'unu ASLA bozamaz.
+    Render edilen sayfadan __bundler/template yuku cekilir ve json.loads
+    ile dogrulanir - 'Error unpacking' sinifi kapali."""
+    import json as _json
+    import re
+
+    c = _client(tmp_path)
+    body = c.get("/dashboard").get_data(as_text=True)
+    m = re.search(r'<script type="__bundler/template">([\s\S]*?)</script>',
+                  body)
+    assert m, "sablon yuku bulunamadi"
+    payload = _json.loads(m.group(1))          # kirikse burada patlar
+    flat = _json.dumps(payload)
+    assert "DURUM OZETI ::" in flat            # band yukun icine islenmis
 
 
 def test_dx_plaintext_diag(tmp_path):
@@ -107,7 +123,8 @@ def test_dx_plaintext_diag(tmp_path):
     assert "warn=" in body and "err=" in body
     assert "ornek hata kaydi" in body
     r = c.get("/")
-    assert b"/dx</a>" in r.data                    # kesif linki
+    page = r.get_data(as_text=True) if hasattr(r, "get_data") else r.data.decode()
+    assert "/dx" in page or "\\u002Fdx" in page       # kesif linki (kacisli olabilir)
     assert "M\u0130DAS S\u0130NYAL" in r.data.decode("utf-8")   # v4 marka
     assert b"edge-cache atlatici" in r.data        # cache-buster
 
@@ -140,7 +157,8 @@ def test_diag_endpoint_and_embedded_block(tmp_path):
     r = c.get("/")
     assert b'id="server-diag"' in r.data
     assert b"DURUM OZETI ::" in r.data          # gorunur ozet satiri
-    assert b"/diag</a>" in r.data               # tam adresli detay linki
+    page = r.data.decode("utf-8")
+    assert "/diag" in page or "\\u002Fdiag" in page   # detay linki (kacisli olabilir)
     raw = r.data.split(b'id="server-diag">')[1].split(b"</script>")[0]
     embedded = _json.loads(raw.decode().replace("<\\/", "</"))
     assert "regime" in embedded and "log_counts" in embedded

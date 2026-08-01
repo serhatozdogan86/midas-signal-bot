@@ -109,8 +109,17 @@ def create_app(store: StateStore, scheduler: Scheduler,
         payload = json.dumps(diag, ensure_ascii=True).replace("</", "<\\/")
         tape = f'<div class="tape">{status_line}</div>'
         html = DASHBOARD_HTML
-        if "<!--TAPE-->" in html:               # v3: durum bandi tepede yasar
-            html = html.replace("<!--TAPE-->", tape)
+        idx = html.find("<!--TAPE-->")
+        if idx >= 0:
+            # v4 dersi (1 Agu): yer tutucu bundler'in JSON sablon yukunun
+            # ICINDE olabilir - ham HTML basmak JSON'u kirar ("Error
+            # unpacking ... position 44657"). Script icindeyse fragment
+            # JSON-kacisli (ve </script> kacisi icin \u002F'li) basilir.
+            in_script = (html.rfind("<script", 0, idx)
+                         > html.rfind("</script>", 0, idx))
+            frag = (json.dumps(tape)[1:-1].replace("/", "\\u002F")
+                    if in_script else tape)
+            html = html.replace("<!--TAPE-->", frag)
         else:                                   # eski sablon yedegi
             html = html.replace("</body>", tape + "</body>")
         html = html.replace(
