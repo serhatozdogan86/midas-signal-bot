@@ -235,3 +235,62 @@ def test_normal_signal_stamped_with_cluster_and_sha(tmp_path):
     row = tracker._db.query_one("SELECT cluster_id, engine_sha FROM signals")
     assert row["cluster_id"].startswith(d.direction.value + "-")
     assert row["engine_sha"] and row["engine_sha"] != "unknown"
+
+
+def test_regime_hysteresis_neutral_in_band():
+    """MA'ya sarkan tek kapanis bull ilan ettirmez (P1 histerezis)."""
+    import pandas as pd
+
+    from app.strategies.regime_detector import classify_index
+    n = 260
+    base = pd.Series([100.0 + i * 0.2 for i in range(n)])
+    df = pd.DataFrame({"close": base})
+    assert classify_index(df) == "bull"            # bandin acik ustunde
+    df2 = df.copy()
+    ma = df2["close"].rolling(200).mean().iloc[-1]
+    df2.loc[n - 1, "close"] = ma * 1.001           # son kapanis bant ICINDE
+    assert classify_index(df2) == "neutral"        # teyit yok -> notr
+
+
+def test_heat_direction_and_cluster_caps(tmp_path):
+    from datetime import datetime, timezone
+
+    tracker = _tracker(tmp_path)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for i in range(3):                     # ayni gun ayni yon: 3 acik
+        tracker._db.execute(
+            "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
+            "entry_min,entry_max,stop_loss,tp1,tp2,rr,status,cluster_id) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (f"H{i}", "LONG", f"{today}T14:00:00Z", 1, 100, 101, 98, 106,
+             110, 2.5, "PENDING", f"LONG-{today}"))
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                        MAX_CLUSTER_SIGNALS=3, MAX_DIR_SIGNALS=8)
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      InMemoryStateStore(), FakeNotifier(), tracker)
+    from app.models.decision import Decision, Direction
+    d = Decision.base("NEW", "1d", "1h")
+    d.direction = Direction.LONG
+    d.timestamp_utc = f"{today}T15:00:00Z"
+    reason = sched._portfolio_cap_reason(d)
+    assert reason and "kume" in reason             # 3/3 kume dolu
+
+
+def test_deadman_alert_once(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    tracker = _tracker(tmp_path)
+    settings = Settings(TELEGRAM_ENABLED=True, STATE_BACKEND="memory",
+                        DEADMAN_SCAN_STALENESS_MIN=25)
+    notifier = FakeNotifier()
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      InMemoryStateStore(), notifier, tracker)
+    sched.last_scan_info = {"ts_utc": (datetime.now(timezone.utc)
+                            - timedelta(minutes=40)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    now = datetime(2026, 7, 30, 11, 0, tzinfo=ZoneInfo("America/New_York"))
+    open_dt = now.replace(hour=9, minute=30)
+    sched._deadman_check(now, open_dt, now.date())
+    sched._deadman_check(now, open_dt, now.date())
+    alerts = [m for m in notifier.sent if "DEAD-MAN" in m]
+    assert len(alerts) == 1

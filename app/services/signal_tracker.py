@@ -355,6 +355,18 @@ class SignalTracker:
             "SELECT ts,open,high,low,close,volume FROM candles "
             "WHERE symbol=? AND interval=? ORDER BY ts ASC", (symbol, interval))
 
+    def open_count_by(self, direction: str) -> int:
+        rows = self._db.query(
+            "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED' "
+            "AND blocked=0 AND direction=?", (direction,))
+        return int(rows[0]["n"]) if rows else 0
+
+    def open_count_cluster(self, cluster_id: str) -> int:
+        rows = self._db.query(
+            "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED' "
+            "AND blocked=0 AND cluster_id=?", (cluster_id,))
+        return int(rows[0]["n"]) if rows else 0
+
     def open_count(self) -> int:
         rows = self._db.query(
             "SELECT COUNT(*) AS n FROM signals WHERE status!='CLOSED' AND blocked=0")

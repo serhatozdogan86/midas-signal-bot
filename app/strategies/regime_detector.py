@@ -20,18 +20,31 @@ class RegimeResult(BaseModel):
     detail: str = ""
 
 
+_HYST_PCT = 0.5     # 200G MA etrafinda +-%0.5 histerezis bandi (P1)
+_CONFIRM_BARS = 2   # bant disina cikis icin ardisik kapanis teyidi
+
+
 def classify_index(df: pd.DataFrame | None) -> str:
-    """Tek endeks durumu: 'bull' | 'bear' | 'neutral' | 'unknown'."""
+    """Tek endeks durumu: 'bull' | 'bear' | 'neutral' | 'unknown'.
+
+    P1 histerezisi (bybit uyarlamasi): MA'nin hemen ustu/alti 'gurultu
+    bolgesi'dir. bull/bear ilan etmek icin SON 2 gunluk kapanisin da
+    bandin (+-%0.5) DISINDA olmasi gerekir; aksi neutral. Boylece MA
+    etrafindaki testere gunlerinde rejim gunluk zip-zip degismez.
+    (30 Tem dersi: tek sert gun tum defteri vurdu; gecis gunlerinde
+    iki yonun de sikilasmis esiklerle calismasi dogru davranis.)"""
     if df is None or len(df) < _MIN_BARS:
         return "unknown"
-    close = float(df["close"].iloc[-1])
     s200 = sma(df["close"], 200)
     last = float(s200.iloc[-1])
     prev = float(s200.iloc[-1 - _SLOPE_BARS])
     rising, falling = last > prev, last < prev
-    if close > last and rising:
+    closes = df["close"].iloc[-_CONFIRM_BARS:].astype(float)
+    band_hi = last * (1 + _HYST_PCT / 100)
+    band_lo = last * (1 - _HYST_PCT / 100)
+    if rising and (closes > band_hi).all():
         return "bull"
-    if close < last and falling:
+    if falling and (closes < band_lo).all():
         return "bear"
     return "neutral"
 

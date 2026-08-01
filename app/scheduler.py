@@ -61,6 +61,7 @@ class Scheduler:
         self._reeval_at: dict = {}            # sembol -> son tekrar-degerlendirme ts
         self.last_fine_info: dict = {}
         self._last_heartbeat = 0.0
+        self._deadman_date = None
         self._daily_cache: dict = {}
         self._daily_cache_date: date | None = None
         self._prep_date: date | None = None
@@ -132,6 +133,7 @@ class Scheduler:
         if now_et >= prep_dt and self._prep_date != today:
             self.run_prep(today)
         if open_dt <= now_et < close_dt:
+            self._deadman_check(now_et, open_dt, today)
             if time.time() - self._last_coarse >= self._settings.COARSE_SCAN_INTERVAL_SEC:
                 self.run_coarse_scan(send_telegram=True)
                 self._last_coarse = time.time()
@@ -304,7 +306,9 @@ class Scheduler:
             self._store.save_result(symbol, d.contract_dict())
             self._collect_watch(d, watch, hourly.get(symbol))
             if send_telegram:
-                if d.decision is DecisionType.SIGNAL and cap_reason:
+                if d.decision is DecisionType.SIGNAL and \
+                        (cap_reason or self._portfolio_cap_reason(d)):
+                    cap_reason = cap_reason or self._portfolio_cap_reason(d)
                     log.info(kv(event="portfolio_cap_skip", symbol=symbol,
                                 reason=cap_reason))
                     capped_count += 1
@@ -568,16 +572,25 @@ class Scheduler:
                 break
         return strip
 
-    def _portfolio_cap_reason(self) -> str | None:
-        """Portfoy tavani (konsey #2): eszamanli acik sinyal ve gunluk yeni
-        sinyal limitleri. Motor sinyali uretir (veri setine kaydedilir) ama
-        tavan doluyken TAKIP ve BILDIRIM yapilmaz - gap gecesi tum defterin
-        ayni anda yanmasina karsi fren."""
+    def _portfolio_cap_reason(self, d=None) -> str | None:
+        """Portfoy ISI motoru (P1): toplam + gunluk + AYNI-YON + KUME
+        tavanlari. 30 Tem dersinin kodlanmis hali: 'hepsi long, hepsi ayni
+        gun' defteri bir daha kurulamaz. Motor sinyali uretir (veri setine
+        kaydedilir, blocked=2 kohortunda izlenir) ama takip/bildirim yapilmaz."""
+        s = self._settings
         if self._tracker is not None and \
-                self._tracker.open_count() >= self._settings.MAX_OPEN_SIGNALS:
-            return f"eszamanli tavan ({self._settings.MAX_OPEN_SIGNALS})"
-        if len(self._signals_today) >= self._settings.MAX_DAILY_SIGNALS:
-            return f"gunluk tavan ({self._settings.MAX_DAILY_SIGNALS})"
+                self._tracker.open_count() >= s.MAX_OPEN_SIGNALS:
+            return f"eszamanli tavan ({s.MAX_OPEN_SIGNALS})"
+        if len(self._signals_today) >= s.MAX_DAILY_SIGNALS:
+            return f"gunluk tavan ({s.MAX_DAILY_SIGNALS})"
+        if d is not None and self._tracker is not None:
+            direction = d.direction.value
+            if self._tracker.open_count_by(direction) >= s.MAX_DIR_SIGNALS:
+                return f"yon tavani ({direction} {s.MAX_DIR_SIGNALS})"
+            from app.services.signal_tracker import _cluster_id
+            if self._tracker.open_count_cluster(
+                    _cluster_id(d)) >= s.MAX_CLUSTER_SIGNALS:
+                return f"kume tavani ({s.MAX_CLUSTER_SIGNALS}/gun/yon)"
         return None
 
     def golive_status(self) -> dict:
@@ -704,6 +717,34 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_quality_error"))
         return ("\n".join(lines) + "\n") if lines else ""
+
+    def _deadman_check(self, now_et, open_dt, today) -> None:
+        """Dead-man switch (P1): seans acikken taramalar N dakikadan uzun
+        sustuysa gunde bir kez Telegram alarmi. Amac: 'bot calisiyor
+        saniyorduk' vakalarinin (uyku/askı/veri kilidi) SESSIZ kalmamasi."""
+        limit_min = self._settings.DEADMAN_SCAN_STALENESS_MIN
+        if (now_et - open_dt).total_seconds() < limit_min * 60:
+            return                      # seans yeni acildi, tarama hakki taninir
+        if self._deadman_date == today:
+            return
+        last_ts = (self.last_scan_info or {}).get("ts_utc")
+        stale = True
+        if last_ts:
+            try:
+                dt = datetime.strptime(last_ts, "%Y-%m-%dT%H:%M:%SZ") \
+                    .replace(tzinfo=timezone.utc)
+                stale = (datetime.now(timezone.utc) - dt).total_seconds() \
+                    > limit_min * 60
+            except ValueError:
+                pass
+        if stale:
+            self._deadman_date = today
+            log.error(kv(event="deadman_alert", last_scan=last_ts))
+            self._send(
+                f"DEAD-MAN UYARISI | Seans acik ama {limit_min} dk'dan uzun "
+                f"suredir tarama yok (son: {last_ts or 'hic'}).\n"
+                f"Olasi nedenler: veri kaynagi kilidi, dongu hatasi, servis "
+                f"sorunu. Dashboard/loglari kontrol et.")
 
     def build_heartbeat(self) -> dict:
         """Uzaktan izleme nabzi: saglik ozetinin tamami tek JSON'da."""
@@ -833,7 +874,7 @@ class Scheduler:
         d = signal_engine.evaluate(symbol, daily.get(symbol), hourly,
                                    self._regime, self._params, bench_df, e_info)
         if d.decision is DecisionType.SIGNAL:
-            cap_reason = self._portfolio_cap_reason()
+            cap_reason = self._portfolio_cap_reason(d)
             if cap_reason:
                 log.info(kv(event="portfolio_cap_skip", symbol=symbol,
                             reason=cap_reason, source="fine"))

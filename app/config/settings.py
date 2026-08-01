@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # Portfoy duzeyi risk tavanlari (konsey #2 - tek gecelik felaket freni)
     MAX_OPEN_SIGNALS: int = 10         # eszamanli acik golge sinyal tavani
     MAX_DAILY_SIGNALS: int = 6         # gun basina yeni sinyal tavani
+    MAX_DIR_SIGNALS: int = 8           # ayni yonde eszamanli tavan (P1 isi)
+    MAX_CLUSTER_SIGNALS: int = 3       # ayni kumede (yon+gun) tavan (P1 isi)
+    DEADMAN_SCAN_STALENESS_MIN: int = 25  # seansta tarama sessizligi alarmi
 
     # Yazili go-live kriteri (konsey #3 - gercek para esikleri)
     # Net-R maliyet modeli (P0): Midas SABIT ucret -> maliyet pozisyon
@@ -98,7 +101,7 @@ class Settings(BaseSettings):
     REF_ACCOUNT_USD: float = 10000.0
     REF_RISK_PCT: float = 1.0
 
-    CONFIG_LOCK_UTC: str = "2026-07-30T13:18:00Z"  # kilit ani (docs/config-lock.md)
+    CONFIG_LOCK_UTC: str = "2026-08-01T06:30:00Z"  # P1 kilidi  # kilit ani (docs/config-lock.md)
     GOLIVE_MIN_DECIDED: int = 40       # min. sonuclanmis islem
     GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
     GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama

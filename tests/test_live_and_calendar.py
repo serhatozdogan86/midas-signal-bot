@@ -75,17 +75,23 @@ def test_session_info_phases(tmp_path):
 
 
 def test_calendar_strip(tmp_path):
+    """Tarihler dinamik: bugunden itibaren 2. ve 3. islem gunu secilir
+    (sabit tarih, gun gecince patlayan saatli bombaydi - 1 Agu CI dersi)."""
+    cal = MarketCalendar()
+    today = cal.now_et().date()
+    ts_day = cal.add_trading_days(today, 2).isoformat()
+    er_day = cal.add_trading_days(today, 1).isoformat()
+
     class FakeEarnings:
         def info(self, symbol, today):
             from app.models.decision import EarningsInfo
             if symbol == "AAPL":
-                return EarningsInfo(next_date="2026-07-30", days_to=1)
+                return EarningsInfo(next_date=er_day, days_to=1)
             return EarningsInfo()
 
     sched, _, db = _sched(tmp_path, {}, earnings=FakeEarnings())
-    _insert(db, "AAPL", time_stop="2026-07-31")
-    strip = sched.build_calendar_strip(days=5)
-    assert len(strip) == 5
+    _insert(db, "AAPL", time_stop=ts_day)
+    strip = sched.build_calendar_strip(days=6)
     by_date = {d["date"]: d for d in strip if not d.get("holiday")}
-    assert "AAPL" in by_date["2026-07-31"]["time_stops"]
-    assert "AAPL" in by_date["2026-07-30"]["earnings"]
+    assert "AAPL" in by_date[ts_day]["time_stops"]
+    assert "AAPL" in by_date[er_day]["earnings"]

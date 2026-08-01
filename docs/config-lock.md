@@ -16,6 +16,13 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-01: P1 (onayli uyarlama plani) eklendi: rejim histerezisi
+  (200G MA +-%0.5 bant, 2 gun kapanis teyidi), isi motoru (ayni-yon <=8,
+  kume <=3), dead-man switch (seans ici 25 dk tarama sessizligi alarmi).
+  Motor davranisi degistigi icin kilit ani ve go-live sayaci
+  2026-08-01T06:30Z'ye tasindi; onceki acik sinyaller (GM/PCAR/PCG/DAL/UAL)
+  kohort-0'a katildi. Uyku donemi (30 Tem 17:50 - 1 Agu 08:30 TR, Render
+  askisi) veri boslugudur; sonuclar geri doldurma ile hesaplanir.
 - 2026-07-30: Go-live 'beklenti' olcusu bruttan NET-R'ye cevrildi
   (muhafazakar muhasebe ilkesi; kilit ilanindan ONCE, sayac bastan).
 
