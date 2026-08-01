@@ -144,6 +144,7 @@ def evaluate(symbol: str,
                              f"+ donus mumu veya kirilim+retest")
         return d
     d.setup_type = setup.setup_type
+    d.setup_level = setup.level
 
     # 6. VOLUME
     vol_mult = params.volume_mult + (params.neutral_volume_bump if tightened else 0.0)

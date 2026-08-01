@@ -294,3 +294,41 @@ def test_deadman_alert_once(tmp_path):
     sched._deadman_check(now, open_dt, now.date())
     alerts = [m for m in notifier.sent if "DEAD-MAN" in m]
     assert len(alerts) == 1
+
+
+def test_recent_signals_exposes_entry_evidence(tmp_path):
+    """2 Agu ozelligi: setup_level/volume_note/confluence/invalidation
+    contract_json'dan cozulup recent_signals() ciktisina eklenir."""
+    from app.models.decision import (Decision, Direction, EntryZone,
+                                     SetupType, Targets, TimeFrames)
+    from tests.test_signal_tracker import _track
+
+    tracker = _tracker(tmp_path)
+    d = Decision(
+        symbol="EVID", timestamp_utc="2026-08-02T14:00:00Z",
+        timeframes=TimeFrames(htf="1d", mtf="1h"),
+        decision="SIGNAL", direction=Direction.LONG,
+        entry_zone=EntryZone(min=100.0, max=101.0), stop_loss=98.0,
+        targets=Targets(tp1=106.0, tp2=110.0), rr=2.5,
+        setup_type=SetupType.TREND_PULLBACK, setup_level=99.4,
+        volume_note="trend_pullback @ 99.4 (hacim 1.62x ort)",
+        confluence=["RS üst %20", "sektör güçlü"],
+        invalidation="1h kapanış 98 altında veya 99.4 altında kabul")
+    _track(tracker, d)
+    rows = tracker.recent_signals(10)
+    row = rows[0]
+    assert row["setup_level"] == 99.4
+    assert "1.62x" in row["volume_note"]
+    assert row["confluence"] == ["RS üst %20", "sektör güçlü"]
+    assert "98" in row["invalidation"]
+    assert "contract_json" not in row      # yanit sisirilmesin
+
+
+def test_recent_signals_graceful_without_evidence(tmp_path):
+    """Eski sinyallerde (contract_json'da bu alanlar yoksa) sessizce atlanir."""
+    from tests.test_signal_tracker import _signal, _track
+    tracker = _tracker(tmp_path)
+    _track(tracker, _signal())
+    row = tracker.recent_signals(10)[0]
+    assert "setup_level" not in row
+    assert "contract_json" not in row

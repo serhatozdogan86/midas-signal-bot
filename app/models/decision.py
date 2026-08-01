@@ -92,6 +92,7 @@ class Decision(BaseModel):
     market_regime: MarketRegime = MarketRegime.UNKNOWN
     trend_bias: Bias = Bias.NEUTRAL
     setup_type: SetupType = SetupType.NONE
+    setup_level: float | None = None           # EMA20 (pullback) veya kirilim seviyesi (breakout)
     confidence: Confidence = Confidence.LOW
     entry_zone: EntryZone = Field(default_factory=EntryZone)
     stop_loss: float | None = None

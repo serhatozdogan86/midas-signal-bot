@@ -333,7 +333,7 @@ class SignalTracker:
         rows = self._db.query(
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
-            "exit_price,r_multiple,closed_utc,confidence,setup_type "
+            "exit_price,r_multiple,closed_utc,confidence,setup_type,contract_json "
             "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
         for r in rows:                       # net-R (referans boy) rapora
@@ -342,6 +342,23 @@ class SignalTracker:
                 if c is not None:
                     r["cost_r"] = c
                     r["r_net"] = round(r["r_multiple"] - c, 2)
+            # Giris kaniti (2 Agu ozelligi): kurulum seviyesi + hacim notu +
+            # confluence + gecersiz kilinma kosulu - contract_json'dan cozulur
+            # (yeni kolon acmadan; eski sinyallerde bu alan yoksa sessizce atlanir)
+            cj = r.pop("contract_json", None)
+            if cj:
+                try:
+                    payload = json.loads(cj)
+                except (TypeError, ValueError):
+                    payload = {}
+                if payload.get("setup_level") is not None:
+                    r["setup_level"] = payload["setup_level"]
+                if payload.get("volume_note"):
+                    r["volume_note"] = payload["volume_note"]
+                if payload.get("confluence"):
+                    r["confluence"] = payload["confluence"]
+                if payload.get("invalidation"):
+                    r["invalidation"] = payload["invalidation"]
         return rows
 
     def recent_decisions(self, limit: int = 2000) -> list[dict]:
