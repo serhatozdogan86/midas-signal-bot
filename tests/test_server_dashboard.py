@@ -34,9 +34,11 @@ def test_dashboard_served(tmp_path):
         assert "M\u0130DAS S\u0130NYAL" in body        # v4 marka
         assert "edge-cache atlatici" in body            # fetch shim'imiz
         assert "\u00d6RNEK VER\u0130" in body          # ornek-veri emniyet bandi
-        for endpoint in ("/live", "/performance", "/signals",
-                         "/candles", "/news", "/diag"):
-            assert endpoint in body                     # uc sozlesmesi
+        for endpoint in ("live", "performance", "signals",
+                         "candles", "news", "diag"):
+            # uc sozlesmesi - sablon yukunde slash'lar \u002F kacisli olabilir
+            assert (f"/{endpoint}" in body
+                    or f"\\u002F{endpoint}" in body), endpoint
 
 
 def test_news_endpoint(tmp_path):
