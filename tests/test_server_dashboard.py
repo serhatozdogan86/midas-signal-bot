@@ -30,22 +30,13 @@ def test_dashboard_served(tmp_path):
     for path in ("/", "/dashboard"):
         r = c.get(path)
         assert r.status_code == 200
-        assert b"MIDAS" in r.data and b"Equity" in r.data
-        assert b"--ink0:#0B0E14" in r.data               # terminal palet
-        assert b"Haber Akisi" in r.data                  # haber paneli
-        assert b"Portfoy Simulasyonu" in r.data
-        assert b"Nasil Okunur?" in r.data
-        assert b"Aksiyon Paneli" in r.data
-        assert b"Takvim Seridi" in r.data
-        assert b"Gap Nobeti" in r.data
-        assert b"Pozisyon Buyuklugu" in r.data
-        assert b"IBM+Plex+Mono" in r.data            # terminal tipografi
-        assert b"data-tip" in r.data                 # tooltip sistemi
-        assert b"STAGE_TIPS" in r.data               # boru hatti aciklamalari
-        assert b'id="simSlot"' in r.data            # kapasite modu (INPUT olarak!)
-        assert b"fontStep" in r.data                 # yazi boyutu secici
-        assert b">Kalite<" in r.data and b">Canli<" in r.data
-        assert b"Bakiye (kapasiteli, NET)" in r.data     # P0 net muhasebe
+        body = r.data.decode("utf-8")
+        assert "M\u0130DAS S\u0130NYAL" in body        # v4 marka
+        assert "edge-cache atlatici" in body            # fetch shim'imiz
+        assert "\u00d6RNEK VER\u0130" in body          # ornek-veri emniyet bandi
+        for endpoint in ("/live", "/performance", "/signals",
+                         "/candles", "/news", "/diag"):
+            assert endpoint in body                     # uc sozlesmesi
 
 
 def test_news_endpoint(tmp_path):
@@ -103,7 +94,7 @@ def test_tape_injected_at_top(tmp_path):
     c = _client(tmp_path)
     body = c.get("/").get_data(as_text=True)
     assert '<div class="tape">DURUM OZETI ::' in body
-    assert body.index('class="tape"') < body.index('class="wrap"')
+    assert body.index('class="tape"') < body.index("</body>")
 
 
 def test_dx_plaintext_diag(tmp_path):
@@ -117,8 +108,7 @@ def test_dx_plaintext_diag(tmp_path):
     assert "ornek hata kaydi" in body
     r = c.get("/")
     assert b"/dx</a>" in r.data                    # kesif linki
-    assert b"TERMINAL v3.0" in r.data              # surum damgasi
-    assert b"window.onerror" in r.data             # hata bandi
+    assert "M\u0130DAS S\u0130NYAL" in r.data.decode("utf-8")   # v4 marka
     assert b"edge-cache atlatici" in r.data        # cache-buster
 
 
@@ -156,14 +146,15 @@ def test_diag_endpoint_and_embedded_block(tmp_path):
     assert "regime" in embedded and "log_counts" in embedded
 
 
-def test_no_phantom_element_ids():
-    """Yapisal koruma: JS'in getElementById ile istedigi HER id HTML'de
-    tanimli olmali. (simSlot ve sessBadge vakalarinin sinif-duzeyi yasagi:
-    sessiz yama kaymalari bir daha script'i olduremez.)"""
+def test_v4_serving_contract():
+    """v4 sozlesmesi: TAPE yer tutucusu + server-diag'in SUNUCU tarafindan
+    enjekte edilecegi (statik HTML'de olmamali) + </body> kapanisi.
+    (v3'un hayalet-id testi React-bundle'da anlamsiz; sozlesme testi bu.)"""
     import re
 
-    from app.dashboard import DASHBOARD_HTML
-    html_part, js_part = DASHBOARD_HTML.split("<script>", 1)
-    real = set(re.findall(r'id="([^"]+)"', html_part))
-    used = set(re.findall(r"getElementById\('([^']+)'\)", js_part))
-    assert used - real == set(), f"hayalet id'ler: {sorted(used - real)}"
+    from app.dashboard import DASHBOARD_HTML as H
+    assert "<!--TAPE-->" in H
+    assert H.rstrip().endswith("</html>")
+    html_only = re.sub(r"<script[\s\S]*?</script>", "", H)
+    assert 'id="server-diag"' not in html_only     # server enjekte eder
+    assert "server-diag" in H                      # JS okur
