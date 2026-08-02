@@ -35,7 +35,7 @@ class FakeFinnhub:
 _PROFILE = {"finnhubIndustry": "Utilities", "marketCapitalization": 32000.0,
             "name": "PG&E"}
 _METRIC = {"peTTM": 12.5, "pbQuarterly": 1.4,
-           "totalDebt/totalEquityQuarterly": 210.0, "ebitdaMarginTTM": 31.44}
+           "totalDebt/totalEquityQuarterly": 2.10, "ebitdaMarginTTM": 31.44}
 
 
 def test_finnhub_primary_full_data():
@@ -44,6 +44,7 @@ def test_finnhub_primary_full_data():
     assert out["PCG"]["sector"] == "Utilities"
     assert out["PCG"]["pe"] == 12.5
     assert out["PCG"]["price_to_book"] == 1.4
+    # BIRIM SOZLESMESI: dashboard yuzde basar; Finnhub oran verir -> x100
     assert out["PCG"]["debt_to_equity"] == 210.0
     assert out["PCG"]["ebitda_margin"] == 31.4
     # Finnhub milyon $ verir -> mutlak $'a cevrilmeli
@@ -110,3 +111,11 @@ def test_cache_prevents_second_fetch():
     n = len(fake.calls)
     svc.get_many(["PCG"])
     assert len(fake.calls) == n      # 24 saat onbellek
+
+
+def test_debt_to_equity_unit_is_percent_not_ratio():
+    """REGRESYON: Finnhub oran (2.06) verir, dashboard yuzde basar.
+    Cevrilmezse GM icin '%2' yazardi - gercek deger %206."""
+    svc = FundamentalsService(finnhub=FakeFinnhub(
+        _PROFILE, {"totalDebt/totalEquityQuarterly": 2.0596}))
+    assert svc.get_many(["GM"])["GM"]["debt_to_equity"] == 206.0

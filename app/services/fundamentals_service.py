@@ -107,16 +107,21 @@ class FundamentalsService:
 
         mc = prof.get("marketCapitalization")   # Finnhub: milyon $
         ebitda_margin = _num("ebitdaMarginTTM", "ebitdaMarginAnnual")
+        # BIRIM TUZAGI (2 Agu): dashboard borc/ozkaynagi YUZDE olarak
+        # basar ('%'+toFixed(0)) cunku yfinance yuzde donduruyordu (210).
+        # Finnhub ORAN dondurur (2.10) -> x100 sart, yoksa GM icin
+        # "%2" yazardi (gercek: %206). Sozlesme: YUZDE.
+        dte = _num("totalDebt/totalEquityQuarterly",
+                   "totalDebt/totalEquityAnnual")
         return {
             "sector": prof.get("finnhubIndustry"),
             "industry": prof.get("finnhubIndustry"),
             "pe": _num("peTTM", "peBasicExclExtraTTM", "peAnnual"),
             "market_cap": float(mc) * 1e6 if isinstance(mc, (int, float)) else None,
             "price_to_book": _num("pbQuarterly", "pbAnnual"),
-            "debt_to_equity": _num("totalDebt/totalEquityQuarterly",
-                                   "totalDebt/totalEquityAnnual"),
+            "debt_to_equity": round(dte * 100, 1) if dte is not None else None,
             "ebitda_margin": round(ebitda_margin, 1)
-            if ebitda_margin is not None else None,
+            if ebitda_margin is not None else None,   # Finnhub zaten yuzde
         }
 
     @staticmethod
