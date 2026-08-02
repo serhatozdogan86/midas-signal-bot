@@ -289,3 +289,53 @@ def test_wallet_rows_are_capped(tmp_path):
     rows = [{"s": "AAPL", "q": 1, "e": 100.0} for _ in range(500)]
     r = c.post("/wallet", json={"rows": rows})
     assert r.status_code == 200 and r.get_json()["count"] <= 200
+
+
+# ---------------- v3.10: giris bolgesi gercekciligi (29 Tem GM vakasi)
+def _plan(level, close, daily_slope=0.1, n=60, direction=None,
+          zone_atr=0.5, tp1_r=0.5):
+    """level ve son 1h kapanis verilerek plan kurar (bolge = sorted(level, close))."""
+    import pandas as pd
+    from app.config.settings import Settings as _S
+    from app.models.decision import SetupType as _ST
+    from app.strategies.risk_manager import SetupCandidate, build_trade_plan
+    # saatlik taban yeterince asagida olmali; aksi halde YAPISAL STOP
+    # giris ortasina oturur, risk=0 cikar ve plan bizim korumalarimiza
+    # GELMEDEN duser (ilk kurgumun hatasi - kural test edilmemis olurdu).
+    h = pd.DataFrame({"open": [close] * 40, "high": [close + 0.5] * 40,
+                      "low": [close - 4.0] * 40, "close": [close] * 40,
+                      "volume": [1e6] * 40})
+    d = pd.DataFrame({"open": [100.0] * n,
+                      "high": [100.0 + i * daily_slope + 1 for i in range(n)],
+                      "low": [100.0 + i * daily_slope - 1 for i in range(n)],
+                      "close": [100.0 + i * daily_slope for i in range(n)],
+                      "volume": [1e6] * n})
+    p = _S(MAX_ENTRY_ZONE_ATR=zone_atr,
+           WORST_FILL_TP1_R_MIN=tp1_r).strategy_params
+    sc = SetupCandidate(setup_type=_ST.BREAKOUT_RETEST, level=level,
+                        note="", event_index=30)
+    return build_trade_plan(h, d, direction or Direction.LONG, sc, p)
+
+
+def test_wide_entry_zone_is_rejected():
+    """GM vakasi: bolge 84.33-91.04 (~%8) -> plan kurulmamali."""
+    assert _plan(level=84.33, close=91.04) is None
+
+
+def test_narrow_entry_zone_still_produces_plan():
+    plan = _plan(level=100.3, close=100.0)
+    assert plan is not None and plan.entry_max - plan.entry_min < 0.5
+
+
+def test_zone_cap_is_configurable_and_binding():
+    # ayni girdi: dar tavanda red, gevsek tavanda kabul
+    assert _plan(level=98.0, close=100.0, zone_atr=0.05) is None
+    assert _plan(level=98.0, close=100.0, zone_atr=5.0, tp1_r=-99) is not None
+
+
+def test_worst_fill_tp1_guard_blocks_negative_edge():
+    """En kotu dolumda (LONG: entry_max) TP1 kazanci esigin altindaysa red.
+    tp1_r esigi cok yuksek tutuldugunda gecerli plan bile reddedilmeli -
+    kuralin BAGLAYICI oldugunu kanitlar (sessizce gecmiyor)."""
+    assert _plan(level=100.3, close=100.0, tp1_r=5.0) is None
+    assert _plan(level=100.3, close=100.0, tp1_r=0.0) is not None

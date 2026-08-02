@@ -72,6 +72,27 @@ def build_trade_plan(hourly: pd.DataFrame, daily: pd.DataFrame,
 
     if risk <= 0 or entry_mid <= 0:
         return None
+    # ---- v3.10: GIRIS BOLGESI GERCEKCILIGI (29 Tem defter otopsisi) ----
+    # Bulgu: bolge = sorted(level, close) oldugu icin fiyat kirilim
+    # seviyesinden uzaklastikca bolge genisliyor. GM vakasi: bolge
+    # 84.33-91.04 (%8 genis), dolum 91.04, TP1 90.63 -> islem HEDEFIN
+    # USTUNDE doldu, dogar dogmaz zararda. Iki koruma:
+    #   (1) bolge genisligi <= max_entry_zone_atr x gunluk ATR
+    #   (2) EN KOTU dolumda (tracker LONG'da entry_max, SHORT'ta entry_min
+    #       kaydeder - muhafazakar muhasebe) TP1 hala anlamli kazanc
+    #       vermeli: (tp1 - worst) / (worst - stop) >= worst_fill_tp1_r_min
+    # Not: RR/target_pct etiketi orta noktadan hesaplanmaya devam eder;
+    # bu kontroller ETIKETI degil SINYALIN GECERLILIGINI belirler.
+    zone_width = entry_max - entry_min
+    if zone_width > params.max_entry_zone_atr * atr_d:
+        return None
+    worst = entry_max if direction is Direction.LONG else entry_min
+    worst_risk = (worst - stop) if direction is Direction.LONG else (stop - worst)
+    worst_gain = (tp1 - worst) if direction is Direction.LONG else (worst - tp1)
+    if worst_risk <= 0:
+        return None
+    if worst_gain / worst_risk < params.worst_fill_tp1_r_min:
+        return None
     # v3.9.4 SAVUNMA DERINLIGI (dis inceleme bulgusu): NaN karsilastirmalari
     # HER ZAMAN False doner -> yukaridaki 'risk <= 0' ve motordaki RR/maliyet
     # filtreleri NaN'i sessizce GECIRIR ve NaN hedefli bir SIGNAL uretilebilir.

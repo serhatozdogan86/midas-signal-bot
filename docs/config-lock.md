@@ -16,6 +16,25 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-02 (v3.10): GIRIS BOLGESI GERCEKCILIGI - onaylı motor degisikligi.
+  BULGU (29 Tem defter otopsisi, sayilarla): bolge = sorted(level, close)
+  oldugu icin fiyat kirilim seviyesinden uzaklastikca giris araligi
+  genisliyor. GM vakasi: bolge 84.33-91.04 (%7.4), dolum 91.04, TP1 90.63
+  -> islem HEDEFIN USTUNDE doldu (en kotu dolumda -0.07R), yani dogar
+  dogmaz zararda. PCG/TRV'de de dolum bolgenin en kotu ucundan oldu.
+  IKI KORUMA (ikisi de risk_manager, saf):
+  (1) bolge genisligi <= MAX_ENTRY_ZONE_ATR (0.5) x gunluk ATR
+  (2) EN KOTU dolumda (tracker LONG'da entry_max, SHORT'ta entry_min
+      kaydeder) TP1 kazanci >= WORST_FILL_TP1_R_MIN (0.5) x risk
+  GERIYE DONUK ETKI: 29 Tem'in 14 sinyalinden 3'u (GE, GM, PCG) elenirdi.
+  NOT - KONSEY/DIS INCELEME DUZELTMESI: "TP1'de cikis +0.83R verir,
+  basabas %55 isabet ister" iddiasi VERIYLE YANLISLANDI. Defterdeki 14
+  sinyalin R@TP1 ortancasi 1.03 (BMY gercek: +1.05R). Sebep: 1.2 ATR bir
+  TAVAN; RR>=2 filtresi zaten riski ~1 ATR altina zorluyor. Basabas
+  isabet ~%49. TP1 asimetrisi ACIK MADDE OLMAKTAN CIKARILDI; yerine
+  gercek sorun (bolge genisligi) kodlandi.
+  Kilit kohortunda halen 0 sonuclanan islem var -> sayac sifirlama
+  maliyeti YOK. Go-live esikleri degismedi.
 - 2026-08-02 (v3.9.4): DIS KOD INCELEMESI uzerine iki duzeltme.
   (1) NaN SAVUNMASI: NaN karsilastirmalari her zaman False dondugu icin
   risk<=0, RR tavani/tabani ve maliyet filtresi NaN'i SESSIZCE gecirirdi

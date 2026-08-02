@@ -36,6 +36,9 @@ class StrategyParams(BaseModel):
     atr_tp2_mult: float = 2.0
     atr_stop_mult: float = 1.2       # stop mesafesi ust siniri (gunluk ATR carpani)
     min_rr: float = 2.0
+    # v3.10 giris bolgesi gercekciligi (29 Tem GM vakasi)
+    max_entry_zone_atr: float = 0.5      # bolge genisligi <= 0.5 x gunluk ATR
+    worst_fill_tp1_r_min: float = 0.5    # en kotu dolumda TP1 >= +0.5R
     rr_max: float = 6.0              # RR = (TP2 - entry) / risk  (tasarim notu: README)
     min_target_pct: float = 2.0      # maliyet filtresi: TP1 mesafesi >= %2 (1.5$/islem)
 
@@ -138,6 +141,8 @@ class Settings(BaseSettings):
     ATR_TP2_MULT: float = 2.0
     ATR_STOP_MULT: float = 1.2
     RISK_REWARD_MIN: float = 2.0
+    MAX_ENTRY_ZONE_ATR: float = 0.5
+    WORST_FILL_TP1_R_MIN: float = 0.5
     RISK_REWARD_MAX: float = 6.0       # v3 portu: fantezi RR / asiri dar stop tavani
     MIN_TARGET_PCT: float = 2.0
     VOLUME_MULT: float = 1.3
@@ -211,6 +216,8 @@ class Settings(BaseSettings):
             atr_tp2_mult=self.ATR_TP2_MULT,
             atr_stop_mult=self.ATR_STOP_MULT,
             min_rr=self.RISK_REWARD_MIN,
+            max_entry_zone_atr=self.MAX_ENTRY_ZONE_ATR,
+            worst_fill_tp1_r_min=self.WORST_FILL_TP1_R_MIN,
             rr_max=self.RISK_REWARD_MAX,
             min_target_pct=self.MIN_TARGET_PCT,
             volume_mult=self.VOLUME_MULT,
