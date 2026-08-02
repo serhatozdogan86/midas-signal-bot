@@ -16,6 +16,33 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-02 (v3.9): 29 Tem OTOPSISI uzerine iki koruma + bir bug fix.
+  Otopsi bulgusu: 14 sinyalin tamami 29 Tem'de, tamami LONG, 13/14
+  breakout_retest; SPY o gun -1.42% / QQQ -2.04% duserken gunluk rejim
+  filtresi gun icinde KOR kaldi; 8 kaybin 7'si 30 Tem 14:34'te ayni
+  dakikada stop oldu. n=1 kume - sistem hukmu verilemez, ama zafiyet
+  MEKANIZMA duzeyinde kanitli. Eklenenler:
+  (1) ENDEKS KILL-SWITCH: SPY <= -0.75% veya QQQ <= -1.0% (onceki
+  kapanisa gore) iken yeni LONG acilmaz; SHORT ayna (+esikler). Yalniz
+  YENI girisler; acik sinyal yonetimi/cikislar etkilenmez. Veri yoksa
+  fail-open + WARNING. Kaynak: index_pulse (60 sn onbellek, ek API yok).
+  (2) ACILIS PENCERESI: acilistan sonraki ilk 30 dk breakout tetigi
+  calismaz (kaba taramada breakout SIGNAL dahil); bolge/pullback
+  tetikleri etkilenmez.
+  OLCUM: iki korumanin engelledigi adaylar blocked=3 (kill-switch) ve
+  blocked=4 (acilis penceresi) siniflariyla hypo_r uzerinden izlenir -
+  korumalarin R-etkisi sinif bazinda YANLISLANABILIR (blocked_summary
+  by_class).
+  (3) BUG FIX (cift kayit): yon/kume tavani maybe_track'ten SONRA
+  kontrol edildigi icin tavana takilan sinyal hem blocked=0 (karneye
+  sizar) hem blocked=2 olarak cift kaydedilebiliyor, tavan sayimi
+  sinyalin kendi satirini da sayiyordu. Giris karari artik TEK noktada
+  (_entry_block) ve maybe_track'ten ONCE. Tavan semantigi netlesti:
+  "kume tavani 3" = 3 sinyale IZIN, 4.su engellenir.
+  Kilit kohortunda halen 0 sonuclanan islem oldugu icin bu degisiklikler
+  SAYAC SIFIRLAMA MALIYETI OLMADAN yapildi (v3.8 A+B+C ile ayni bilincli
+  zamanlama). Go-live esikleri DEGISMEDI (60 islem + 25 kume + tek kume
+  <=%25 + net beklenti >=+0.15R + maksDD <=8R).
 - 2026-08-02: LLM konseyi (5 bagimsiz model) bulgulari uzerine UC duzeltme.
   (A) REPAINT: motor SETUP tetigini serinin son bari uzerinde ariyordu;
   kaba tarama 15 dk'da bir kostugu icin o bar cogu zaman HENUZ

@@ -127,30 +127,39 @@ class SignalTracker:
                     direction=d.direction.value))
         return True
 
-    def track_portfolio_blocked(self, d, mtf: KlineSeries,
-                                reason: str) -> bool:
-        """Portfoy tavanina takilan SIGNAL -> blocked=2 kohortu.
+    def track_blocked(self, d, mtf: KlineSeries, reason: str,
+                      blocked_class: int = 2) -> bool:
+        """Girisi engellenen SIGNAL -> blocked kohortu (v3.9 genelleme).
+        Siniflar: 2=portfoy tavani, 3=endeks kill-switch, 4=acilis
+        penceresi (app.strategies.session_guard sabitleri).
         Ayni fill/TP/SL/time-stop dongusuyle izlenir ama TUM skor
-        sorgulari blocked=0 filtreler; boylece tavanin maliyeti
-        ('kacirdigimiz R') olculur, karneye karismaz."""
+        sorgulari blocked=0 filtreler; boylece her korumanin maliyeti/
+        kazanci ('kacirdigimiz R' = hypo_r) SINIF BAZINDA olculur,
+        karneye karismaz."""
         dup = self._db.query_one(
             "SELECT COUNT(*) n FROM signals WHERE symbol=? AND direction=? "
-            "AND status!='CLOSED' AND blocked=2", (d.symbol, d.direction.value))
+            "AND status!='CLOSED' AND blocked=?",
+            (d.symbol, d.direction.value, blocked_class))
         if dup and dup["n"]:
             return False
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
             "confidence,setup_type,blocked,block_reason,cluster_id,engine_sha) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,2,?,?,?)",
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
-             d.confidence.value, d.setup_type.value, reason,
+             d.confidence.value, d.setup_type.value, blocked_class, reason,
              _cluster_id(d), _ENGINE_SHA))
-        log.info(kv(event="portfolio_blocked_tracked", symbol=d.symbol,
-                    reason=reason))
+        log.info(kv(event="blocked_tracked", symbol=d.symbol,
+                    blocked_class=blocked_class, reason=reason))
         return True
+
+    def track_portfolio_blocked(self, d, mtf: KlineSeries,
+                                reason: str) -> bool:
+        """Geriye uyum sarmali: portfoy tavani = blocked=2."""
+        return self.track_blocked(d, mtf, reason, blocked_class=2)
 
     # ------------------------------------------ net-R (muhafazakar muhasebe)
     FEE_USD = 1.50
@@ -265,8 +274,20 @@ class SignalTracker:
             "SUM(CASE WHEN status!='CLOSED' THEN 1 ELSE 0 END) open_n "
             "FROM signals WHERE blocked!=0")
         r = rows[0] if rows else {}
-        return {"total": r.get("n") or 0, "open": r.get("open_n") or 0,
-                "hypo_r": round(r.get("hypo_r") or 0.0, 2)}
+        out = {"total": r.get("n") or 0, "open": r.get("open_n") or 0,
+               "hypo_r": round(r.get("hypo_r") or 0.0, 2)}
+        # v3.9: sinif bazinda kirilim - hangi koruma ne kadar R
+        # engelledi/kacirdi ayri ayri olculebilsin (2=tavan,
+        # 3=kill-switch, 4=acilis penceresi)
+        by_cls = self._db.query(
+            "SELECT blocked, COUNT(*) n, SUM(CASE WHEN status='CLOSED' AND "
+            "outcome IN ('WIN','LOSS','EXPIRED') THEN r_multiple ELSE 0 END) "
+            "hypo_r FROM signals WHERE blocked!=0 GROUP BY blocked")
+        out["by_class"] = {
+            str(int(row["blocked"])): {
+                "n": row["n"], "hypo_r": round(row.get("hypo_r") or 0.0, 2)}
+            for row in by_cls}
+        return out
 
     def evaluate_open(self, symbol: str) -> None:
         """Acik sinyalleri arsivlenen 1h mumlarla degerlendir."""

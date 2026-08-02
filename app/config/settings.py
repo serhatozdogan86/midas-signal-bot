@@ -99,6 +99,12 @@ class Settings(BaseSettings):
     MAX_CLUSTER_SIGNALS: int = 3       # ayni kumede (yon+gun) tavan (P1 isi)
     DEADMAN_SCAN_STALENESS_MIN: int = 25  # seansta tarama sessizligi alarmi
 
+    # Seans korumasi (v3.9 - 29 Tem otopsisi: gunluk rejim gun icinde kor)
+    INDEX_KILL_SWITCH_ENABLED: bool = True
+    KILL_SWITCH_SPY_PCT: float = 0.75  # SPY onceki kapanisa gore esik (buyukluk)
+    KILL_SWITCH_QQQ_PCT: float = 1.0   # QQQ esigi (buyukluk)
+    BREAKOUT_OPEN_BLACKOUT_MIN: int = 30  # acilistan sonra breakout tetigi yasagi (dk)
+
     # Yazili go-live kriteri (konsey #3 - gercek para esikleri)
     # Net-R maliyet modeli (P0): Midas SABIT ucret -> maliyet pozisyon
     # buyuklugune bagli; referans varsayim uzerinden r_net raporlanir

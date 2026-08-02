@@ -21,7 +21,7 @@ from app.config.settings import Settings
 from app.formatting import telegram_formatter
 from app.integrations.telegram_notifier import TelegramNotifier
 from app.logging_setup import kv
-from app.models.decision import Decision, DecisionType, MarketRegime
+from app.models.decision import Decision, DecisionType, MarketRegime, SetupType
 from app.services.earnings_service import EarningsService
 from app.services.market_calendar import MarketCalendar
 from app.services import market_report, premarket_watch
@@ -30,6 +30,9 @@ from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
 from app.strategies import signal_engine
 from app.strategies.regime_detector import RegimeResult, classify_market_regime
+from app.strategies.session_guard import (
+    BLOCKED_KILL_SWITCH, BLOCKED_OPEN_BLACKOUT, BLOCKED_PORTFOLIO,
+    in_open_blackout, index_kill_switch)
 
 log = logging.getLogger("scheduler")
 
@@ -281,8 +284,7 @@ class Scheduler:
         self.progress = "tarama: 2. gecis (setup/hacim/RR)"
         results: list[Decision] = []
         watch: list[dict] = []
-        cap_reason = self._portfolio_cap_reason()
-        capped_count = 0
+        blocked_count = 0
         for symbol, d in pass1.items():
             try:
                 if symbol in hourly:
@@ -299,6 +301,13 @@ class Scheduler:
                 log.exception(kv(event="scan_error", symbol=symbol, stage=2))
                 continue
             results.append(d)
+            # v3.9: giris karari TEK noktada ve maybe_track'ten ONCE.
+            # Eski akista yon/kume tavani maybe_track'ten SONRA kontrol
+            # ediliyordu -> ayni sinyal hem blocked=0 (karneye sizar) hem
+            # blocked=2 olarak CIFT kaydedilebiliyor, ustelik tavan sayimi
+            # sinyalin kendi satirini da sayiyordu. Duzeltildi (2 Agu).
+            block = (self._entry_block(d)
+                     if d.decision is DecisionType.SIGNAL else None)
             if self._tracker is not None:
                 try:
                     if symbol in hourly:
@@ -306,31 +315,23 @@ class Scheduler:
                     if symbol in daily:
                         self._tracker.record_candles(daily[symbol])
                     self._tracker.record_decision(d)
-                    if symbol in hourly and not (
-                            d.decision is DecisionType.SIGNAL and cap_reason):
-                        self._tracker.maybe_track(d, hourly[symbol])
+                    if symbol in hourly:
+                        if block is None:
+                            self._tracker.maybe_track(d, hourly[symbol])
+                        else:
+                            self._tracker.track_blocked(
+                                d, hourly[symbol], block[0], block[1])
                     self._tracker.evaluate_open(symbol)
                 except Exception:
                     log.exception(kv(event="tracker_error", symbol=symbol))
             self._store.save_result(symbol, d.contract_dict())
             self._collect_watch(d, watch, hourly.get(symbol))
-            if send_telegram:
-                if d.decision is DecisionType.SIGNAL and \
-                        (cap_reason or self._portfolio_cap_reason(d)):
-                    cap_reason = cap_reason or self._portfolio_cap_reason(d)
-                    log.info(kv(event="portfolio_cap_skip", symbol=symbol,
-                                reason=cap_reason))
-                    capped_count += 1
-                    if self._tracker is not None and symbol in hourly:
-                        try:
-                            self._tracker.track_portfolio_blocked(
-                                d, hourly[symbol], cap_reason)
-                        except Exception:
-                            log.exception(kv(event="blocked_track_error",
-                                             symbol=symbol))
-                else:
-                    self._dispatch(d)
-                    cap_reason = self._portfolio_cap_reason()
+            if block is not None:
+                blocked_count += 1
+                log.info(kv(event="entry_blocked", symbol=symbol,
+                            blocked_class=block[1], reason=block[0]))
+            elif send_telegram:
+                self._dispatch(d)
             log.info(kv(event="scan", symbol=symbol, decision=d.decision.value,
                         direction=d.direction.value,
                         reason=d.reject_reason or d.setup_type.value))
@@ -356,8 +357,8 @@ class Scheduler:
         if self._gist is not None:
             self._gist.maybe_sync()
         self.progress = ""
-        if capped_count:
-            self.last_scan_info["portfolio_capped"] = capped_count
+        if blocked_count:
+            self.last_scan_info["entry_blocked"] = blocked_count
         log.info(kv(event="coarse_scan_done", scanned=len(results),
                     signals=sum(1 for r in results
                                 if r.decision is DecisionType.SIGNAL),
@@ -601,6 +602,76 @@ class Scheduler:
                     _cluster_id(d)) >= s.MAX_CLUSTER_SIGNALS:
                 return f"kume tavani ({s.MAX_CLUSTER_SIGNALS}/gun/yon)"
         return None
+
+    # ---------------------------------------- seans korumasi (v3.9)
+    def _minutes_since_open(self, now_et: datetime | None = None) -> float | None:
+        """Acilistan bu yana gecen dakika; seans gunu degilse None."""
+        now_et = now_et or self._calendar.now_et()
+        session = self._calendar.session_times(now_et.date())
+        if session is None:
+            return None
+        open_dt, _ = session
+        return (now_et - open_dt).total_seconds() / 60.0
+
+    def _index_pcts(self) -> tuple[float | None, float | None]:
+        """SPY/QQQ onceki kapanisa gore % (index_pulse 60 sn onbellekli;
+        ek API butcesi yok - dashboard cipiyle ayni kaynak)."""
+        pulse = {p.get("symbol"): p for p in self.index_pulse()}
+        spy = (pulse.get("SPY") or {}).get("pct")
+        qqq = (pulse.get("QQQ") or {}).get("pct")
+        return spy, qqq
+
+    def _entry_block(self, d: Decision) -> tuple[str, int] | None:
+        """YENI giris icin TEKIL karar noktasi (v3.9): (sebep, blocked
+        sinifi) dondurur; None = giris serbest. Siralama: kill-switch (3)
+        -> acilis penceresi (4) -> portfoy tavani (2). maybe_track'ten
+        ONCE cagrilmasi sarttir - tavan sayimlari mevcut satirlari
+        saymali, sinyalin kendi eklenmis kaydini DEGIL (cift kayit
+        bug'inin duzeltmesi, 2 Agu)."""
+        s = self._settings
+        if s.INDEX_KILL_SWITCH_ENABLED:
+            spy, qqq = self._index_pcts()
+            if spy is None and qqq is None:
+                log.warning(kv(event="kill_switch_no_index_data",
+                               symbol=d.symbol))
+            verdict = index_kill_switch(d.direction.value, spy, qqq,
+                                        s.KILL_SWITCH_SPY_PCT,
+                                        s.KILL_SWITCH_QQQ_PCT)
+            if not verdict.allowed:
+                return verdict.reason, BLOCKED_KILL_SWITCH
+        if d.setup_type is SetupType.BREAKOUT_RETEST and in_open_blackout(
+                self._minutes_since_open(), s.BREAKOUT_OPEN_BLACKOUT_MIN):
+            return (f"acilis penceresi (ilk {s.BREAKOUT_OPEN_BLACKOUT_MIN} "
+                    f"dk breakout yok)", BLOCKED_OPEN_BLACKOUT)
+        cap = self._portfolio_cap_reason(d)
+        if cap:
+            return cap, BLOCKED_PORTFOLIO
+        return None
+
+    def guard_info(self) -> dict:
+        """Diag/nabiz icin koruma durumu (salt okuma)."""
+        s = self._settings
+        spy, qqq = self._index_pcts() if s.INDEX_KILL_SWITCH_ENABLED else (None, None)
+        mins = self._minutes_since_open()
+        return {
+            "kill_switch": {
+                "enabled": s.INDEX_KILL_SWITCH_ENABLED,
+                "spy_thresh_pct": s.KILL_SWITCH_SPY_PCT,
+                "qqq_thresh_pct": s.KILL_SWITCH_QQQ_PCT,
+                "spy_pct": spy, "qqq_pct": qqq,
+                "long_blocked": not index_kill_switch(
+                    "LONG", spy, qqq, s.KILL_SWITCH_SPY_PCT,
+                    s.KILL_SWITCH_QQQ_PCT).allowed,
+                "short_blocked": not index_kill_switch(
+                    "SHORT", spy, qqq, s.KILL_SWITCH_SPY_PCT,
+                    s.KILL_SWITCH_QQQ_PCT).allowed,
+            },
+            "open_blackout": {
+                "minutes": s.BREAKOUT_OPEN_BLACKOUT_MIN,
+                "minutes_since_open": round(mins, 1) if mins is not None else None,
+                "active": in_open_blackout(mins, s.BREAKOUT_OPEN_BLACKOUT_MIN),
+            },
+        }
 
     def golive_status(self) -> dict:
         """Yazili go-live kriterine gore ilerleme (konsey #3).
@@ -938,9 +1009,15 @@ class Scheduler:
                             quote=quote))
 
         # --- 2) adaylar: kirilim tetigi -> aninda tam degerlendirme ---
+        # v3.9 acilis penceresi: ilk N dk kirilim tetigi CALISMAZ (acilis
+        # fake'leri; 29 Tem 13:30 salvosu). Bolge tetigi (1) etkilenmez.
+        blackout = in_open_blackout(self._minutes_since_open(),
+                                    self._settings.BREAKOUT_OPEN_BLACKOUT_MIN)
         armed = [w for w in self._watchlist
                  if w.get("state") == "CANDIDATE" and w.get("trigger_level")]
-        for w in armed[: max(0, budget - checked)]:
+        if blackout and armed:
+            log.info(kv(event="fine_trigger_blackout", armed=len(armed)))
+        for w in ([] if blackout else armed)[: max(0, budget - checked)]:
             quote = self._quote_cached(w["symbol"])
             if quote is None:
                 continue
@@ -967,7 +1044,8 @@ class Scheduler:
             "ts_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "checked": checked, "zone_hits": zone_hits,
             "trigger_hits": trigger_hits,
-            "pending": len(pending), "armed": len(armed)}
+            "pending": len(pending), "armed": len(armed),
+            "open_blackout": blackout}
 
     def _fine_reevaluate(self, symbol: str) -> None:
         """Kirilim ani icin tek sembolluk tam pipeline kosusu."""
@@ -985,14 +1063,15 @@ class Scheduler:
                                    hourly.closed_only(),
                                    self._regime, self._params, bench_df, e_info)
         if d.decision is DecisionType.SIGNAL:
-            cap_reason = self._portfolio_cap_reason(d)
-            if cap_reason:
-                log.info(kv(event="portfolio_cap_skip", symbol=symbol,
-                            reason=cap_reason, source="fine"))
+            block = self._entry_block(d)
+            if block is not None:
+                log.info(kv(event="entry_blocked", symbol=symbol,
+                            blocked_class=block[1], reason=block[0],
+                            source="fine"))
                 if self._tracker is not None:
                     try:
-                        self._tracker.track_portfolio_blocked(
-                            d, hourly, cap_reason)
+                        self._tracker.track_blocked(
+                            d, hourly, block[0], block[1])
                     except Exception:
                         log.exception(kv(event="blocked_track_error",
                                          symbol=symbol))

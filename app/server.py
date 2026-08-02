@@ -67,6 +67,10 @@ def create_app(store: StateStore, scheduler: Scheduler,
         diag["market_note"] = scheduler.last_market_note
         diag["gap_watch"] = scheduler.last_gap_watch
         diag["fine_scan"] = getattr(scheduler, "last_fine_info", {})
+        try:
+            diag["session_guard"] = scheduler.guard_info()
+        except Exception:
+            diag["session_guard"] = {"error": "guard_info_failed"}
         diag["news"] = news.info() if news is not None else None
         try:
             diag["session"] = scheduler.session_info()
