@@ -293,3 +293,10 @@ def test_tab_title_and_favicon(tmp_path):
     assert m, "favicon bulunamadi"
     svg = base64.b64decode(m.group(1)).decode("utf-8")
     assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
+
+
+def test_data_compare_endpoint_disabled_without_keys(tmp_path):
+    """Alpaca anahtari yokken uc zarafetle 'devre disi' der (patlamaz)."""
+    c = _client(tmp_path)
+    body = c.get("/data-compare").get_json()
+    assert body["enabled"] is False

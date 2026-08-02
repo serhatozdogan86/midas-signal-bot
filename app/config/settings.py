@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     TELEGRAM_PARSE_MODE: str = ""    # "" (plain) | MarkdownV2 (Phase 3)
 
     # Finnhub (quote Phase 2, earnings takvimi Phase 1)
+    # Alpaca (Asama 0: PARALEL GOZLEM - motor kararlarini etkilemez)
+    ALPACA_API_KEY: str = ""
+    ALPACA_API_SECRET: str = ""
+    ALPACA_FEED: str = "iex"           # ucretsiz plan: iex
+    DATA_COMPARE_SAMPLE: int = 25      # gunluk karsilastirmada ornek sembol sayisi
+
     FINNHUB_API_KEY: str = ""
     FINNHUB_BASE_URL: str = "https://finnhub.io/api/v1"
 

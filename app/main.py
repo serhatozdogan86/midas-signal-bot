@@ -15,6 +15,7 @@ import logging
 import os
 
 from app.config.settings import get_settings
+from app.integrations.alpaca_client import AlpacaClient
 from app.integrations.finnhub_client import FinnhubClient
 from app.integrations.gist_client import GistClient
 from app.integrations.telegram_notifier import TelegramNotifier
@@ -28,6 +29,7 @@ from app.services.earnings_service import EarningsService
 from app.services.gist_backup import GistBackup
 from app.services.market_calendar import MarketCalendar
 from app.services.news_service import NewsService
+from app.services.data_comparison import DataComparisonService
 from app.services.market_data_service import MarketDataService
 from app.services.signal_tracker import SignalTracker
 from app.services.sqlite_state_store import SQLiteStateStore
@@ -61,6 +63,13 @@ def main() -> None:
     finnhub = FinnhubClient(settings.FINNHUB_API_KEY, settings.FINNHUB_BASE_URL)
     market_data = MarketDataService(yf_client, finnhub,
                                     settings.DAILY_PERIOD, settings.HOURLY_PERIOD)
+
+    # Asama 0 (2 Agu): Alpaca PARALEL gozlem - motor kararlarina etkisi YOK.
+    # Anahtar tanimli degilse tamamen devre disi kalir.
+    alpaca = AlpacaClient(settings.ALPACA_API_KEY, settings.ALPACA_API_SECRET,
+                          settings.ALPACA_FEED)
+    data_comparison = DataComparisonService(yf_client, alpaca,
+                                            settings.DATA_COMPARE_SAMPLE)
 
     # --- servisler ---
     calendar = MarketCalendar()
@@ -121,6 +130,7 @@ def main() -> None:
     scheduler = Scheduler(settings, market_data, universe, earnings,
                           calendar, store, notifier, tracker, gist_backup,
                           commentary, news)
+    scheduler.data_comparison = data_comparison
     app = create_app(store, scheduler, universe, tracker, gist_backup,
                      commentary, news)
 

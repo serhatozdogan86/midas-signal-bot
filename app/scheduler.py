@@ -62,6 +62,8 @@ class Scheduler:
         self.last_fine_info: dict = {}
         self._last_heartbeat = 0.0
         self._deadman_date = None
+        self.data_comparison = None      # Asama 0: paralel veri gozlemi
+        self._datacmp_date = None
         self.wallet: dict = {}
         self.wallet_rows: list = []
         self._weekly_date = None
@@ -127,6 +129,7 @@ class Scheduler:
 
         watch_dt = open_dt - timedelta(minutes=self._settings.PREMARKET_LEAD_MIN)
         self._maybe_weekly(now_et)
+        self._maybe_compare_data(today)
         # Not (30 Tem): hazirlik sarti kaldirildi - restart sonrasi nobet
         # gecikmesin. Nobetin girdisi gist'ten donen pozisyonlar + quote;
         # izleme listesi adaylari o an bos olabilir, kritik olan pozisyonlar.
@@ -721,6 +724,14 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_golive_error"))
         try:
+            cmp_svc = getattr(self, "data_comparison", None)
+            if cmp_svc is not None and cmp_svc.enabled:
+                line = cmp_svc.summary_line()
+                if line:
+                    lines.append(line)
+        except Exception:
+            log.exception(kv(event="eod_datacmp_error"))
+        try:
             pb = [b for b in self._tracker.phase_breakdown(
                 since_utc=self._settings.CONFIG_LOCK_UTC) if b["n"] >= 3]
             if pb:
@@ -739,6 +750,21 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_quality_error"))
         return ("\n".join(lines) + "\n") if lines else ""
+
+    def _maybe_compare_data(self, today) -> None:
+        """Gunde bir kez yfinance<->Alpaca karsilastirmasi (salt gozlem).
+        Motor kararlarina etkisi yoktur; amac ana kaynagi degistirmeden
+        once Alpaca'nin guvenilirligini olcmek (Asama 0)."""
+        cmp_svc = getattr(self, "data_comparison", None)
+        if cmp_svc is None or not cmp_svc.enabled or self._datacmp_date == today:
+            return
+        self._datacmp_date = today
+        try:
+            symbols = self._universe.get_symbols() if self._universe else []
+            if symbols:
+                cmp_svc.compare(symbols, "1d")
+        except Exception:
+            log.exception(kv(event="datacmp_tick_error"))
 
     def _wallet_note(self, symbol: str) -> str:
         qty = (self.wallet or {}).get(symbol)

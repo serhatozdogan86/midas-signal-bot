@@ -266,6 +266,16 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     _qcache: dict = {}
 
+    @app.get("/data-compare")
+    def data_compare():
+        """Asama 0 teshis ucu: son yfinance<->Alpaca karsilastirma raporu.
+        Alpaca anahtari tanimli degilse enabled=false doner."""
+        svc = getattr(scheduler, "data_comparison", None)
+        if svc is None or not svc.enabled:
+            return jsonify({"enabled": False,
+                            "note": "ALPACA_API_KEY/SECRET tanimli degil"})
+        return jsonify({"enabled": True, "report": svc.last_report})
+
     @app.post("/wallet")
     def wallet_sync():
         """Dashboard cuzdanini sunucuya aynalar. Amac: localStorage'in
