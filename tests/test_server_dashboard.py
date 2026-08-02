@@ -257,3 +257,14 @@ def test_dashboard_links_to_handbook(tmp_path):
     c = _client(tmp_path)
     body = c.get("/dashboard").get_data(as_text=True)
     assert "kullanici-el-kitabi.pdf" in body
+
+
+def test_mobile_responsive_rules_present(tmp_path):
+    """Mobil kirilma duzeltmesi (2 Agu): ic icerik|grafik bolunmesi ve satir
+    izgaralari kucuk ekranda yigilmali/daralmali; kacis-toleransli kontrol."""
+    c = _client(tmp_path)
+    body = c.get("/dashboard").get_data(as_text=True)
+    assert "lay-split" in body
+    assert "row-grid" in body
+    assert "mob-scroll" in body
+    assert "max-width:900px" in body or "max-width:900px" in body.replace("\\u002F", "/")
