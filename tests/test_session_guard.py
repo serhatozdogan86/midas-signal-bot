@@ -204,3 +204,34 @@ def test_guard_info_shape(tmp_path):
     assert info["kill_switch"]["long_blocked"] is True
     assert info["kill_switch"]["short_blocked"] is False
     assert info["open_blackout"]["active"] is True
+
+
+# ------------------- v3.9.3 regresyonlari: gecici engel / cift sayim
+def test_transient_block_does_not_orphan_later_real_signal(tmp_path):
+    """Kill-switch GECICIDIR. 17:00'de engellenen sinyal blocked=3 satiri
+    birakir; 19:00'da endeks duzelince ayni sinyal IZLEMEYE ALINABILMELI.
+    Eski dedup blocked satirini 'acik kayit' sayip sessizce atliyordu -
+    Telegram'a gidiyor, deftere yazilmiyordu."""
+    sched, tracker = _scheduler(tmp_path)
+    mtf = fx.make_series(np.linspace(100, 102, 40), symbol="AAPL")
+    d = _decision(symbol="AAPL")
+    sched._index_pcts = lambda: (-1.2, None)          # 17:00 tape kotu
+    block = sched._entry_block(d)
+    assert block is not None and block[1] == BLOCKED_KILL_SWITCH
+    tracker.track_blocked(d, mtf, block[0], block[1])
+    sched._index_pcts = lambda: (-0.1, 0.2)           # 19:00 tape duzeldi
+    assert sched._entry_block(d) is None
+    assert tracker.maybe_track(d, mtf) is True        # ESKIDEN False idi
+    assert tracker._db.query_one(
+        "SELECT COUNT(*) n FROM signals WHERE symbol='AAPL' AND blocked=0")["n"] == 1
+
+
+def test_no_hypothetical_row_while_real_signal_open(tmp_path):
+    """Gercek acik sinyal varken ayni sembol+yon icin varsayimsal kohort
+    satiri acilmaz (ayni pozisyon hem karnede hem hypo_r'da sayilmasin)."""
+    sched, tracker = _scheduler(tmp_path)
+    mtf = fx.make_series(np.linspace(100, 102, 40), symbol="MSFT")
+    d = _decision(symbol="MSFT")
+    assert tracker.maybe_track(d, mtf) is True
+    assert tracker.track_blocked(d, mtf, "kill-switch", BLOCKED_KILL_SWITCH) is False
+    assert tracker.blocked_summary()["total"] == 0

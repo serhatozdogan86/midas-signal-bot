@@ -104,11 +104,21 @@ class SignalTracker:
 
     # ------------------------------------------------------ sinyal takibi
     def maybe_track(self, d: Decision, mtf: KlineSeries) -> bool:
-        """SIGNAL'i izlemeye al. Ayni symbol+direction icin acik kayit varsa alma."""
+        """SIGNAL'i izlemeye al. Ayni symbol+direction icin acik GERCEK
+        kayit varsa alma.
+
+        v3.9.3 HATA DUZELTMESI: dedup sorgusu blocked satirlarini da
+        "acik kayit" sayiyordu. Kill-switch GECICI bir engeldir (endeks
+        gun icinde toparlanabilir): 17:00'de engellenen AAPL blocked=3
+        satiri acik kalir, 19:00'da endeks duzelip ayni sinyal yeniden
+        uretilirse dedup onu "zaten var" sanip IZLEMEYE ALMAZDI -
+        Telegram'a sinyal gider ama golge deftere yazilmazdi (sessiz
+        veri kaybi). Artik yalniz blocked=0 satirlar dedup'a girer."""
         if d.decision is not DecisionType.SIGNAL:
             return False
         existing = self._db.query_one(
-            "SELECT id FROM signals WHERE symbol=? AND direction=? AND status!='CLOSED'",
+            "SELECT id FROM signals WHERE symbol=? AND direction=? "
+            "AND status!='CLOSED' AND blocked=0",
             (d.symbol, d.direction.value))
         if existing:
             return False
@@ -141,6 +151,15 @@ class SignalTracker:
             "AND status!='CLOSED' AND blocked=?",
             (d.symbol, d.direction.value, blocked_class))
         if dup and dup["n"]:
+            return False
+        # v3.9.3: ayni sembol+yonde GERCEK (blocked=0) acik sinyal varsa
+        # varsayimsal kohort satiri acma - ayni pozisyon hem karnede hem
+        # hypo_r'da sayilirdi (cift sayim).
+        real = self._db.query_one(
+            "SELECT COUNT(*) n FROM signals WHERE symbol=? AND direction=? "
+            "AND status!='CLOSED' AND blocked=0",
+            (d.symbol, d.direction.value))
+        if real and real["n"]:
             return False
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
