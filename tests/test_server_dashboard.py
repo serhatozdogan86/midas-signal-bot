@@ -278,3 +278,18 @@ def test_mobile_sidebar_hidden_with_toggle(tmp_path):
     assert "btn-menu" in body
     assert "mob-backdrop" in body
     assert "mob-open" in body
+
+
+def test_tab_title_and_favicon(tmp_path):
+    """Sekme kimligi: baslik 'MİDAS SİNYAL · terminal · Serhat Özdoğan' ve
+    gomulu SVG favicon (neon gecis + yukselen cizgi)."""
+    import base64
+    import re as _re
+
+    c = _client(tmp_path)
+    body = c.get("/dashboard").get_data(as_text=True)
+    assert "Serhat \u00d6zdo\u011fan</title>" in body
+    m = _re.search(r'href="data:image/svg\+xml;base64,([^"]+)"', body)
+    assert m, "favicon bulunamadi"
+    svg = base64.b64decode(m.group(1)).decode("utf-8")
+    assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
