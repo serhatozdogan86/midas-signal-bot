@@ -321,7 +321,10 @@ def create_app(store: StateStore, scheduler: Scheduler,
         return jsonify({"rows": getattr(scheduler, "wallet_rows", [])})
 
     from app.services.fundamentals_service import FundamentalsService
-    _fund_svc = FundamentalsService()
+    # v3.9.1: Finnhub istemcisi enjekte edilir (Yahoo .info Render'da
+    # engelli). Istemci yoksa servis yfinance yedegine duser.
+    _fund_svc = FundamentalsService(
+        finnhub=getattr(getattr(scheduler, "_md", None), "_finnhub", None))
 
     @app.get("/fundamentals")
     def fundamentals():

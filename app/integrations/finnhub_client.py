@@ -57,6 +57,22 @@ class FinnhubClient:
         price = body.get("c")
         return float(price) if price else None
 
+    def get_company_profile(self, symbol: str) -> dict | None:
+        """Sirket kimligi (/stock/profile2 - ucretsiz planda ACIK).
+        Doner: {'finnhubIndustry','marketCapitalization' (mn $),'name',...}"""
+        body = self._get("/stock/profile2", {"symbol": symbol.upper()})
+        return body if isinstance(body, dict) and body else None
+
+    def get_basic_financials(self, symbol: str) -> dict | None:
+        """Temel oranlar (/stock/metric?metric=all). Ucretsiz planda
+        kisitli olabilir -> None donerse cagiran KISMI veriyle devam eder."""
+        body = self._get("/stock/metric", {"symbol": symbol.upper(),
+                                           "metric": "all"})
+        if not isinstance(body, dict):
+            return None
+        metric = body.get("metric")
+        return metric if isinstance(metric, dict) and metric else None
+
     def get_quote_change(self, symbol: str) -> dict | None:
         """Anlik fiyat + onceki kapanisa gore % degisim (header endeks cipi)."""
         body = self._get("/quote", {"symbol": symbol.upper()})

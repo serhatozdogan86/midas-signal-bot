@@ -405,8 +405,11 @@ class SignalTracker:
         counts = self._db.query_one(
             "SELECT (SELECT COUNT(*) FROM decisions) d, (SELECT COUNT(*) FROM candles) c")
         return {
-            "note": ("Shadow accounting: estimated fills, gap-aware exits, "
-                     "no commissions/slippage. Not real trading results."),
+            "note": ("Shadow accounting: conservative fills (full zone "
+                     "traversal), gap-aware exits. Costs ARE modelled: "
+                     "2x$1.50 fixed fee + 5bp two-way slippage at $10k/1% "
+                     "reference size -> see r_net / net_totals(). "
+                     "r_multiple below is GROSS. Not real trading results."),
             "open_signals": open_row["n"] if open_row else 0,
             "closed_by_outcome": by_outcome,
             "win_rate": round(wins / decided, 3) if decided else None,
