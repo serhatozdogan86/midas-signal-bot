@@ -16,6 +16,9 @@ class Candle(BaseModel):
     volume: float
 
 
+_INTERVAL_MS = {"1h": 3_600_000, "1d": 86_400_000}
+
+
 class KlineSeries(BaseModel):
     """Kronolojik (eski -> yeni) mum serisi."""
 
@@ -25,6 +28,29 @@ class KlineSeries(BaseModel):
 
     def __len__(self) -> int:
         return len(self.candles)
+
+    def closed_only(self, now_ms: int | None = None) -> "KlineSeries":
+        """Olusmakta olan (henuz kapanmamis) son bari atar.
+
+        2 Agu bulgusu: motor SETUP tetigini (donus mumu / kirilim mumu)
+        serinin SON bari uzerinde ariyordu. Kaba tarama 15 dk'da bir
+        kostugu icin o bar dort seferin ucunde HENUZ KAPANMAMISTI - yani
+        sinyalin dayandigi mum, saat kapaninca bambaska gorunebiliyordu
+        ("repaint"). Gelecek veri kullanilmiyor (look-ahead degil) ama
+        gerekcesi buharlasmis sinyal uretilebiliyordu."""
+        import time as _t
+
+        if not self.candles:
+            return self
+        now_ms = now_ms if now_ms is not None else int(_t.time() * 1000)
+        step = _INTERVAL_MS.get(self.interval)
+        if step is None:
+            return self
+        last = self.candles[-1]
+        if last.ts + step > now_ms:                 # bar penceresi kapanmadi
+            return KlineSeries(symbol=self.symbol, interval=self.interval,
+                               candles=self.candles[:-1])
+        return self
 
     def to_dataframe(self) -> pd.DataFrame:
         """Engine'in kullandigi DataFrame temsili (kolonlar sabit)."""

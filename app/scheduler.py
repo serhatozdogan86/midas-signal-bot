@@ -288,7 +288,8 @@ class Scheduler:
                 if symbol in hourly:
                     e_info = self._earnings.info(symbol, today)
                     d = signal_engine.evaluate(symbol, daily.get(symbol),
-                                               hourly.get(symbol), self._regime,
+                                               hourly[symbol].closed_only(),
+                                               self._regime,
                                                self._params, bench_df, e_info)
                 if d.decision is DecisionType.SIGNAL:
                     d.time_stop_date = self._calendar.add_trading_days(
@@ -607,6 +608,9 @@ class Scheduler:
         s = self._settings
         out = {"criteria": {
             "decided": {"min": s.GOLIVE_MIN_DECIDED, "now": 0, "ok": False},
+            "clusters": {"min": s.GOLIVE_MIN_CLUSTERS, "now": 0, "ok": False},
+            "max_cluster_share": {"max": s.GOLIVE_MAX_CLUSTER_SHARE,
+                                  "now": None, "ok": True},
             "expectancy_r": {"min": s.GOLIVE_MIN_EXPECTANCY_R, "now": None,
                              "ok": False},
             "max_dd_r": {"max": s.GOLIVE_MAX_DD_R, "now": None, "ok": True},
@@ -627,6 +631,13 @@ class Scheduler:
                 c["expectancy_r"]["ok"] = (exp is not None
                                            and exp >= s.GOLIVE_MIN_EXPECTANCY_R)
             c["expectancy_r"]["basis"] = "net"
+            cs = self._tracker.cluster_stats(since_utc=lock)
+            c["clusters"]["now"] = cs["clusters"]
+            c["clusters"]["ok"] = cs["clusters"] >= s.GOLIVE_MIN_CLUSTERS
+            share = cs["max_cluster_share"]
+            c["max_cluster_share"]["now"] = share
+            c["max_cluster_share"]["ok"] = (
+                share is None or share <= s.GOLIVE_MAX_CLUSTER_SHARE)
             dd = self._tracker.max_drawdown_r(since_utc=lock)
             c["max_dd_r"]["now"] = dd
             c["max_dd_r"]["ok"] = dd <= s.GOLIVE_MAX_DD_R
@@ -970,7 +981,8 @@ class Scheduler:
         bench_df = (daily[_BENCH].to_dataframe()
                     if _BENCH in daily else None)
         e_info = self._earnings.info(symbol, today)
-        d = signal_engine.evaluate(symbol, daily.get(symbol), hourly,
+        d = signal_engine.evaluate(symbol, daily.get(symbol),
+                                   hourly.closed_only(),
                                    self._regime, self._params, bench_df, e_info)
         if d.decision is DecisionType.SIGNAL:
             cap_reason = self._portfolio_cap_reason(d)

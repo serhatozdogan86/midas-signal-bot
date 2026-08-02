@@ -172,7 +172,8 @@ class SignalTracker:
             return None
         risk_usd = self.REF_ACCOUNT * self.REF_RISK_PCT / 100
         notional = risk_usd / dist * entry
-        cost_usd = 2 * self.FEE_USD + notional * self.SLIP_BPS / 10000
+        # kayma ARTIK cift yonlu: giris + cikis (once yalniz cikis sayiliyordu)
+        cost_usd = 2 * self.FEE_USD + notional * 2 * self.SLIP_BPS / 10000
         return round(cost_usd / risk_usd, 3)
 
     def net_totals(self, since_utc: str | None = None) -> dict:
@@ -196,6 +197,25 @@ class SignalTracker:
         return {"decided": n, "gross_r": round(gross, 2),
                 "net_r": round(net, 2),
                 "net_expectancy": round(net / n, 3) if n else None}
+
+    def cluster_stats(self, since_utc: str | None = None) -> dict:
+        """Sonuclanan islemlerin KUME dagilimi (2 Agu konsey karari).
+        Sinyaller ayni gun+yonde kumeler halinde dogdugu icin ham islem
+        sayisi istatistiksel bagimsizligi abartir; go-live kriteri artik
+        kume sayisini ve en buyuk kumenin payini da sart kosuyor."""
+        q = ("SELECT cluster_id, COUNT(*) n FROM signals WHERE status='CLOSED' "
+             "AND blocked=0 AND r_multiple IS NOT NULL "
+             "AND outcome IN ('WIN','LOSS','EXPIRED')")
+        args: tuple = ()
+        if since_utc:
+            q += " AND created_utc>=?"
+            args = (since_utc,)
+        rows = self._db.query(q + " GROUP BY cluster_id", args)
+        counts = [r["n"] for r in rows if r["n"]]
+        total = sum(counts)
+        return {"clusters": len(counts), "decided": total,
+                "max_cluster_share": (round(max(counts) / total, 3)
+                                      if total else None)}
 
     def phase_breakdown(self, since_utc: str | None = None) -> list[dict]:
         """Sonuclanan islemlerin SEANS FAZINA gore dokumu (2 Agu ozelligi).
@@ -267,8 +287,15 @@ class SignalTracker:
         for i, c in enumerate(candles):
             # --- 1) fill kontrolu ---
             if fill_price is None:
-                touched = (c["low"] <= sig["entry_max"] if is_long
-                           else c["high"] >= sig["entry_min"])
+                # 2 Agu duzeltmesi (konsey 5/5: "%100 dolum iyimserligi"):
+                # Bolgenin yakin ucuna BIR TICK dokunmak dolum saymaz.
+                # Emirler MANUEL giriliyor (Telegram -> Midas, 30-60 sn
+                # gecikme); fiyatin bolgeyi TAMAMEN katetmis olmasini sart
+                # kosuyoruz. Bu muhafazakar bir ALT SINIR - gercek dolum
+                # oraninin altinda kalabilir, ama iyimser tarafta hata
+                # yapmaktansa kotumser tarafta hata yapmayi tercih ediyoruz.
+                touched = (c["low"] <= sig["entry_min"] if is_long
+                           else c["high"] >= sig["entry_max"])
                 if touched:
                     fill_price = sig["entry_max"] if is_long else sig["entry_min"]
                     # gap ile bolgenin OTESINDE acilis: daha iyi fiyattan dolum

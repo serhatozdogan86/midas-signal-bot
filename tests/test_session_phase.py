@@ -120,3 +120,43 @@ def test_decision_carries_session_phase():
     assert d.session_phase is None
     d.session_phase = "POWER_HOUR"
     assert d.contract_dict()["session_phase"] == "POWER_HOUR"
+
+
+def test_closed_only_drops_forming_bar():
+    """2 Agu repaint duzeltmesi: kapanmamis son bar motora verilmez."""
+    import numpy as np
+    from tests import fixtures as fx
+
+    s = fx.make_series(np.array([10.0, 11.0, 12.0]), symbol="AAPL", interval="1h")
+    for i, c in enumerate(s.candles):
+        c.ts = 1_000_000 + i * 3_600_000
+    last_ts = s.candles[-1].ts
+
+    # son bar HENUZ kapanmadi (pencere bitmeden 1 dk once) -> atilir
+    forming = s.closed_only(now_ms=last_ts + 3_600_000 - 60_000)
+    assert len(forming) == len(s) - 1
+    assert forming.candles[-1].ts == last_ts - 3_600_000
+
+    # son bar kapandi -> seri aynen kalir
+    closed = s.closed_only(now_ms=last_ts + 3_600_000 + 1)
+    assert len(closed) == len(s)
+
+
+def test_cluster_stats_counts_independent_clusters(tmp_path):
+    """Go-live kriteri artik kume sayisini ve en buyuk kumenin payini sayar."""
+    from app.services.database import Database
+    from app.services.signal_tracker import SignalTracker
+
+    tr = SignalTracker(Database(str(tmp_path / "c.db")), "1h")
+    for sym, cid, r in [("A", "LONG-2026-08-03", 1.0), ("B", "LONG-2026-08-03", -1.0),
+                        ("C", "LONG-2026-08-03", -1.0), ("D", "SHORT-2026-08-04", 2.0)]:
+        tr._db.execute(
+            "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
+            "entry_min,entry_max,stop_loss,tp1,tp2,rr,status,outcome,r_multiple,"
+            "closed_utc,cluster_id,blocked) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+            (sym, "LONG", "2026-08-03T14:00:00Z", 1, 100, 101, 98, 106, 110, 2.5,
+             "CLOSED", "WIN" if r > 0 else "LOSS", r, "2026-08-05T20:00:00Z", cid))
+    cs = tr.cluster_stats()
+    assert cs["decided"] == 4
+    assert cs["clusters"] == 2                 # 4 islem ama sadece 2 bagimsiz kume
+    assert cs["max_cluster_share"] == 0.75     # tek kume toplamin %75'i -> kriter kirmizi

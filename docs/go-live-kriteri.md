@@ -7,11 +7,14 @@
 > serbesttir ama **ancak bu dosyada gerekcesiyle not dusulerek** - sessiz
 > esik oynatmak kriterin varlik nedenini bozar.
 
-## Kosullar (uclu VE)
-1. **Orneklem:** >= 40 sonuclanmis golge islem (WIN/LOSS/EXPIRED;
-   NOT_FILLED ve AMBIGUOUS sayilmaz). Not: sinyaller kumeler halinde
-   geldigi icin (ayni gun/rejim) etkin orneklem gorunenden kucuktur;
-   40 bir taban, tavan degil.
+## Kosullar (besli VE) - 2 Agu 2026 konsey revizyonu
+1. **Orneklem:** >= 60 sonuclanmis golge islem (WIN/LOSS/EXPIRED;
+   NOT_FILLED ve AMBIGUOUS sayilmaz).
+1b. **Bagimsizlik:** >= 25 farkli kume (cluster_id = yon+gun) VE hicbir
+   tek kumenin toplam icindeki payi > %25 olmamali.
+   GEREKCE (5 bagimsiz LLM konseyinin OYBIRLIGI): sinyaller kumeler
+   halinde dogdugu icin 40 ham islem etkin olarak ~15-20 bagimsiz
+   gozleme denk geliyordu. Ham sayi tek basina yaniltici.
 2. **Beklenti:** ortalama >= +0.15R / islem (toplam R / sonuclanan).
 3. **Dayaniklilik:** kumulatif R egrisinde maksimum dusus <= 8R.
 
@@ -26,6 +29,13 @@
 - Ilk 5 ardisik kayipta sistem KAPATILMAZ; kriter sureci isler. Kapatma
   esigi ayri: maksDD 8R'yi asarsa golge mod da durdurulup Faz 4 analizi
   one cekilir.
+
+## 2 Agu 2026 - muhasebe sikilastirmasi
+- DOLUM: bolgenin yakin ucuna dokunmak artik dolum SAYILMAZ; fiyatin
+  bolgeyi TAMAMEN katetmis olmasi gerekir (emirler manuel giriliyor,
+  30-60 sn gecikme gercegi). Muhafazakar ALT SINIR.
+- KAYMA: artik cift yonlu (giris + cikis), once yalniz cikis sayiliyordu.
+- REPAINT: motor artik yalnizca KAPANMIS bar uzerinde setup tetigi arar.
 
 ## Yanlislama Kriterleri (eklendi 2026-07-30 - on-kayit simetriktir)
 Basari gibi basarisizlik da onceden tanimlidir:

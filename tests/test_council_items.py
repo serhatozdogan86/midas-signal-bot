@@ -151,21 +151,24 @@ def test_golive_status_progress(tmp_path):
         tracker._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,status,outcome,"
-            "r_multiple,closed_utc) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "r_multiple,closed_utc,cluster_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (f"G{i}", "LONG", "2026-07-20T14:00:00Z", 1, 100, 101, 98, 106,
              110, 2.5, "CLOSED", "WIN" if r > 0 else "LOSS", r,
-             (now - timedelta(days=3 - i)).strftime("%Y-%m-%dT%H:%M:%SZ")))
+             (now - timedelta(days=3 - i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+             f"LONG-2026-07-2{i}"))
     settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
                         GOLIVE_MIN_DECIDED=3, GOLIVE_MIN_EXPECTANCY_R=0.5,
+                        GOLIVE_MIN_CLUSTERS=3, GOLIVE_MAX_CLUSTER_SHARE=0.5,
                         CONFIG_LOCK_UTC="2026-07-01T00:00:00Z")  # kohort filtre testte acik
     sched = Scheduler(settings, None, None, None, MarketCalendar(),
                       InMemoryStateStore(), FakeNotifier(), tracker)
     g = sched.golive_status()
     assert g["criteria"]["decided"]["now"] == 3
-    # P0'dan itibaren beklenti NET'tir: brut 0.833 - 0.05R referans maliyet
+    # beklenti NET'tir; 2 Agu'dan itibaren maliyet cift yonlu kayma iceriyor
     assert g["criteria"]["expectancy_r"]["basis"] == "net"
-    assert abs(g["criteria"]["expectancy_r"]["now"] - 0.783) < 0.01
+    assert abs(g["criteria"]["expectancy_r"]["now"] - 0.763) < 0.01
     assert g["criteria"]["max_dd_r"]["now"] == 1.0     # +1.5 -> +0.5 dususu
+    assert g["criteria"]["clusters"]["now"] == 3        # uc ayri kume
     assert g["met"] is True
     assert "Go-live kriteri" in sched.build_eod_extras()
 
@@ -191,7 +194,8 @@ def test_cost_r_fixed_fee_model(tmp_path):
     tight = tracker.cost_r({"fill_price": 100.0, "stop_loss": 99.5})   # %0.5 stop
     wide = tracker.cost_r({"fill_price": 100.0, "stop_loss": 95.0})    # %5 stop
     assert tight > wide                       # dar stop daha pahali (sabit ucret!)
-    assert abs(wide - (3.0 + 2000 * 0.0005) / 100) < 0.001   # 0.04R
+    # kayma artik CIFT yonlu (giris+cikis): 3$ + 2000*2*0.0005 = 5$ -> 0.05R
+    assert abs(wide - (3.0 + 2000 * 2 * 0.0005) / 100) < 0.001
 
 
 def test_blocked_cohort_excluded_from_score(tmp_path):

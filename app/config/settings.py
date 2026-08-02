@@ -108,7 +108,11 @@ class Settings(BaseSettings):
     REF_RISK_PCT: float = 1.0
 
     CONFIG_LOCK_UTC: str = "2026-08-01T06:30:00Z"  # P1 kilidi  # kilit ani (docs/config-lock.md)
-    GOLIVE_MIN_DECIDED: int = 40       # min. sonuclanmis islem
+    # 2 Agu konsey revizyonu: 5/5 "40 yetersiz" dedi. Kumelenme yuzunden
+    # 40 islem etkin olarak ~15-20 bagimsiz gozleme denk geliyordu.
+    GOLIVE_MIN_DECIDED: int = 60
+    GOLIVE_MIN_CLUSTERS: int = 25          # bagimsiz kume sayisi
+    GOLIVE_MAX_CLUSTER_SHARE: float = 0.25  # tek kumenin toplam icindeki payi       # min. sonuclanmis islem
     GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
     GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama
     FINE_SCAN_INTERVAL_SEC: int = 60         # Phase 2 (rezerve)

@@ -16,6 +16,18 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-02: LLM konseyi (5 bagimsiz model) bulgulari uzerine UC duzeltme.
+  (A) REPAINT: motor SETUP tetigini serinin son bari uzerinde ariyordu;
+  kaba tarama 15 dk'da bir kostugu icin o bar cogu zaman HENUZ
+  KAPANMAMISTI. Artik KlineSeries.closed_only() ile kapanmamis bar
+  motora verilmiyor. (B) DOLUM: "bolgeye dokundu = doldu" varsayimi
+  birakildi; bolgenin TAMAMEN katedilmesi sart. Kayma cift yonlu oldu.
+  (C) Go-live esikleri 40 -> 60 islem + 25 kume + tek kume payi <=%25.
+  Kilit kohortunda 0 sonuclanan islem oldugu icin bu degisiklikler
+  SAYAC SIFIRLAMA MALIYETI OLMADAN yapildi (bilincli zamanlama).
+  ACIK KALAN: TP1(1.0 ATR) < Stop(1.2 ATR) asimetrisi - TP1'de TAM cikis
+  yapildigi icin kazanc +0.83R, kayip -1.0R; basabas icin ~%55 isabet
+  gerekiyor. Kaba tarihsel dogrulama sonrasi VERIYLE ele alinacak.
 - 2026-08-02: Seans FAZI etiketlemesi eklendi (PRE_MARKET / OPENING_RANGE /
   MORNING / LUNCH / AFTERNOON / POWER_HOUR / AFTER_HOURS). Bu bir MOTOR
   DEGISIKLIGI DEGILDIR - hicbir filtre, esik veya karar etkilenmez; yalnizca

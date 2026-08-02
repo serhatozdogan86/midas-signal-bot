@@ -49,9 +49,9 @@ def _feed(tracker, bars, symbol="AAPL", start_ts=1_000_001):
 def test_win_path(tmp_path):
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal())
-    # bar0: low 100.5 <= entry_max 101 -> FILLED @101 (gap yok)
+    # bar0: low 99.9 <= entry_min 100 (bolge KATEDILDI) -> FILLED @101
     # bar2: high 106.5 >= tp1 106 -> WIN, r = (106-101)/(101-98) = 1.67
-    _feed(tracker, [(102.0, 102.5, 100.5, 101.2),
+    _feed(tracker, [(102.0, 102.5, 99.9, 101.2),
                     (101.2, 103.0, 101.0, 102.8),
                     (102.8, 106.5, 102.5, 106.2)])
     tracker.evaluate_open("AAPL")
@@ -64,7 +64,7 @@ def test_win_path(tmp_path):
 def test_loss_path(tmp_path):
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal())
-    _feed(tracker, [(102.0, 102.5, 100.8, 101.2),   # FILLED @101
+    _feed(tracker, [(102.0, 102.5, 99.9, 101.2),   # FILLED @101
                     (101.2, 101.5, 97.8, 98.2)])    # low <= stop 98 -> LOSS -1R
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
@@ -76,7 +76,7 @@ def test_gap_through_stop_exits_at_open(tmp_path):
     Kayip -1R'den derin olur (plan bolum 3: stop garantisi yok)."""
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal())
-    _feed(tracker, [(102.0, 102.5, 100.8, 101.2),   # FILLED @101, risk=3
+    _feed(tracker, [(102.0, 102.5, 99.9, 101.2),   # FILLED @101, risk=3
                     (95.0, 96.0, 94.5, 95.5)])      # acilis 95 < stop 98
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
@@ -89,7 +89,7 @@ def test_gap_through_tp_exits_at_open(tmp_path):
     """Gap hedefin UZERINDE acilis: cikis acilistan (lehte)."""
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal())
-    _feed(tracker, [(102.0, 102.5, 100.8, 101.2),   # FILLED @101
+    _feed(tracker, [(102.0, 102.5, 99.9, 101.2),   # FILLED @101
                     (108.0, 109.0, 107.5, 108.5)])  # acilis 108 > tp1 106
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
@@ -112,7 +112,7 @@ def test_not_filled_after_window(tmp_path):
 def test_ambiguous_same_bar(tmp_path):
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal())
-    _feed(tracker, [(102.0, 102.5, 100.8, 101.2),   # FILLED
+    _feed(tracker, [(102.0, 102.5, 99.9, 101.2),   # FILLED
                     (101.0, 106.5, 97.5, 100.0)])   # ayni barda stop + tp
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
@@ -123,8 +123,8 @@ def test_short_direction(tmp_path):
     tracker, _ = _make_tracker(tmp_path)
     _track(tracker, _signal(direction=Direction.SHORT,
                             entry=(62.4, 62.9), stop=63.6, tp1=60.9, tp2=59.1))
-    # SHORT fill: high >= entry_min 62.4 -> fill @62.4; tp: low <= 60.9
-    _feed(tracker, [(62.0, 62.6, 61.8, 62.2),
+    # SHORT fill: high >= entry_MAX 62.9 (bolge katedildi) -> fill @62.4
+    _feed(tracker, [(62.0, 63.0, 61.8, 62.2),
                     (62.2, 62.5, 60.7, 60.8)])
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
@@ -142,7 +142,7 @@ def test_duplicate_open_signal_not_tracked(tmp_path):
 def test_expired_after_max_track(tmp_path):
     tracker, _ = _make_tracker(tmp_path, max_track=2)
     _track(tracker, _signal())
-    bars = [(102.0, 102.5, 100.8, 101.2)] + [(101.5, 102.0, 101.0, 101.5)] * 3
+    bars = [(102.0, 102.5, 99.9, 101.2)] + [(101.5, 102.0, 101.0, 101.5)] * 3
     _feed(tracker, bars)
     tracker.evaluate_open("AAPL")
     sig = tracker.recent_signals(1)[0]
