@@ -11,6 +11,8 @@ Esikler signal_engine'de uygulanir; burada yalnizca hesap yapilir.
 """
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 from pydantic import BaseModel
 
@@ -69,6 +71,14 @@ def build_trade_plan(hourly: pd.DataFrame, daily: pd.DataFrame,
         target_pct = (entry_mid - tp1) / entry_mid * 100
 
     if risk <= 0 or entry_mid <= 0:
+        return None
+    # v3.9.4 SAVUNMA DERINLIGI (dis inceleme bulgusu): NaN karsilastirmalari
+    # HER ZAMAN False doner -> yukaridaki 'risk <= 0' ve motordaki RR/maliyet
+    # filtreleri NaN'i sessizce GECIRIR ve NaN hedefli bir SIGNAL uretilebilir.
+    # Bugun sizmiyor (KlineSeries.from_dataframe NaN barlari dusuruyor) ama
+    # koruma tek katmanda olmamali: veri yolu degisirse sessiz felaket olur.
+    vals = (entry_min, entry_max, stop, tp1, tp2, risk, reward, target_pct, atr_d)
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in vals):
         return None
     return TradePlan(
         entry_min=round(entry_min, 4),

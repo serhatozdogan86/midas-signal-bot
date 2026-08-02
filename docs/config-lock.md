@@ -16,6 +16,22 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-02 (v3.9.4): DIS KOD INCELEMESI uzerine iki duzeltme.
+  (1) NaN SAVUNMASI: NaN karsilastirmalari her zaman False dondugu icin
+  risk<=0, RR tavani/tabani ve maliyet filtresi NaN'i SESSIZCE gecirirdi
+  -> NaN hedefli SIGNAL mumkundu. Bugun sizmiyordu (KlineSeries NaN
+  barlari dusuruyor) ama koruma tek katmanda kalmamali; build_trade_plan
+  artik tum ciktilarda math.isfinite dogrulamasi yapar. Motor DAVRANISI
+  degismez (gecerli planlar aynen uretilir) - yalnizca gecersiz plan
+  reddedilir; kilit kohortu SIFIRLANMADI.
+  (2) YONETIM UCU KILIDI: GET /scan kimlik dogrulamasiz TAM TARAMA
+  tetikliyor, Telegram'a sinyal gonderiyor ve golge deftere kayit
+  aciyordu - bir link on-yuklemesi bile KILIT KOHORTUNU KIRLETEBILIRDI
+  (veri butunlugu riski). /scan, /scan/dry, /backup/now artik ADMIN_TOKEN
+  ister (tanimsizsa 503 = guvenli varsayilan). Salt-okunur uclar acik.
+  /wallet POST: 200 satir + alan uzunlugu tavani.
+  ACIK KALAN (dis inceleme de bagimsiz olarak dogruladi): TP1/stop
+  asimetrisi - RR etiketi TP2 uzerinden, cikis TP1'de TAM yapiliyor.
 - 2026-08-02 (v3.9): 29 Tem OTOPSISI uzerine iki koruma + bir bug fix.
   Otopsi bulgusu: 14 sinyalin tamami 29 Tem'de, tamami LONG, 13/14
   breakout_retest; SPY o gun -1.42% / QQQ -2.04% duserken gunluk rejim

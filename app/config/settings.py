@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     # Endeks rejim sembolleri
     REGIME_SYMBOLS: str = "SPY,QQQ"
 
+    # Yonetim uclari korumasi (v3.9.4 - /scan, /scan/dry, /backup/now)
+    # Bos birakilirsa bu uclar KAPALI doner (guvenli varsayilan).
+    ADMIN_TOKEN: str = ""
+
     # Davranis
     SEND_NO_TRADE: bool = False
     SEND_PREP_SUMMARY: bool = True

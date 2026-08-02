@@ -8,6 +8,7 @@ tum evreni tarar ve tam contract JSON dondurur; seans saati kontrolune takilmaz.
 from __future__ import annotations
 
 import json
+import secrets
 import os
 import time
 
@@ -80,6 +81,28 @@ def create_app(store: StateStore, scheduler: Scheduler,
         diag["commentary_latest"] = (commentary.latest()
                                      if commentary is not None else None)
         return diag
+
+    _WALLET_MAX_ROWS = 200
+
+    def _admin_ok() -> bool:
+        """Durum degistiren / pahali uclar icin token kontrolu (v3.9.4).
+        Neden: GET /scan kimlik dogrulamasiz TAM TARAMA tetikliyor,
+        Telegram'a sinyal gonderiyor ve golge deftere kayit aciyordu -
+        bir arama motoru/link on-yuklemesi bile kilit kohortunu
+        kirletebilirdi. Salt-okunur uclar (dashboard besleyenler) ACIK
+        kalir; yalniz yan etkili/pahali olanlar korunur."""
+        tok = getattr(scheduler._settings, "ADMIN_TOKEN", "")
+        if not tok:
+            return False        # tanimsizsa GUVENLI TARAF: kapali
+        given = (request.headers.get("X-Admin-Token")
+                 or request.args.get("token") or "")
+        return secrets.compare_digest(str(given), str(tok))
+
+    def _admin_denied():
+        if not getattr(scheduler._settings, "ADMIN_TOKEN", ""):
+            return jsonify({"error": "ADMIN_TOKEN tanimli degil - bu uc kapali. "
+                                     "Render ortam degiskenlerine ekleyin."}), 503
+        return jsonify({"error": "yetkisiz"}), 401
 
     @app.get("/kullanici-el-kitabi.pdf")
     def handbook_pdf():
@@ -235,6 +258,8 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     @app.post("/backup/now")
     def backup_now():
+        if not _admin_ok():
+            return _admin_denied()
         if gist_backup is None:
             return jsonify({"error": "gist sync disabled (GITHUB_TOKEN not set)"}), 404
         ok = gist_backup.sync()
@@ -254,6 +279,8 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     @app.get("/scan")
     def scan():
+        if not _admin_ok():
+            return _admin_denied()
         results = scheduler.run_coarse_scan(send_telegram=True)
         return jsonify([
             {"symbol": d.symbol, "decision": d.decision.value,
@@ -263,6 +290,8 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     @app.get("/scan/dry")
     def scan_dry():
+        if not _admin_ok():
+            return _admin_denied()
         results = scheduler.run_coarse_scan(send_telegram=False)
         return app.response_class(
             json.dumps([d.contract_dict() for d in results], indent=2),
@@ -292,11 +321,17 @@ def create_app(store: StateStore, scheduler: Scheduler,
         if rows_in is None:
             legacy = body.get("symbols") or {}   # eski istemci (v4.3-v4.9) uyumu
             rows_in = [{"s": k, "q": v} for k, v in legacy.items()]
+        # v3.9.4: girdi boyutu sinirli - /wallet panodan cagrildigi icin
+        # token koyulamaz; bunun yerine satir sayisi ve alan uzunlugu
+        # tavanlanir (sinirsiz liste bellekte buyuyebilirdi).
+        if not isinstance(rows_in, list):
+            rows_in = []
+        rows_in = rows_in[:_WALLET_MAX_ROWS]
         clean = []
         qty_map: dict = {}
         for r in rows_in or []:
             try:
-                sym = str(r.get("s") or "").upper().strip()
+                sym = str(r.get("s") or "").upper().strip()[:12]
                 qty = int(r.get("q") or 0)
                 entry = float(r.get("e") or 0)
             except (TypeError, ValueError, AttributeError):

@@ -235,3 +235,57 @@ def test_no_hypothetical_row_while_real_signal_open(tmp_path):
     assert tracker.maybe_track(d, mtf) is True
     assert tracker.track_blocked(d, mtf, "kill-switch", BLOCKED_KILL_SWITCH) is False
     assert tracker.blocked_summary()["total"] == 0
+
+
+# ------------------------------- v3.9.4: NaN korumasi + yonetim ucu kilidi
+def test_plan_rejects_non_finite_values():
+    """DIS INCELEME BULGUSU: NaN karsilastirmalari hep False doner ->
+    RR/maliyet filtreleri NaN'i gecirir, NaN hedefli SIGNAL uretilirdi."""
+    import numpy as _np
+    import pandas as pd
+    from app.config.settings import Settings as _S
+    from app.models.decision import SetupType as _ST
+    from app.strategies.risk_manager import SetupCandidate, build_trade_plan
+    h = pd.DataFrame({"open": [100.0] * 40, "high": [101.0] * 40,
+                      "low": [99.0] * 40, "close": [100.0] * 40,
+                      "volume": [1e6] * 40})
+    h.loc[39, "close"] = _np.nan
+    n = 60
+    d = pd.DataFrame({"open": [100.0] * n,
+                      "high": [101.0 + i * 0.1 for i in range(n)],
+                      "low": [99.0] * n,
+                      "close": [100.0 + i * 0.1 for i in range(n)],
+                      "volume": [1e6] * n})
+    sc = SetupCandidate(setup_type=_ST.BREAKOUT_RETEST, level=100.0,
+                        note="", event_index=30)
+    assert build_trade_plan(h, d, Direction.LONG, sc,
+                            _S().strategy_params) is None
+
+
+def _client(tmp_path, token=""):
+    from app.server import create_app
+    from app.services.universe import UniverseProvider
+    sched, tracker = _scheduler(tmp_path)
+    sched._settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                               ADMIN_TOKEN=token)
+    app = create_app(InMemoryStateStore(), sched,
+                     UniverseProvider.__new__(UniverseProvider), tracker)
+    return app.test_client()
+
+
+def test_scan_endpoint_locked_without_token(tmp_path):
+    """GET /scan TAM TARAMA tetikler + Telegram'a sinyal gonderir.
+    Token yoksa 503 (guvenli varsayilan), yanlis token 401."""
+    assert _client(tmp_path).get("/scan").status_code == 503
+    c = _client(tmp_path, token="s3cret")
+    assert c.get("/scan?token=yanlis").status_code == 401
+    assert c.get("/scan/dry?token=yanlis").status_code == 401
+    assert c.post("/backup/now").status_code == 401      # token var, verilmedi
+    assert _client(tmp_path).post("/backup/now").status_code == 503
+
+
+def test_wallet_rows_are_capped(tmp_path):
+    c = _client(tmp_path)
+    rows = [{"s": "AAPL", "q": 1, "e": 100.0} for _ in range(500)]
+    r = c.post("/wallet", json={"rows": rows})
+    assert r.status_code == 200 and r.get_json()["count"] <= 200
