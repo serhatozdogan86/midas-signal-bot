@@ -18,3 +18,19 @@ Format: tarih | fikir | tetikleyen gozlem
     4) Kilit kohortu sifirlanir -> 40 islemlik sayac bastan baslar
   KARAR ANI: >=40 sonuclanan islem sonrasi, phase_breakdown ciktisiyla
   birlikte degerlendirilecek (hangi fazlarin gercekten iyi oldugu gorulunce)
+- 2026-08-02 | ALPACA KAGIT HESABI "AYNA" KATMANI | konsey: "%100 dolum kovalama suphesi"
+  DURUM: 8-9 Agustos hafta sonuna ERTELENDI (kullanici karari). Gerekce: bu hafta
+  zaten dort yeni parca ilk kez sahada (faz etiketleme, giris kaniti paneli,
+  histerezisli rejim, veri kiyasi) - once onlarin temiz calistigi gorulsun,
+  sonra yeni kirilma yuzeyi eklensin.
+  KAPSAM (dar ve tek yonlu): sinyal dogunca Alpaca kagit hesabina ayni
+  giris/stop/hedefle emir gonder -> doldu mu / ne zaman / hangi fiyattan izle ->
+  bizim golge defterle KIYASLA. Alpaca'nin P&L'i KULLANILMAZ (komisyon modeli
+  tamamen farkli: Alpaca komisyonsuz, Midas 1.50$/islem). Hicbir karari
+  etkilemez -> KILIT KOHORTU SIFIRLANMAZ.
+  DURUST CEKINCELER: (1) Alpaca kagit dolumlari da bir SIMULASYON - kendi
+  dokumani "kayma ve kismi dolumlar gercek arz-talebi tam yansitmaz" diyor;
+  (2) ucretsiz planda veri IEX (~%2.5 hacim) - ince akis dolum gercekciligini
+  azaltabilir. Yani "kesin dogru" degil, BAGIMSIZ IKINCI GORUS olarak okunacak.
+  BEKLEMENIN MALIYETI: eslestirilmis veri gerekiyor - bu arada kapanan her
+  sinyal bir kiyas firsati olarak kayboluyor.
