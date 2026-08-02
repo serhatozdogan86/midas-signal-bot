@@ -93,6 +93,7 @@ class Decision(BaseModel):
     trend_bias: Bias = Bias.NEUTRAL
     setup_type: SetupType = SetupType.NONE
     setup_level: float | None = None           # EMA20 (pullback) veya kirilim seviyesi (breakout)
+    session_phase: str | None = None           # sinyalin dogdugu seans fazi (salt gozlem)
     confidence: Confidence = Confidence.LOW
     entry_zone: EntryZone = Field(default_factory=EntryZone)
     stop_loss: float | None = None

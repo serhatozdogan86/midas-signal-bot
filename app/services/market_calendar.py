@@ -45,6 +45,24 @@ NYSE_EARLY_CLOSE: set[date] = {
 
 _TABLE_MAX_YEAR = 2027
 
+# Seans fazlari (ET) - sinyalin HANGI saat diliminde dogdugunu etiketlemek icin.
+# Motor kararlarini ETKILEMEZ; yalnizca defterde bir sutun (kohort analizi).
+# Sinirlar ET olarak sabittir; erken kapanis gunlerinde son-saat penceresi
+# gercek kapanisa gore kaydirilir.
+PHASE_PRE = "PRE_MARKET"        # acilis oncesi (ET 04:00-09:30)
+PHASE_OPEN = "OPENING_RANGE"    # ilk 30 dk - en yuksek oynaklik/yanlis kirilim
+PHASE_MORNING = "MORNING"       # 10:00-12:00 - trend gunlerinin kuruldugu bant
+PHASE_LUNCH = "LUNCH"           # 12:00-14:00 - hacmin dip yaptigi sakin bant
+PHASE_AFTERNOON = "AFTERNOON"   # 14:00 - son saate kadar
+PHASE_POWER = "POWER_HOUR"      # kapanistan onceki son saat
+PHASE_AFTER = "AFTER_HOURS"     # kapanis sonrasi (ET 16:00-20:00)
+PHASE_CLOSED = "CLOSED"         # islem gunu degil / pencerelerin tamamen disi
+
+_PRE_START = time(4, 0)
+_AFTER_END = time(20, 0)
+_OPENING_RANGE_MIN = 30
+_POWER_HOUR_MIN = 60
+
 
 class MarketCalendar:
     """NYSE seans sorgulari. Tum datetime'lar America/New_York dilimindedir."""
@@ -70,6 +88,39 @@ class MarketCalendar:
         dt = dt or self.now_et()
         times = self.session_times(dt.date())
         return times is not None and times[0] <= dt < times[1]
+
+    def session_phase(self, dt: datetime | None = None) -> str:
+        """Verilen ana karsilik gelen seans fazi (PHASE_* sabitleri).
+
+        Amac: her sinyale 'hangi saat diliminde dogdu' etiketi basmak, boylece
+        birkac hafta sonra 'acilis ilk yarim saatinde dogan sinyallerin
+        beklentisi kac R?' sorusu VERIYLE cevaplanabilsin. Motor kararlarini
+        etkilemez - salt gozlem (2 Agu karari: kilit doneminde davranis
+        degismez, yalnizca veri toplanir)."""
+        dt = dt or self.now_et()
+        dt = dt.astimezone(ET)
+        times = self.session_times(dt.date())
+        if times is None:
+            return PHASE_CLOSED
+        open_dt, close_dt = times
+        if dt < open_dt:
+            pre_start = datetime.combine(dt.date(), _PRE_START, tzinfo=ET)
+            return PHASE_PRE if dt >= pre_start else PHASE_CLOSED
+        if dt >= close_dt:
+            after_end = datetime.combine(dt.date(), _AFTER_END, tzinfo=ET)
+            return PHASE_AFTER if dt < after_end else PHASE_CLOSED
+        # --- seans ici ---
+        if (dt - open_dt) < timedelta(minutes=_OPENING_RANGE_MIN):
+            return PHASE_OPEN
+        if (close_dt - dt) <= timedelta(minutes=_POWER_HOUR_MIN):
+            return PHASE_POWER
+        # Ogle bandi ET 12:00-14:00; erken kapanis gunlerinde bu pencereler
+        # kapanisa yakin oldugu icin yukaridaki POWER dali zaten devralir.
+        if dt.time() < time(12, 0):
+            return PHASE_MORNING
+        if dt.time() < time(14, 0):
+            return PHASE_LUNCH
+        return PHASE_AFTERNOON
 
     def next_trading_day(self, d: date) -> date:
         nxt = d + timedelta(days=1)

@@ -174,6 +174,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
         stats = tracker.stats()
         stats["benchmark"] = scheduler.benchmark_info()   # SPY ayni donem
         stats["net"] = tracker.net_totals()               # maliyet sonrasi
+        stats["phases"] = tracker.phase_breakdown()       # seans fazi dokumu
         return app.response_class(json.dumps(stats, indent=2),
                                   mimetype="application/json")
 

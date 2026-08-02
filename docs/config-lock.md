@@ -16,6 +16,13 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-02: Seans FAZI etiketlemesi eklendi (PRE_MARKET / OPENING_RANGE /
+  MORNING / LUNCH / AFTERNOON / POWER_HOUR / AFTER_HOURS). Bu bir MOTOR
+  DEGISIKLIGI DEGILDIR - hicbir filtre, esik veya karar etkilenmez; yalnizca
+  her sinyale 'hangi saat diliminde dogdu' sutunu eklenir (salt gozlem).
+  Bu nedenle KILIT KOHORTU SIFIRLANMADI ve go-live sayaci kesintisiz devam
+  eder. Seans DISI tarama (davranis degisikligi olurdu) bilincli olarak
+  ertelendi -> docs/ideas.md.
 - 2026-08-01: P1 (onayli uyarlama plani) eklendi: rejim histerezisi
   (200G MA +-%0.5 bant, 2 gun kapanis teyidi), isi motoru (ayni-yon <=8,
   kume <=3), dead-man switch (seans ici 25 dk tarama sessizligi alarmi).

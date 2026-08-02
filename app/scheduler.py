@@ -290,6 +290,7 @@ class Scheduler:
                 if d.decision is DecisionType.SIGNAL:
                     d.time_stop_date = self._calendar.add_trading_days(
                         today, self._params.time_stop_days).isoformat()
+                    d.session_phase = self._calendar.session_phase()
             except Exception:
                 log.exception(kv(event="scan_error", symbol=symbol, stage=2))
                 continue
@@ -720,6 +721,15 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_golive_error"))
         try:
+            pb = [b for b in self._tracker.phase_breakdown(
+                since_utc=self._settings.CONFIG_LOCK_UTC) if b["n"] >= 3]
+            if pb:
+                parts = [f"{b['phase']} {b['n']}i {b['net_expectancy']:+.2f}R"
+                         for b in pb[:4]]
+                lines.append("Seans fazi (>=3 islem): " + " | ".join(parts))
+        except Exception:
+            log.exception(kv(event="eod_phase_error"))
+        try:
             fq = self._tracker.fill_quality()
             if fq:
                 lines.append(f"Dolum kalitesi ({fq['n']} poz): "
@@ -951,6 +961,7 @@ class Scheduler:
                 return
             d.time_stop_date = self._calendar.add_trading_days(
                 today, self._params.time_stop_days).isoformat()
+            d.session_phase = self._calendar.session_phase()
             if self._tracker is not None:
                 self._tracker.record_candles(hourly)
                 self._tracker.record_decision(d)

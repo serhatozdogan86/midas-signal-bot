@@ -197,6 +197,47 @@ class SignalTracker:
                 "net_r": round(net, 2),
                 "net_expectancy": round(net / n, 3) if n else None}
 
+    def phase_breakdown(self, since_utc: str | None = None) -> list[dict]:
+        """Sonuclanan islemlerin SEANS FAZINA gore dokumu (2 Agu ozelligi).
+
+        'Acilisin ilk yarim saatinde dogan sinyaller daha mi iyi?' sorusunu
+        VERIYLE cevaplamak icin. Faz, sinyal uretilirken contract_json'a
+        yazilir (yeni kolon gerekmez); eski sinyallerde alan yoksa
+        'BILINMIYOR' altinda toplanir."""
+        q = ("SELECT contract_json, r_multiple, entry_min, entry_max, "
+             "fill_price, stop_loss FROM signals WHERE status='CLOSED' "
+             "AND blocked=0 AND r_multiple IS NOT NULL "
+             "AND outcome IN ('WIN','LOSS','EXPIRED')")
+        args: tuple = ()
+        if since_utc:
+            q += " AND created_utc>=?"
+            args = (since_utc,)
+        buckets: dict[str, dict] = {}
+        for row in self._db.query(q, args):
+            phase = "BILINMIYOR"
+            cj = row.get("contract_json")
+            if cj:
+                try:
+                    phase = (json.loads(cj) or {}).get("session_phase") or phase
+                except (TypeError, ValueError):
+                    pass
+            b = buckets.setdefault(phase, {"phase": phase, "n": 0, "wins": 0,
+                                           "gross_r": 0.0, "net_r": 0.0})
+            r = row["r_multiple"]
+            b["n"] += 1
+            b["wins"] += 1 if r > 0 else 0
+            b["gross_r"] += r
+            b["net_r"] += r - (self.cost_r(row) or 0.0)
+        out = []
+        for b in buckets.values():
+            n = b["n"]
+            out.append({**b,
+                        "gross_r": round(b["gross_r"], 2),
+                        "net_r": round(b["net_r"], 2),
+                        "net_expectancy": round(b["net_r"] / n, 3) if n else None,
+                        "win_rate": round(b["wins"] / n, 3) if n else None})
+        return sorted(out, key=lambda x: -x["n"])
+
     def blocked_summary(self) -> dict:
         rows = self._db.query(
             "SELECT COUNT(*) n, SUM(CASE WHEN status='CLOSED' AND outcome "
