@@ -268,3 +268,13 @@ def test_mobile_responsive_rules_present(tmp_path):
     assert "row-grid" in body
     assert "mob-scroll" in body
     assert "max-width:900px" in body or "max-width:900px" in body.replace("\\u002F", "/")
+
+
+def test_mobile_sidebar_hidden_with_toggle(tmp_path):
+    """2 Agu: sol panel mobilde varsayilan gizli, hamburger dugmesiyle
+    cekmece olarak acilir (backdrop + kapatma mantigi dahil)."""
+    c = _client(tmp_path)
+    body = c.get("/dashboard").get_data(as_text=True)
+    assert "btn-menu" in body
+    assert "mob-backdrop" in body
+    assert "mob-open" in body
