@@ -33,17 +33,35 @@ class NewsService:
         self._seen: set = set()
         self._offset = 0
         self._last = 0.0
+        self._backoff = 0.0      # devre kesici bekleme (v3.12)
+        self._slow_sec = 20.0    # bu suredan uzun tur 'yavas' sayilir
         self.last_refresh_utc: str | None = None
 
     # ------------------------------------------------------------- refresh
     def maybe_refresh(self, symbols: list[str], today: date) -> None:
-        if time.time() - self._last < self._interval:
+        """v3.12: DEVRE KESICI. Finnhub haber ucu yavasladiginda (3 Agu:
+        ardisik timeout'lar) her turda tekrar denemek tick'i bosuna
+        mesgul eder. Bir tur olcuye gore yavas gecerse bekleme suresi
+        katlanir (max 60 dk); hizli ve verimli bir tur normale doner."""
+        if time.time() - self._last < self._interval + self._backoff:
             return
         self._last = time.time()
+        started = time.time()
         try:
-            self.refresh(symbols, today)
+            added = self.refresh(symbols, today)
         except Exception:
             log.exception(kv(event="news_refresh_error"))
+            added = 0
+        elapsed = time.time() - started
+        if elapsed > self._slow_sec or added == 0:
+            prev = self._backoff
+            self._backoff = min(max(self._backoff * 2, 300.0), 3600.0)
+            if prev != self._backoff:
+                log.warning(kv(event="news_backoff", elapsed_s=round(elapsed, 1),
+                               added=added, backoff_s=int(self._backoff)))
+        elif self._backoff:
+            log.info(kv(event="news_backoff_cleared"))
+            self._backoff = 0.0
 
     def refresh(self, symbols: list[str], today: date) -> int:
         added = 0

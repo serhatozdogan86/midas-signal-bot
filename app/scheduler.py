@@ -114,8 +114,12 @@ class Scheduler:
         """Tek zamanlayici adimi - test edilebilirlik icin now enjekte edilebilir."""
         now_et = now_et or self._calendar.now_et()
         today = now_et.date()
-        if self._news is not None:
-            self._news.maybe_refresh(self._news_symbols(), today)
+        # v3.12: HABER YENILEME TICK'IN SONUNA ALINDI (asagi bak).
+        # Eskiden burada, tick'in BASINDA senkron kosuyordu; 3 Agu'da
+        # Finnhub /company-news timeout'a dustu ve her turda 5 x 15 sn
+        # = 75 sn boyunca tick'i kilitledi - gap nobetinin ve seans ici
+        # taramalarin ONUNDE. Sira kurali: once islem-kritik is
+        # (gap nobeti -> hazirlik -> taramalar), en sonda kozmetik veri.
         if self._gist is not None and \
                 time.time() - self._last_heartbeat >= self._settings.HEARTBEAT_SEC:
             self._last_heartbeat = time.time()
@@ -155,6 +159,12 @@ class Scheduler:
                 self._last_fine = time.time()
         if now_et >= eod_dt and self._eod_date != today and self._prep_date == today:
             self.run_eod(today)
+        # --- en son: kozmetik veri (haber akisi) ---
+        if self._news is not None:
+            try:
+                self._news.maybe_refresh(self._news_symbols(), today)
+            except Exception:
+                log.exception(kv(event="news_refresh_error"))
 
     # ------------------------------------------------------- 15:45 TR hazirlik
     def run_prep(self, today: date) -> None:

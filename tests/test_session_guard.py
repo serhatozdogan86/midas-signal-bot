@@ -381,3 +381,61 @@ def test_open_blackout_blocks_pre_market_by_design():
     etki yok, ama kural burada acikca kilitlenir."""
     assert in_open_blackout(-300.0, 30) is True
     assert in_open_blackout(-1.0, 30) is True
+
+
+# ------------- v3.12: haber devre kesici + tick sirasi (3 Agu blokaji)
+class _SlowFH:
+    """Her cagrida yavas ve bos donen sahte istemci (timeout taklidi)."""
+    configured = True
+
+    def __init__(self, delay=0.0):
+        self.delay = delay
+        self.calls = 0
+
+    def get_general_news(self):
+        self.calls += 1
+        import time as _t
+        _t.sleep(self.delay)
+        return []
+
+    def get_company_news(self, symbol, date_from, date_to):
+        self.calls += 1
+        return []
+
+
+def _news(fh):
+    from app.services.news_service import NewsService
+    n = NewsService(fh)
+    n._interval = 0.0
+    return n
+
+
+def test_news_backoff_grows_when_refresh_yields_nothing():
+    from datetime import date
+    fh = _SlowFH()
+    n = _news(fh)
+    n.maybe_refresh(["AAPL"], date.today())
+    assert n._backoff >= 300.0            # devre kesildi
+    calls = fh.calls
+    n.maybe_refresh(["AAPL"], date.today())
+    assert fh.calls == calls              # bekleme suresinde tekrar denemez
+
+
+def test_news_backoff_caps_at_one_hour():
+    from datetime import date
+    n = _news(_SlowFH())
+    for _ in range(12):
+        n._last = 0.0
+        n.maybe_refresh(["AAPL"], date.today())
+    assert n._backoff == 3600.0
+
+
+def test_news_runs_last_in_tick_order():
+    """Haber KOZMETIK: tick'te gap nobeti/tarama satirlarindan SONRA
+    cagrilmali. 3 Agu'da basta oldugu icin 75 sn blokaj yaratti."""
+    import inspect
+
+    from app.scheduler import Scheduler
+    src = inspect.getsource(Scheduler.tick)
+    assert src.index("maybe_refresh") > src.index("run_gap_watch")
+    assert src.index("maybe_refresh") > src.index("run_fine_scan")

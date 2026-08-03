@@ -16,6 +16,7 @@ from app.logging_setup import kv
 
 log = logging.getLogger("finnhub")
 
+_NEWS_TIMEOUT = 5.0   # haber uclari icin kisa (kozmetik veri)
 _TIMEOUT = (10, 15)
 
 
@@ -29,14 +30,15 @@ class FinnhubClient:
     def configured(self) -> bool:
         return bool(self._key)
 
-    def _get(self, path: str, params: dict) -> dict | None:
+    def _get(self, path: str, params: dict,
+             timeout: float | None = None) -> dict | None:
         if not self.configured:
             log.warning(kv(event="finnhub_not_configured", path=path))
             return None
         try:
             resp = self._session.get(f"{self._base}{path}",
                                      params={**params, "token": self._key},
-                                     timeout=_TIMEOUT)
+                                     timeout=timeout or _TIMEOUT)
             if resp.status_code == 429:
                 log.warning(kv(event="finnhub_rate_limited", path=path))
                 return None
@@ -85,13 +87,18 @@ class FinnhubClient:
                          date_to: str) -> list[dict]:
         """Sirket haberleri (ucretsiz planda ABD hisseleri icin acik).
         [{'datetime': unix, 'headline': .., 'source': .., 'url': .., ...}]"""
+        # v3.12: haber KOZMETIKTIR, islem kararlarina girmez -> kisa
+        # timeout. Uzun timeout tick dongusunu kilitliyordu (3 Agu:
+        # 5 sembol x 15 sn = 75 sn blokaj, gap nobetinin onunde).
         body = self._get("/company-news", {"symbol": symbol.upper(),
-                                           "from": date_from, "to": date_to})
+                                           "from": date_from, "to": date_to},
+                         timeout=_NEWS_TIMEOUT)
         return list(body) if isinstance(body, list) else []
 
     def get_general_news(self, category: str = "general") -> list[dict]:
         """Genel piyasa haberleri."""
-        body = self._get("/news", {"category": category})
+        body = self._get("/news", {"category": category},
+                         timeout=_NEWS_TIMEOUT)
         return list(body) if isinstance(body, list) else []
 
     def get_earnings_calendar(self, date_from: str, date_to: str) -> list[dict]:
