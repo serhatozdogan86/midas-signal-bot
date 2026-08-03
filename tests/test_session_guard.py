@@ -339,3 +339,36 @@ def test_worst_fill_tp1_guard_blocks_negative_edge():
     kuralin BAGLAYICI oldugunu kanitlar (sessizce gecmiyor)."""
     assert _plan(level=100.3, close=100.0, tp1_r=5.0) is None
     assert _plan(level=100.3, close=100.0, tp1_r=0.0) is not None
+
+
+# ------------------------- v3.11: evren bayatlik alarmi (31 Tem sessizligi)
+def test_universe_refresh_empty_keeps_old_list_and_warns(caplog):
+    """Likidite filtresi bos donerse eski liste servis edilir ama tarih
+    GUNCELLENMEZ -> sessiz bayatlama. Artik WARNING loglanir."""
+    from datetime import date, timedelta
+    from app.services.universe import UniverseProvider
+    u = UniverseProvider.__new__(UniverseProvider)
+    import threading
+    u._lock = threading.Lock()
+    u._filtered = ["AAPL", "MSFT"]
+    u._filtered_date = date.today() - timedelta(days=3)
+    u._raw_count = 0
+    u._load_raw = lambda: ["AAPL", "MSFT"]
+    u._liquidity_filter = lambda raw: []          # filtre coktu
+    with caplog.at_level("WARNING"):
+        out = u.refresh()
+    assert out == []
+    assert u._filtered == ["AAPL", "MSFT"]        # eski liste korunur
+    assert any("universe_refresh_empty" in r.message for r in caplog.records)
+    assert u.stale_days() == 3
+
+
+def test_universe_stale_days_zero_when_fresh():
+    from datetime import date
+    from app.services.universe import UniverseProvider
+    import threading
+    u = UniverseProvider.__new__(UniverseProvider)
+    u._lock = threading.Lock()
+    u._filtered = ["AAPL"]
+    u._filtered_date = date.today()
+    assert u.stale_days() == 0

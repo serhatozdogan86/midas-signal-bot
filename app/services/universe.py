@@ -91,8 +91,24 @@ class UniverseProvider:
             if filtered:
                 self._filtered = filtered
                 self._filtered_date = _et_today()
+            else:
+                # v3.11: likidite filtresi BOS dondu -> eski liste servis
+                # edilmeye devam eder ve tarih GUNCELLENMEZ. Bu sessiz
+                # bozulma 31 Tem'de yasandi: evren 30 Tem'de kaldi, 3 gun
+                # boyunca kimse haberdar olmadi. Artik gurultulu.
+                log.warning(kv(event="universe_refresh_empty", raw=len(raw),
+                               kept=len(self._filtered or []),
+                               kept_date=(self._filtered_date.isoformat()
+                                          if self._filtered_date else None)))
         log.info(kv(event="universe_refresh", raw=len(raw), filtered=len(filtered)))
         return list(filtered)
+
+    def stale_days(self) -> int | None:
+        """Filtrelenmis listenin kac gundur tazelenmedigi (None = hic yok)."""
+        with self._lock:
+            if self._filtered_date is None:
+                return None
+            return (_et_today() - self._filtered_date).days
 
     def restore(self, symbols: list[str], filtered_date: str | None,
                 today: date | None = None) -> bool:
@@ -122,6 +138,8 @@ class UniverseProvider:
                     "filtered_count": len(self._filtered),
                     "filtered_date": (self._filtered_date.isoformat()
                                       if self._filtered_date else None),
+                    "stale_days": ((_et_today() - self._filtered_date).days
+                                   if self._filtered_date else None),
                     "min_price": self._s.UNIVERSE_MIN_PRICE,
                     "min_dollar_vol": self._s.UNIVERSE_MIN_DOLLAR_VOL,
                     "symbols": list(self._filtered)}

@@ -163,6 +163,21 @@ class Scheduler:
         self._signals_today = []
         self.progress = "hazirlik: evren cekiliyor + likidite filtresi"
         symbols = self._universe.refresh(force=True)
+        # v3.11: evren tazelenemediyse SESSIZ KALMA. 31 Tem'de likidite
+        # filtresi bos dondu, liste 30 Tem'de kaldi ve 3 gun boyunca
+        # hicbir alarm calmadi - bayat evrenle taramak, yeni likit
+        # sembolleri kacirmak ve delist olmuslari taramak demektir.
+        try:
+            stale = self._universe.stale_days()
+            if stale is None or stale > 0:
+                log.warning(kv(event="universe_stale", stale_days=stale,
+                               count=len(symbols)))
+                self._notifier.send(
+                    f"UYARI: evren listesi tazelenemedi "
+                    f"(bayatlik: {stale if stale is not None else '?'} gun, "
+                    f"{len(symbols)} sembol). Tarama eski listeyle suruyor.")
+        except Exception:
+            log.exception(kv(event="universe_stale_check_failed"))
         self.progress = f"hazirlik: bilanco takvimi ({len(symbols)} sembol)"
         self._earnings.refresh(today, force=True)
         self.progress = f"hazirlik: gunluk veri isitiliyor ({len(symbols)} sembol)"
