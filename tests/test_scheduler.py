@@ -154,10 +154,13 @@ def test_coarse_scan_with_tracker_and_gist(tmp_path):
             return {"filtered_count": 1}
 
     class FakeEarnings:
+        def prefetch(self, symbols, today):
+            return None
+
         def refresh(self, today, force=False):
             pass
 
-        def info(self, symbol, today):
+        def info(self, symbol, today, strict=True):
             return EarningsInfo(next_date="2026-08-20", days_to=8)
 
     tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
@@ -228,10 +231,13 @@ def test_run_prep_produces_market_note_and_warms_cache(tmp_path):
             return {"filtered_count": 1}
 
     class FakeEarnings:
+        def prefetch(self, symbols, today):
+            return None
+
         def refresh(self, today, force=False):
             pass
 
-        def info(self, symbol, today):
+        def info(self, symbol, today, strict=True):
             return EarningsInfo(next_date="2026-08-20", days_to=8)
 
     db = Database(str(tmp_path / "p.db"))

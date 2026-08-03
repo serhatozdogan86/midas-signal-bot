@@ -74,7 +74,13 @@ def main() -> None:
     # --- servisler ---
     calendar = MarketCalendar()
     universe = UniverseProvider(settings, market_data)
-    earnings = EarningsService(finnhub, calendar)
+    earnings = EarningsService(
+        finnhub, calendar,
+        # v3.18: Finnhub takvimi coktugunde yedek kaynak.
+        # yfinance'in bu ucu scrape tabanli (Render'da engelli
+        # olan .info ucundan farkli) - calismazsa None doner
+        # ve motor guvenli tarafta kalir.
+        fallback=yf_client.get_earnings_dates)
     notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN,
                                 settings.TELEGRAM_CHAT_ID,
                                 settings.TELEGRAM_PARSE_MODE)

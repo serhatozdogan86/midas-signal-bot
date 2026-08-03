@@ -313,7 +313,10 @@ class Scheduler:
         candidates: list[str] = []
         for symbol in symbols:
             try:
-                e_info = self._earnings.info(symbol, today)
+                # pass-1 SIGNAL uretemez (1h yok) -> takvim yokken
+                # eleme yapma, yoksa hicbir aday pass-2'ye ulasmaz
+                # ve yedek kaynak hic calismaz (kilitlenme).
+                e_info = self._earnings.info(symbol, today, strict=False)
                 d = signal_engine.evaluate(symbol, daily.get(symbol), None,
                                            self._regime, self._params,
                                            bench_df, e_info)
@@ -332,6 +335,12 @@ class Scheduler:
         self.progress = f"tarama: 1h verisi indiriliyor ({len(capped)} aday)"
         hourly = self._md.get_hourly_bulk(capped) if capped else {}
         self.progress = "tarama: 2. gecis (setup/hacim/RR)"
+        # v3.18: Finnhub takvimi yoksa YALNIZ bu adaylar icin yedek
+        # kaynak (yfinance) calisir - 300 sembol degil ~50.
+        try:
+            self._earnings.prefetch(list(hourly.keys()), today)
+        except Exception:
+            log.exception(kv(event="earnings_prefetch_failed"))
         results: list[Decision] = []
         watch: list[dict] = []
         blocked_count = 0

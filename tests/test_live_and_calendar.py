@@ -83,7 +83,10 @@ def test_calendar_strip(tmp_path):
     er_day = cal.add_trading_days(today, 1).isoformat()
 
     class FakeEarnings:
-        def info(self, symbol, today):
+        def prefetch(self, symbols, today):
+            return None
+
+        def info(self, symbol, today, strict=True):
             from app.models.decision import EarningsInfo
             if symbol == "AAPL":
                 return EarningsInfo(next_date=er_day, days_to=1)

@@ -96,3 +96,58 @@ def test_known_earnings_still_blocks_normally():
     d = _engine_decision(EarningsInfo(next_date="2026-08-04", days_to=1))
     assert d.decision is not DecisionType.SIGNAL
     assert "blackout" in (d.reject_reason or "")
+
+
+# ---------------------------------------- v3.18 yedek kaynak (yfinance)
+def _svc(fallback=None, fh_rows=None):
+    return EarningsService(_FH(fh_rows or []), MarketCalendar(),
+                           fallback=fallback)
+
+
+def test_fallback_fills_gap_when_finnhub_down():
+    """Finnhub takvimi cokse bile yedek kaynak AMGN'i yakalamali -
+    3 Agu vakasinin tekrarlanmamasi icin."""
+    svc = _svc(fallback=lambda s: [date(2026, 8, 4)] if s == "AMGN" else [])
+    svc.refresh(date(2026, 8, 3))
+    assert svc.status()["ready"] is False
+    assert svc.info("AMGN", date(2026, 8, 3)).available is False   # yedek yok
+    svc.prefetch(["AMGN", "MSFT"], date(2026, 8, 3))
+    got = svc.info("AMGN", date(2026, 8, 3))
+    assert got.available is True and got.next_date == "2026-08-04"
+    assert got.days_to == 1                       # blackout penceresinde
+    assert svc.info("MSFT", date(2026, 8, 3)).next_date is None
+
+
+def test_fallback_error_stays_unknown_not_empty():
+    """Yedek kaynak HATA verirse 'bilanco yok' degil 'bilmiyoruz'."""
+    svc = _svc(fallback=lambda s: None)
+    svc.refresh(date(2026, 8, 3))
+    svc.prefetch(["AMGN"], date(2026, 8, 3))
+    assert svc.info("AMGN", date(2026, 8, 3)).available is False
+    assert svc.status()["fallback_failed"] == 1
+
+
+def test_pass1_not_locked_out_when_calendar_missing():
+    """KILITLENME KORUMASI: pass-1 strict=False ile eleme yapmaz; aksi
+    halde hicbir aday pass-2'ye ulasmaz ve yedek kaynak hic calismaz."""
+    svc = _svc(fallback=lambda s: [])
+    svc.refresh(date(2026, 8, 3))
+    assert svc.info("AAPL", date(2026, 8, 3), strict=False).available is True
+    assert svc.info("AAPL", date(2026, 8, 3)).available is False
+
+
+def test_fallback_not_used_when_finnhub_ready():
+    calls = []
+    svc = _svc(fallback=lambda s: calls.append(s) or [], fh_rows=_ROWS)
+    svc.refresh(date(2026, 8, 3))
+    svc.prefetch(["AMGN", "MSFT"], date(2026, 8, 3))
+    assert calls == []                            # gereksiz maliyet yok
+
+
+def test_fallback_caches_per_day():
+    calls = []
+    svc = _svc(fallback=lambda s: calls.append(s) or [])
+    svc.refresh(date(2026, 8, 3))
+    svc.prefetch(["AMGN"], date(2026, 8, 3))
+    svc.prefetch(["AMGN"], date(2026, 8, 3))
+    assert calls == ["AMGN"]                      # ikinci cagri onbellekten

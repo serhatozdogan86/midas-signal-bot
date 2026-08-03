@@ -25,6 +25,32 @@ class YFinanceClient:
     - Chunk'lar arasi zorunlu bekleme (YF_CHUNK_PAUSE_SEC)
     """
 
+    def get_earnings_dates(self, symbol: str, limit: int = 8):
+        """Sembolun bilanco tarihleri (v3.18 YEDEK KAYNAK).
+
+        Finnhub takvimi coktugunde devreye girer. yfinance'in bu ucu
+        quoteSummary DEGIL scrape tabanlidir - Render'da engellenen
+        .info ucundan farklidir, bu yuzden yedek olarak anlamlidir
+        (yine de calisacagi GARANTI degil; calismazsa None doner ve
+        motor guvenli tarafta kalir).
+
+        Donus: tarih listesi | [] (bilanco kaydi yok) | None (HATA).
+        Bu ucun ayrimi kritik: [] "bilanco yok", None "bilmiyoruz".
+        """
+        import yfinance as yf
+        try:
+            df = yf.Ticker(symbol).get_earnings_dates(limit=limit)
+        except Exception as e:
+            log.info(kv(event="yf_earnings_failed", symbol=symbol,
+                        err=type(e).__name__))
+            return None
+        if df is None:
+            return None
+        try:
+            return [ts.date() for ts in df.index]
+        except Exception:
+            return None
+
     def __init__(self, chunk_size: int = 30, chunk_pause_sec: float = 2.0,
                  max_retries: int = 2, backoff_sec: float = 30.0) -> None:
         self._chunk_size = max(1, chunk_size)

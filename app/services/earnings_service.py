@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 from datetime import date, timedelta
 
@@ -25,7 +26,8 @@ _RETRY_SEC = 600          # veri yokken 10 dk'da bir tekrar dene
 
 
 class EarningsService:
-    def __init__(self, finnhub: FinnhubClient, calendar: MarketCalendar) -> None:
+    def __init__(self, finnhub: FinnhubClient, calendar: MarketCalendar,
+                 fallback=None) -> None:
         self._finnhub = finnhub
         self._calendar = calendar
         self._lock = threading.Lock()
@@ -39,6 +41,13 @@ class EarningsService:
         self._ready = False
         self._last_ok = 0.0
         self._fail_streak = 0
+        # v3.18 YEDEK KAYNAK (yfinance). Finnhub takvimi coktugunde
+        # YALNIZ pass-2 adaylari icin (~50 sembol) sembol basina
+        # sorgulanir; pass-1 (300 sembol) asla yedege gitmez.
+        self._fallback = fallback          # callable(symbol) -> [date] | [] | None
+        self._fb_dates: dict[str, list] = {}   # basarili sonuclar
+        self._fb_failed: set[str] = set()      # hata alanlar (bilmiyoruz)
+        self._fb_day: date | None = None
 
     def refresh(self, today: date, force: bool = False) -> None:
         with self._lock:
@@ -76,21 +85,63 @@ class EarningsService:
         log.info(kv(event="earnings_refresh", symbols=len(mapping),
                     window=f"{d_from}..{d_to}"))
 
+    def prefetch(self, symbols: list[str], today: date) -> None:
+        """Finnhub takvimi yoksa aday semboller icin yedek kaynagi calistir.
+        Gunde bir kez sembol basina; hata alanlar tekrar denenmez (o gun)."""
+        if self._ready or self._fallback is None or not symbols:
+            return
+        with self._lock:
+            if self._fb_day != today:            # gun donunce onbellek sifirlanir
+                self._fb_dates, self._fb_failed, self._fb_day = {}, set(), today
+            need = [s for s in symbols
+                    if s not in self._fb_dates and s not in self._fb_failed]
+        if not need:
+            return
+        ok = 0
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for sym, res in zip(need, pool.map(self._fallback, need)):
+                with self._lock:
+                    if res is None:
+                        self._fb_failed.add(sym)
+                    else:
+                        self._fb_dates[sym] = list(res)
+                        ok += 1
+        log.warning(kv(event="earnings_fallback_used", requested=len(need),
+                       ok=ok, failed=len(need) - ok))
+
     def status(self) -> dict:
         """Teshis: takvim yuklendi mi, kac sembol, ne zaman (v3.16)."""
         with self._lock:
             return {"ready": self._ready, "symbols": len(self._dates),
+                    "fallback_ok": len(self._fb_dates),
+                    "fallback_failed": len(self._fb_failed),
                     "fail_streak": self._fail_streak,
                     "last_ok_age_min": (round((time.time() - self._last_ok) / 60)
                                         if self._last_ok else None)}
 
-    def info(self, symbol: str, today: date) -> EarningsInfo:
-        """Sembole en yakin bilanco tarihi + imzali islem gunu mesafesi."""
+    def info(self, symbol: str, today: date,
+             strict: bool = True) -> EarningsInfo:
+        """Sembole en yakin bilanco tarihi + imzali islem gunu mesafesi.
+
+        strict=False YALNIZCA pass-1 icindir: o gecis SIGNAL uretemez
+        (1h verisi yok), sadece aday eler. Takvim yokken pass-1'i
+        kilitlersek hicbir aday pass-2'ye ulasmaz ve yedek kaynak da
+        hic calismaz - kilitlenme olurdu.
+        """
+        sym = symbol.upper()
         with self._lock:
-            dates = list(self._dates.get(symbol.upper(), []))
+            dates = list(self._dates.get(sym, []))
+            fb = self._fb_dates.get(sym)
+            fb_failed = sym in self._fb_failed
         if not self._ready:
-            # takvim hic yuklenemedi -> "bilmiyoruz" (motor engeller)
-            return EarningsInfo(available=False)
+            if fb is not None:                 # yedek kaynaktan geldi
+                dates = list(fb)
+                if not dates:
+                    return EarningsInfo()
+            elif fb_failed or strict:
+                return EarningsInfo(available=False)
+            else:
+                return EarningsInfo()          # pass-1: eleme yapma
         if not dates:
             return EarningsInfo()
         best = min(dates, key=lambda d: abs(self._calendar.trading_days_between(today, d)))

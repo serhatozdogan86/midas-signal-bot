@@ -124,7 +124,10 @@ def test_portfolio_cap_blocks_dispatch(tmp_path):
     sched._regime = RegimeResult(regime=MarketRegime.BULL)
 
     class FakeEarnings:
-        def info(self, symbol, today):
+        def prefetch(self, symbols, today):
+            return None
+
+        def info(self, symbol, today, strict=True):
             from app.models.decision import EarningsInfo
             return EarningsInfo(next_date="2026-08-20", days_to=8)
     sched._earnings = FakeEarnings()

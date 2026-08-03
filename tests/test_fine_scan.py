@@ -81,7 +81,10 @@ def test_breakout_trigger_reevaluates_and_signals(tmp_path):
     sched._regime = RegimeResult(regime=MarketRegime.BULL)
 
     class FakeEarnings:
-        def info(self, symbol, today):
+        def prefetch(self, symbols, today):
+            return None
+
+        def info(self, symbol, today, strict=True):
             from app.models.decision import EarningsInfo
             return EarningsInfo(next_date="2026-08-20", days_to=8)
     sched._earnings = FakeEarnings()

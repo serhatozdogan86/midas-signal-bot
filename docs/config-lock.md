@@ -16,6 +16,21 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-03 (v3.18): BILANCO TAKVIMINE YEDEK KAYNAK. Fail-closed
+  dogru davranis ama tek kaynaga bagli kalmak o filtreyi Finnhub'in
+  calisma suresine mahkum ediyordu (bugun tum seans ready=false).
+  Finnhub takvimi yoksa yfinance'in SCRAPE tabanli get_earnings_dates
+  ucu devreye girer (Render'da engelli olan .info/quoteSummary ucundan
+  FARKLI - yine de garanti degil; hata verirse "bilmiyoruz" kalir ve
+  motor guvenli tarafta durur).
+  MALIYET KONTROLU: yedek YALNIZ pass-2 adaylari icin (~50 sembol,
+  gunluk onbellekli, 4 is parcacigi) calisir; pass-1'in 300 sembolu
+  asla yedege gitmez.
+  KILITLENME KORUMASI: pass-1 artik strict=False ile sorgular (o gecis
+  1h verisi olmadigi icin SIGNAL uretemez, sadece aday eler). Aksi
+  halde takvim yokken tum adaylar pass-1'de elenir, pass-2'ye kimse
+  ulasmaz ve yedek kaynak HIC calismazdi.
+  AYRIM KORUNDU: [] = "bilanco kaydi yok", None = "bilmiyoruz".
 - 2026-08-03 (v3.17): FAIL-OPEN DENETIMI - tum karar filtreleri "verisi
   gelmezse sessizce gecer mi?" gozuyle tarandi (bilanco vakasinin
   ardindan). Bulgular:
