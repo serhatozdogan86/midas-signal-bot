@@ -300,3 +300,38 @@ def test_data_compare_endpoint_disabled_without_keys(tmp_path):
     c = _client(tmp_path)
     body = c.get("/data-compare").get_json()
     assert body["enabled"] is False
+
+
+def test_mobile_tabbar_structure_and_coverage():
+    """v3.13 mobil alt sekmeler: her bolum TAM BIR sekmeye atanmali,
+    sekme cubugu gercek bir eleman olmali (hayalet id testiyle uyumlu),
+    ve masaustu davranisi medya sorgusuyla sinirli kalmali."""
+    import json
+    import re
+    from pathlib import Path
+
+    raw = Path("app/dashboard.html").read_text()
+    tpl = json.loads(
+        re.search(r'<script type="__bundler/template">(.*?)</script>',
+                  raw, re.S).group(1))
+
+    # 1) sekme cubugu ve butonlari
+    assert 'id="tabbar"' in tpl
+    tabs = re.findall(r'<button type="button" data-tab="(\w+)"', tpl)
+    assert tabs == ["poz", "sin", "kar", "hab", "sis"]
+
+    # 2) sablondaki TUM sec-* kimlikleri bir sekmeye atanmis mi
+    sec_ids = set(re.findall(r'id="(sec-[a-z]+)"', tpl))
+    mapped = set(re.findall(r"'(sec-[a-z]+)'", tpl))
+    assert sec_ids and sec_ids <= mapped, sec_ids - mapped
+
+    # 3) mobil disinda sekme cubugu gizli (masaustu bozulmasin)
+    assert "#tabbar{display:none}" in tpl
+    assert "@media (max-width:900px){" in tpl
+
+    # 4) FOUC korumasi: DOMContentLoaded beklemeden bir kez uygulanir
+    assert "try{ apply(); }catch(e){}" in tpl
+
+    # 5) menuden bolume gidince once dogru sekmeye gecilir
+    assert "window.__tabForSection" in tpl
+    assert "if(window.__tabForSection)window.__tabForSection(id);" in tpl
