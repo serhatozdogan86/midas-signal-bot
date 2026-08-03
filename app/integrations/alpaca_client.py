@@ -19,6 +19,7 @@ ayni KlineSeries.from_dataframe donusumu kullanilabilir.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -34,6 +35,24 @@ _MAX_SYMBOLS_PER_REQ = 100      # coklu-sembol bar sorgusu (istek tasarrufu)
 _FREE_PLAN_DELAY_MIN = 16       # 15 dk kisit + 1 dk emniyet payi
 
 
+def _parse_snapshots(body: dict) -> dict[str, dict]:
+    """Saf: snapshots yanitindan {sym: {price, prev_close}}. Fiyati
+    olmayan sembol SOZLUKTE YER ALMAZ (tahmin yok)."""
+    out: dict[str, dict] = {}
+    for sym, snap in (body or {}).items():
+        if not isinstance(snap, dict):
+            continue
+        price = ((snap.get("latestTrade") or {}).get("p")
+                 or (snap.get("minuteBar") or {}).get("c"))
+        if not isinstance(price, (int, float)) or price <= 0:
+            continue
+        prev = (snap.get("prevDailyBar") or {}).get("c")
+        out[sym] = {"price": float(price),
+                    "prev_close": float(prev)
+                    if isinstance(prev, (int, float)) and prev > 0 else None}
+    return out
+
+
 class AlpacaClient:
     """Alpaca gecmis bar verisi. Anahtar yoksa sessizce devre disidir."""
 
@@ -43,6 +62,7 @@ class AlpacaClient:
         self._secret = api_secret
         self._feed = feed
         self._timeout = timeout
+        self._snap_cache: dict[str, tuple] = {}   # sym -> (ts, snap)
 
     @property
     def enabled(self) -> bool:
@@ -51,6 +71,47 @@ class AlpacaClient:
     def _headers(self) -> dict:
         return {"APCA-API-KEY-ID": self._key,
                 "APCA-API-SECRET-KEY": self._secret}
+
+    def get_snapshots(self, symbols: list[str]) -> dict[str, dict]:
+        """Anlik fiyat + onceki kapanis (v3.20 QUOTE YEDEGI).
+
+        Finnhub /quote coktugunde (3-4 Agu: saglayici genelinde 502)
+        kill-switch, ince tarama tetigi ve gap nobeti kor kaliyordu.
+        Alpaca /v2/stocks/snapshots tek cagrida latestTrade + prevDailyBar
+        verir -> hem fiyat hem % degisim hesaplanir. IEX beslemesi
+        (ucretsiz plan): fiyatlar konsolide bandin birebiri olmayabilir
+        ama yedek olarak fazlasiyla yeterli. 10 sn onbellek: ince tarama
+        ayni sembolu arka arkaya sordugunda istek sismesin.
+        Donus: {SYM: {"price": float, "prev_close": float|None}}
+        """
+        if not self.enabled or not symbols:
+            return {}
+        now = time.time()
+        need = []
+        out: dict[str, dict] = {}
+        for sym in dict.fromkeys(s.upper() for s in symbols):
+            hit = self._snap_cache.get(sym)
+            if hit and now - hit[0] < 10.0:
+                out[sym] = hit[1]
+            else:
+                need.append(sym)
+        if need:
+            try:
+                r = requests.get(f"{_BASE}/stocks/snapshots",
+                                 params={"symbols": ",".join(need),
+                                         "feed": self._feed},
+                                 headers=self._headers(),
+                                 timeout=self._timeout)
+                if r.status_code == 200:
+                    for sym, snap in _parse_snapshots(r.json() or {}).items():
+                        self._snap_cache[sym] = (now, snap)
+                        out[sym] = snap
+                else:
+                    log.warning(kv(event="alpaca_snapshot_http",
+                                   status=r.status_code))
+            except Exception:
+                log.exception(kv(event="alpaca_snapshot_error"))
+        return out
 
     def download_bulk(self, symbols: list[str], interval: str,
                       lookback_days: int = 90) -> dict[str, pd.DataFrame]:

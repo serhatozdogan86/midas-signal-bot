@@ -166,3 +166,69 @@ def test_exit_lab_service_upsert_and_summary(tmp_path):
     lab.run()
     row2 = db.query_one("SELECT updated FROM exit_lab WHERE variant='V1_KISMI'")
     assert row1["updated"] == row2["updated"]
+
+
+# --------------------------- v3.20: quote yedegi (Finnhub -> Alpaca)
+def test_quote_falls_back_to_alpaca_when_finnhub_down():
+    from app.services.market_data_service import MarketDataService
+
+    class DeadFH:
+        def get_quote(self, s): return None
+        def get_quote_change(self, s): return None
+
+    class FakeAlpaca:
+        enabled = True
+        def get_snapshots(self, syms):
+            return {s: {"price": 101.5, "prev_close": 100.0} for s in syms}
+
+    md = MarketDataService(None, DeadFH(), alpaca=FakeAlpaca())
+    assert md.get_quote("aapl") == 101.5
+    ch = md.get_quote_change("AAPL")
+    assert ch == {"price": 101.5, "pct": 1.5}
+
+
+def test_finnhub_preferred_when_alive():
+    from app.services.market_data_service import MarketDataService
+
+    class FH:
+        def get_quote(self, s): return 99.9
+        def get_quote_change(self, s): return {"price": 99.9, "pct": -0.5}
+
+    class NeverAlpaca:
+        enabled = True
+        def get_snapshots(self, syms):
+            raise AssertionError("Finnhub calisirken Alpaca'ya gidilmemeli")
+
+    md = MarketDataService(None, FH(), alpaca=NeverAlpaca())
+    assert md.get_quote("AAPL") == 99.9
+    assert md.get_quote_change("AAPL")["pct"] == -0.5
+
+
+def test_no_prev_close_means_no_pct_not_fake_zero():
+    from app.services.market_data_service import MarketDataService
+
+    class DeadFH:
+        def get_quote(self, s): return None
+        def get_quote_change(self, s): return None
+
+    class Alp:
+        enabled = True
+        def get_snapshots(self, syms):
+            return {s: {"price": 50.0, "prev_close": None} for s in syms}
+
+    md = MarketDataService(None, DeadFH(), alpaca=Alp())
+    assert md.get_quote("X") == 50.0
+    assert md.get_quote_change("X") is None      # uydurma %0 YOK
+
+
+def test_snapshot_parser_skips_bad_rows():
+    from app.integrations.alpaca_client import _parse_snapshots
+    body = {"AAPL": {"latestTrade": {"p": 210.5},
+                     "prevDailyBar": {"c": 208.0}},
+            "BOZUK": {"latestTrade": {"p": 0}},
+            "EKSIK": "string",
+            "MIN": {"minuteBar": {"c": 33.3}}}
+    out = _parse_snapshots(body)
+    assert out["AAPL"] == {"price": 210.5, "prev_close": 208.0}
+    assert out["MIN"]["price"] == 33.3 and out["MIN"]["prev_close"] is None
+    assert "BOZUK" not in out and "EKSIK" not in out

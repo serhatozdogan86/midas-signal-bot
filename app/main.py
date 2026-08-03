@@ -61,13 +61,14 @@ def main() -> None:
     yf_client = YFinanceClient(settings.YF_CHUNK_SIZE, settings.YF_CHUNK_PAUSE_SEC,
                                settings.YF_MAX_RETRIES, settings.YF_BACKOFF_SEC)
     finnhub = FinnhubClient(settings.FINNHUB_API_KEY, settings.FINNHUB_BASE_URL)
+    alpaca = AlpacaClient(settings.ALPACA_API_KEY, settings.ALPACA_API_SECRET,
+                              settings.ALPACA_FEED)
     market_data = MarketDataService(yf_client, finnhub,
-                                    settings.DAILY_PERIOD, settings.HOURLY_PERIOD)
+                                    settings.DAILY_PERIOD, settings.HOURLY_PERIOD,
+                                    alpaca=alpaca)
 
     # Asama 0 (2 Agu): Alpaca PARALEL gozlem - motor kararlarina etkisi YOK.
     # Anahtar tanimli degilse tamamen devre disi kalir.
-    alpaca = AlpacaClient(settings.ALPACA_API_KEY, settings.ALPACA_API_SECRET,
-                          settings.ALPACA_FEED)
     data_comparison = DataComparisonService(yf_client, alpaca,
                                             settings.DATA_COMPARE_SAMPLE)
 
