@@ -136,6 +136,8 @@ def main() -> None:
     scheduler = Scheduler(settings, market_data, universe, earnings,
                           calendar, store, notifier, tracker, gist_backup,
                           commentary, news)
+    from app.services.exit_lab import ExitLab
+    scheduler._exit_lab = ExitLab(tracker._db, market_data, tracker)
     scheduler.data_comparison = data_comparison
     app = create_app(store, scheduler, universe, tracker, gist_backup,
                      commentary, news)

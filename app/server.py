@@ -77,6 +77,12 @@ def create_app(store: StateStore, scheduler: Scheduler,
             diag["earnings"] = scheduler._earnings.status()
         except Exception:
             diag["earnings"] = {"error": "earnings_status_failed"}
+        # v3.19: cikis laboratuvari karsilastirmasi (V0 canli vs varyantlar)
+        try:
+            if scheduler._exit_lab is not None:
+                diag["exit_lab"] = scheduler._exit_lab.summary()
+        except Exception:
+            diag["exit_lab"] = {"error": "exit_lab_failed"}
         diag["news"] = news.info() if news is not None else None
         try:
             diag["session"] = scheduler.session_info()

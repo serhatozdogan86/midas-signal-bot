@@ -16,6 +16,28 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-03 (v3.19): CIKIS LABORATUVARI + MOMENTUM ETIKETI - kilit
+  IHLALI YOK: canli motor, filtreler ve V0 defteri AYNEN; varyantlar
+  ayni sinyallerin sanal yeniden oynatimi, momentum yalniz etiket.
+  GEREKCE (backtest, research/): mevcut cikis mekanigi (TP1 tam cikis,
+  4 gun) alti giris ailesinin ALTISINI da negatife cekiyor; ayni
+  girisler genis stop + hedefsiz + uzun tutmayla pozitif. Tek kararli
+  pozitif giris ailesi: 12-1 kesitsel momentum (NW t=3.3).
+  KURULUM:
+  - exit_lab: V1_KISMI (TP1'de %50, kalan TP2, 70 bar) ve V2_GENIS
+    (hedefsiz, stop 5/3x, 140 bar). Dolum/gap/ayni-bar kurallari canli
+    tracker ile BIREBIR (test_v0_mirrors_live guvencesi). Maliyet bacak
+    basina Midas modeli. R paydasi HER varyantta canli risk -> ayni olcek.
+  - mom_pct: sinyal dogarken 12-1 momentum evren yuzdeligi damgalanir
+    (253+ gunluk bar sarti; karara karismaz).
+  KARAR KURALI (simdiden yazildi, sonradan oynanmaz): kilit kohortu
+  60 islem / 25 kumeye ulastiginda V1 ve V2, V0'a karsi net-R ile
+  kiyaslanir; bir varyant hem toplam net-R hem beklenti olarak V0'i
+  geciyorsa VE isaret iki yari-donemde tutarliysa motor cikisi o
+  varyanta gecirilir (yeni kilit + yeni kohort). SMC sweep gunluk
+  testte sifir cikti (t=0.6) - kol olmaz, etiket kalir. Order book
+  stratejileri L2 verisi gerektirir - bizim veri dunyamizda OLCULEMEZ,
+  taahhut edilmedi.
 - 2026-08-03 (v3.18): BILANCO TAKVIMINE YEDEK KAYNAK. Fail-closed
   dogru davranis ama tek kaynaga bagli kalmak o filtreyi Finnhub'in
   calisma suresine mahkum ediyordu (bugun tum seans ready=false).

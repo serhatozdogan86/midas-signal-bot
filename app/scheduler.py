@@ -68,6 +68,7 @@ class Scheduler:
         self._gist = gist_backup     # None -> gist yedekleme kapali
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._news = news              # None -> haber akisi kapali
+        self._exit_lab = None          # main.py kurulumda baglar (v3.19)
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
@@ -335,6 +336,12 @@ class Scheduler:
         self.progress = f"tarama: 1h verisi indiriliyor ({len(capped)} aday)"
         hourly = self._md.get_hourly_bulk(capped) if capped else {}
         self.progress = "tarama: 2. gecis (setup/hacim/RR)"
+        # v3.19: 12-1 KESITSEL MOMENTUM yuzdeligi (yalniz ETIKET - karara
+        # karismaz). Backtest bulgusu: tek kararli pozitif giris ailesi
+        # (NW t=3.3, iki alt donemde ayni yonde). Sinyal dogarken evren
+        # icindeki yuzdeligi damgalanir; kohort dolunca "ust dilim
+        # sinyalleri daha mi iyi" sorusu KENDI defterimizden cevaplanir.
+        mom_pct_map = self._momentum_pcts(daily)
         # v3.18: Finnhub takvimi yoksa YALNIZ bu adaylar icin yedek
         # kaynak (yfinance) calisir - 300 sembol degil ~50.
         try:
@@ -376,7 +383,9 @@ class Scheduler:
                     self._tracker.record_decision(d)
                     if symbol in hourly:
                         if block is None:
-                            self._tracker.maybe_track(d, hourly[symbol])
+                            self._tracker.maybe_track(
+                                d, hourly[symbol],
+                                mom_pct=mom_pct_map.get(symbol))
                         else:
                             self._tracker.track_blocked(
                                 d, hourly[symbol], block[0], block[1])
@@ -673,6 +682,22 @@ class Scheduler:
         return None
 
     # ---------------------------------------- seans korumasi (v3.9)
+    def _momentum_pcts(self, daily: dict) -> dict[str, float]:
+        """12-1 momentum yuzdeligi (kesitsel). 253+ gunluk bari olan
+        semboller uzerinden; kisa gecmisliler haric (None kalir)."""
+        vals = {}
+        for sym, series in daily.items():
+            cs = series.candles
+            if len(cs) >= 253:
+                vals[sym] = cs[-22].close / cs[-253].close - 1
+        if len(vals) < 30:
+            return {}
+        ordered = sorted(vals.values())
+        n = len(ordered)
+        import bisect
+        return {sym: round(bisect.bisect_left(ordered, v) / (n - 1), 3)
+                for sym, v in vals.items()} if n > 1 else {}
+
     def _minutes_since_open(self, now_et: datetime | None = None) -> float | None:
         """Acilistan bu yana gecen dakika; seans gunu degilse None."""
         now_et = now_et or self._calendar.now_et()
@@ -1251,6 +1276,12 @@ class Scheduler:
 
     # ---------------------------------------------------------- gun sonu ozeti
     def run_eod(self, today: date) -> None:
+        # v3.19: cikis laboratuvari - ayni sinyaller, paralel cikislar
+        if self._exit_lab is not None:
+            try:
+                self._exit_lab.run(today)
+            except Exception:
+                log.exception(kv(event="exit_lab_error"))
         self._eod_date = today
         watch_txt = ", ".join(w["symbol"] for w in self._watchlist[:15]) or "-"
         shadow_line = ""
