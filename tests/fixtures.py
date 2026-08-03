@@ -1,6 +1,8 @@
 """Sentetik veri ureticileri - canli API gerektirmeden engine testi (plan bolum 7)."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import numpy as np
 
 from app.models.candle import Candle, KlineSeries
@@ -18,9 +20,21 @@ def make_series(closes: np.ndarray, symbol: str = "TEST", interval: str = "1h",
     opens = np.roll(closes, 1)
     opens[0] = closes[0]
     vols = volumes if volumes is not None else rng.uniform(900.0, 1100.0, n)
+    # v3.17: zaman damgalari GERCEKCI olmali. Eskiden ts = i*3600000
+    # kullaniliyordu (1970'ten baslayan seriler); motora yeni eklenen
+    # "bayat gunluk veri" korumasi bu serileri hakli olarak reddetti.
+    # Son mum SIMDIYE sabitlenir, geriye dogru interval araligiyla gider.
+    step = 86_400_000 if interval == "1d" else 3_600_000
+    # Son bar KAPANMIS olmali: closed_only() 'ts + step > now' olan bari
+    # atar. Damgayi tam bar sinirina oturtup bir adim geri aliyoruz;
+    # aksi halde fixture'larin tetik mumu (spike_at=-1) sessizce dusuyor
+    # ve testler yanlis sebeple kiriliyordu.
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    end_ts = (now_ms // step) * step - step
     candles = [
-        Candle(ts=i * 3_600_000, open=float(opens[i]), high=float(high[i]),
-               low=float(low[i]), close=float(closes[i]), volume=float(vols[i]))
+        Candle(ts=end_ts - (n - 1 - i) * step, open=float(opens[i]),
+               high=float(high[i]), low=float(low[i]),
+               close=float(closes[i]), volume=float(vols[i]))
         for i in range(n)
     ]
     return KlineSeries(symbol=symbol, interval=interval, candles=candles)

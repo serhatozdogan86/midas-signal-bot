@@ -21,7 +21,7 @@ BEAR'da long uretilmez. NEUTRAL'da RR ve hacim esikleri sikilasir.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 
@@ -73,6 +73,21 @@ def evaluate(symbol: str,
         d.data_missing = ["daily_klines"]
         d.failed_filters = ["DATA"]
         d.reject_reason = "insufficient data"
+        return d
+
+    # v3.17 BAYAT VERI KORUMASI: "veri var" ile "veri guncel" ayni sey
+    # degil. yfinance resmi olmayan bir kaynak; bozuk bir yanitta haftalik
+    # eski mumlar donebilir ve motor bunu sessizce GUNCEL sanip sinyal
+    # uretir. Son gunluk mum cok eskiyse DATA_MISSING (guvenli taraf).
+    last_ts = daily_series.candles[-1].ts
+    ref = now or datetime.now(timezone.utc)
+    age_days = (ref - datetime.fromtimestamp(last_ts / 1000, tz=timezone.utc)).days
+    if age_days > params.max_daily_bar_age_days:
+        d.decision = DecisionType.DATA_MISSING
+        d.data_missing = ["daily_stale"]
+        d.failed_filters = ["DATA"]
+        d.reject_reason = (f"gunluk veri bayat: son mum {age_days} gun once "
+                           f"(esik {params.max_daily_bar_age_days})")
         return d
 
     daily = daily_series.to_dataframe()

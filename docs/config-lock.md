@@ -16,6 +16,28 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-03 (v3.17): FAIL-OPEN DENETIMI - tum karar filtreleri "verisi
+  gelmezse sessizce gecer mi?" gozuyle tarandi (bilanco vakasinin
+  ardindan). Bulgular:
+  GUVENLI TARAFTA OLANLAR (degisiklik yok): MARKET_REGIME (UNKNOWN ->
+  sinyal yok), VOLUME (ortalama hesaplanamazsa teyit yok sayilir),
+  SHORT zayif-RS (benchmark yoksa saglanmaz), DATA (min bar), likidite
+  evreni (veri yoksa sembol duser; hepsi duserse v3.11 alarmi).
+  DUZELTILENLER:
+  (1) BAYAT GUNLUK VERI: "veri var" ile "veri guncel" ayni degildi.
+      yfinance bozuk yanitta eski mumlar dondurebilir, motor bunu
+      guncel sanip sinyal uretirdi. Son gunluk mum
+      MAX_DAILY_BAR_AGE_DAYS (5) gunden eskiyse DATA_MISSING.
+  (2) GAP NOBETI SESSIZLIGI: acik pozisyonun quote'u alinamazsa kontrol
+      sessizce atlaniyordu (bilanco vakasiyla AYNI hastalik). Artik
+      ERROR + Telegram uyarisi + /diag'da positions_unchecked.
+  (3) NYSE TATIL TABLOSU 2027'de bitiyor; bitince tatiller normal islem
+      gunu sayilirdi. Tablo bitmeden 120 gun once KIRILAN onleyici test
+      eklendi (test_holiday_table_not_near_expiry).
+  YAN BULGU: test fixture'lari 1970'ten baslayan zaman damgalari
+  uretiyordu (ts=i*3600000) - yani tum testler 56 yil bayat veriyle
+  kosuyordu. Damgalar simdiye sabitlendi ve son bar KAPANMIS bar
+  sinirina oturtuldu (closed_only ile tutarli).
 - 2026-08-03 (v3.16): BILANCO FILTRESI FAIL-CLOSED - kanitli mekanizma
   hatasi uzerine kilit acildi (kilit kuralinin 3. sarti).
   VAKA: 14:45 deploy'u sonrasi prep sirasinda Finnhub /calendar/earnings

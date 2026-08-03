@@ -1179,12 +1179,27 @@ class Scheduler:
             prev_closes = {s: daily[s].candles[-1].close
                            for s in symbols if s in daily and len(daily[s])}
 
+            # v3.17: ACIK POZISYONLARIN quote'u alinamadiysa SESSIZ KALMA.
+            # Bilanco vakasiyla ayni hastalik: koruyucu kontrol sessizce
+            # atlaniyordu. Pozisyon gece stop'unun otesinde acilmis
+            # olabilir ve haberimiz olmaz. Aday sembollerde sessizlik
+            # kabul (onlar sadece firsat), POZISYONLARDA degil.
+            pos_syms = {str(x.get("symbol")) for x in open_signals}
+            missing_pos = sorted(pos_syms - set(quotes))
+            if missing_pos:
+                log.error(kv(event="gap_watch_quote_missing",
+                             symbols=",".join(missing_pos)))
+                self._send("UYARI: gap nobetinde fiyat alinamadi -> "
+                           + ", ".join(missing_pos)
+                           + ". Bu pozisyonlar KONTROL EDILEMEDI, "
+                             "acilista kendiniz bakin.")
             report = premarket_watch.build_gap_report(
                 open_signals, candidates, quotes, prev_closes,
                 self._settings.PREMARKET_GAP_ALERT_PCT)
             self.last_gap_watch = {
                 "date": today.isoformat(), "checked": report["checked"],
                 "quotes_received": len(quotes),
+                "positions_unchecked": missing_pos,
                 "position_alerts": report["position_alerts"],
                 "candidate_alerts": report["candidate_alerts"]}
             text = premarket_watch.render_gap_report(report)
