@@ -16,6 +16,30 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-03 (v3.16): BILANCO FILTRESI FAIL-CLOSED - kanitli mekanizma
+  hatasi uzerine kilit acildi (kilit kuralinin 3. sarti).
+  VAKA: 14:45 deploy'u sonrasi prep sirasinda Finnhub /calendar/earnings
+  15 sn timeout'a dustu. EarningsService._dates BOS kaldi, info() bos
+  EarningsInfo dondu, motorun blackout kontrolu 'days_to is not None'
+  sartina bagli oldugu icin SESSIZCE ATLANDI. TTL 6 saat oldugundan
+  yeniden deneme de olmadi -> bilanco filtresi TUM SEANS devre disiydi.
+  ZARAR GERCEKLESTI: AMGN'e bilancosuna 1 islem gunu kala LONG sinyali
+  uretildi (bagimsiz dogrulama: AMGN earnings 2026-08-04).
+  DUZELTMELER:
+  (1) EarningsInfo.available -> takvim yuklenmediyse motor NO_TRADE
+      dondurur (EARNINGS_FAIL_CLOSED=true). "Bilanco yok" ile
+      "bilmiyoruz" artik ayni sey degil.
+  (2) Veri yokken TTL beklenmez: 10 dk'da bir yeniden denenir.
+  (3) /diag'da earnings blogu (ready, symbols, fail_streak, last_ok) +
+      takvim yuklenemezse TELEGRAM uyarisi.
+  TAKAS: Finnhub uzun kesintide o gun sinyal uretilmez. Bilmeden
+  bilancoya girmektense sinyal uretmemek dogru taraftir; esik
+  kapatilabilir (EARNINGS_FAIL_CLOSED=false).
+  KOHORT NOTU: bugun uretilen 5 sinyal (AMGN, VZ, V, SBUX, ITW) bilanco
+  filtresi DEVRE DISIYKEN dogdu. AMGN kohort disi birakilmali (analizde
+  isaretlendi); digerlerinin bilanco tarihleri kontrol edildi ve
+  blackout penceresinde degil (VZ 20 Eki, V 27 Eki, SBUX 28 Eki,
+  ITW 23 Eki) - onlar kohortta kalir.
 - 2026-08-02 (v3.10): GIRIS BOLGESI GERCEKCILIGI - onaylı motor degisikligi.
   BULGU (29 Tem defter otopsisi, sayilarla): bolge = sorted(level, close)
   oldugu icin fiyat kirilim seviyesinden uzaklastikca giris araligi

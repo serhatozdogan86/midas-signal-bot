@@ -78,6 +78,9 @@ class EarningsInfo(BaseModel):
 
     next_date: str | None = None      # YYYY-MM-DD
     days_to: int | None = None        # imzali islem gunu mesafesi (gecmis: negatif)
+    # v3.16: takvim YUKLENDI mi. False ise "bilanco yok" demek DEGIL,
+    # "bilmiyoruz" demektir - motor guvenli tarafa gecer (fail-closed).
+    available: bool = True
 
 
 class Decision(BaseModel):

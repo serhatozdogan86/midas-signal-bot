@@ -118,6 +118,17 @@ def evaluate(symbol: str,
     if earnings is not None:
         d.earnings_date = earnings.next_date
         d.days_to_earnings = earnings.days_to
+        # v3.16 FAIL-CLOSED: takvim yuklenemediyse "bilanco yok" DEGIL
+        # "bilmiyoruz" demektir. 3 Agu vakasi: takvim timeout'a dustu,
+        # filtre tum seans sessizce devre disi kaldi ve AMGN'e bilancosuna
+        # 1 gun kala LONG uretildi. Bilmeden bilancoya girmektense
+        # sinyal uretmemek dogru taraftir (esik: EARNINGS_FAIL_CLOSED).
+        if params.earnings_fail_closed and not earnings.available:
+            d.failed_filters = ["EARNINGS"]
+            d.reject_reason = ("bilanco takvimi yuklenemedi - guvenli taraf "
+                               "(veri gelince yeniden degerlendirilir)")
+            d.watch_condition = "bilanco takvimi tazelenmesi"
+            return d
         if (earnings.days_to is not None
                 and abs(earnings.days_to) <= params.earnings_blackout_days):
             d.failed_filters = ["EARNINGS"]

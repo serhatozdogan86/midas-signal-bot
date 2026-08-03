@@ -202,6 +202,19 @@ class Scheduler:
             log.exception(kv(event="universe_stale_check_failed"))
         self.progress = f"hazirlik: bilanco takvimi ({len(symbols)} sembol)"
         self._earnings.refresh(today, force=True)
+        # v3.16: takvim yuklenemediyse SESSIZ KALMA - bu bir KARAR
+        # filtresidir; yoksa motor fail-closed'a gecer ve o gun sinyal
+        # uretilmez, kullanici sebebini bilmelidir.
+        try:
+            est = self._earnings.status()
+            if not est.get("ready"):
+                log.error(kv(event="earnings_unavailable", **est))
+                self._notifier.send(
+                    "UYARI: bilanco takvimi yuklenemedi (Finnhub). Guvenli "
+                    "taraf devrede: takvim gelene kadar YENI SINYAL "
+                    "URETILMEYECEK. 10 dk'da bir yeniden denenecek.")
+        except Exception:
+            log.exception(kv(event="earnings_status_check_failed"))
         self.progress = f"hazirlik: gunluk veri isitiliyor ({len(symbols)} sembol)"
 
         # Gunluk cache'i simdiden isit: rejim + piyasa notu buradan cikar,
