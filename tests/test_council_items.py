@@ -182,10 +182,16 @@ def test_universe_interim_seed_and_tolerant_get(tmp_path):
     settings = Settings(UNIVERSE_SOURCE="static",
                         UNIVERSE_CACHE_PATH=str(tmp_path / "u.json"))
     p = UniverseProvider(settings, market_data=None)
-    yesterday = (date(2026, 7, 30) - timedelta(days=1)).isoformat()
-    assert p.restore(["AAPL", "MSFT"], yesterday, today=date(2026, 7, 30))
+    # ZAMAN BAGIMSIZLIGI (3 Agu): tarihler GERCEK bugune gore kurulur.
+    # Eskiden sabit 2026-07-30 kullaniliyordu; get_symbols() ise
+    # _et_today() ile karsilastirma yaptigi icin test, takvim ilerledikce
+    # kendiliginden kirildi (gece yarisi patlayan saatli bomba).
+    today = date.today()
+    yesterday = (today - timedelta(days=1)).isoformat()
+    assert p.restore(["AAPL", "MSFT"], yesterday, today=today)
     assert p.get_symbols() == ["AAPL", "MSFT"]      # ara-tohum servis edildi
-    assert not p.restore(["X"], "2026-07-20", today=date(2026, 7, 30))
+    assert not p.restore(["X"], (today - timedelta(days=10)).isoformat(),
+                         today=today)
 
 
 def test_cost_r_fixed_fee_model(tmp_path):

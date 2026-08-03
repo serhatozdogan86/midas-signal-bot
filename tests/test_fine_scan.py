@@ -88,6 +88,10 @@ def test_breakout_trigger_reevaluates_and_signals(tmp_path):
     sched._watchlist = [{"symbol": "AAPL", "state": "CANDIDATE",
                          "blocked_by": "SETUP", "direction": "LONG",
                          "trigger_level": 128.9}]
+    # v3.9 acilis penceresi saate bagimlidir; bu test TETIK MANTIGINI
+    # olcuyor, pencereyi degil -> seans ortasi sabitlenir (aksi halde
+    # test gunun saatine gore rastgele kirilir).
+    sched._minutes_since_open = lambda now_et=None: 120.0
 
     sched.run_fine_scan()
 

@@ -372,3 +372,12 @@ def test_universe_stale_days_zero_when_fresh():
     u._filtered = ["AAPL"]
     u._filtered_date = date.today()
     assert u.stale_days() == 0
+
+
+def test_open_blackout_blocks_pre_market_by_design():
+    """Acilis oncesi (negatif dakika) breakout tetigi KAPALI - bilincli.
+    Bu davranis 3 Agu'da test_fine_scan'i kirdi (test seans oncesi
+    kosuyordu); uretimde ince tarama yalniz seans icinde calistigi icin
+    etki yok, ama kural burada acikca kilitlenir."""
+    assert in_open_blackout(-300.0, 30) is True
+    assert in_open_blackout(-1.0, 30) is True
