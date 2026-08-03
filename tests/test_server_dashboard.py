@@ -376,3 +376,21 @@ def test_live_rows_expose_signal_and_fill_timestamps():
     assert "fill_ts INTEGER" in tracker and "entry_reason" in tracker
     assert "fill_ts=?" in tracker          # dolum ANI kaydediliyor
     assert "def _entry_reason(" in tracker
+
+
+def test_mobile_sheet_survives_rerender():
+    """v3.14.1 REGRESYON: satira dokunmak setState -> yeniden render
+    tetikliyor ve panele dogrudan eklenen sinif siliniyordu (mobilde
+    grafik acilmiyordu). Gorunurluk artik KALICI bayraktan her apply()
+    icinde yeniden kurulur."""
+    import json
+    import re
+    from pathlib import Path
+    tpl = json.loads(re.search(
+        r'<script type="__bundler/template">(.*?)</script>',
+        Path("app/dashboard.html").read_text(), re.S).group(1))
+    assert "var sheetOpen=false;" in tpl
+    assert "if(mob&&sheetOpen){ pn.classList.remove('tab-hide'); " \
+           "pn.classList.add('sheet-open'); }" in tpl
+    assert "document.body.classList.add('sheet-on')" in tpl
+    assert "body.sheet-on #sheet-close{display:flex" in tpl

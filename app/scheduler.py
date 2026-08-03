@@ -12,6 +12,7 @@ Zamanlar ET uzerinden hesaplanir; TR karsiliklari DST'den bagimsiz korunur.
 """
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -37,6 +38,17 @@ from app.strategies.session_guard import (
 log = logging.getLogger("scheduler")
 
 _BENCH = "SPY"
+
+
+def _json_or_none(raw):
+    """SMC etiketleri DB'de JSON metin olarak durur; panoya nesne verilir.
+    Bozuk/eksik kayitta None (eski satirlar - uydurma etiket uretilmez)."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
 
 
 class Scheduler:
@@ -466,7 +478,8 @@ class Scheduler:
                    "entry_reason": sig.get("entry_reason"),
                    "setup_type": sig.get("setup_type"),
                    "confidence": sig.get("confidence"),
-                   "rr": sig.get("rr")}
+                   "rr": sig.get("rr"),
+                   "smc": _json_or_none(sig.get("smc_tags"))}
             days_left = None
             if sig.get("time_stop_date"):
                 try:

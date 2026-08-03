@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.logging_setup import kv
 from app.models.candle import KlineSeries
+from app.strategies.smc_tags import tag_candles
 from app.models.decision import Decision, DecisionType, Direction
 from app.services.database import Database
 
@@ -52,6 +53,17 @@ def _engine_sha() -> str:
 
 
 _ENGINE_SHA = _engine_sha()
+
+
+def _smc(d, mtf) -> str | None:
+    """SMC etiketleri (v3.15) - YALNIZCA METADATA, karara karismaz.
+    Hata halinde None; etiket uretilemezse sinyal etkilenmez."""
+    try:
+        entry = (d.entry_zone.min + d.entry_zone.max) / 2
+        tags = tag_candles(mtf.candles, d.direction.value, entry)
+        return json.dumps(tags) if tags else None
+    except Exception:
+        return None
 
 
 def _entry_reason(d) -> str:
@@ -110,7 +122,7 @@ class SignalTracker:
         # (sinyal DOGARKEN yazilan gerekce; sonradan yeniden kurulmaz).
         for col in ("confidence", "setup_type", "blocked INTEGER DEFAULT 0",
                     "block_reason", "cluster_id", "engine_sha",
-                    "fill_ts INTEGER", "entry_reason"):
+                    "fill_ts INTEGER", "entry_reason", "smc_tags"):
             try:
                 ddl = col if " " in col else f"{col} TEXT"
                 self._db.execute(f"ALTER TABLE signals ADD COLUMN {ddl}")
@@ -159,14 +171,15 @@ class SignalTracker:
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
             "contract_json,confidence,setup_type,cluster_id,engine_sha,"
-            "entry_reason) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "entry_reason,smc_tags) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              json.dumps(d.contract_dict()),
              d.confidence.value, d.setup_type.value,
-             _cluster_id(d), _ENGINE_SHA, _entry_reason(d)))
+             _cluster_id(d), _ENGINE_SHA, _entry_reason(d),
+             _smc(d, mtf)))
         log.info(kv(event="shadow_track", symbol=d.symbol,
                     direction=d.direction.value))
         return True
@@ -199,13 +212,14 @@ class SignalTracker:
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
             "confidence,setup_type,blocked,block_reason,cluster_id,engine_sha,"
-            "entry_reason) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "entry_reason,smc_tags) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              d.confidence.value, d.setup_type.value, blocked_class, reason,
-             _cluster_id(d), _ENGINE_SHA, _entry_reason(d)))
+             _cluster_id(d), _ENGINE_SHA, _entry_reason(d),
+             _smc(d, mtf)))
         log.info(kv(event="blocked_tracked", symbol=d.symbol,
                     blocked_class=blocked_class, reason=reason))
         return True
@@ -483,7 +497,7 @@ class SignalTracker:
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
             "exit_price,r_multiple,closed_utc,confidence,setup_type,contract_json,"
-            "fill_ts,entry_reason "
+            "fill_ts,entry_reason,smc_tags "
             "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
         for r in rows:                       # net-R (referans boy) rapora
