@@ -457,7 +457,16 @@ class Scheduler:
                    "entry_min": sig["entry_min"], "entry_max": sig["entry_max"],
                    "stop": sig["stop_loss"], "tp1": sig["tp1"],
                    "tp2": sig["tp2"], "time_stop_date": sig.get("time_stop_date"),
-                   "fill_price": sig.get("fill_price")}
+                   "fill_price": sig.get("fill_price"),
+                   # v3.14: grafikte "sinyal dogdu" / "alim yapildi"
+                   # isaretleri ve giris gerekcesi icin
+                   "created_utc": sig.get("created_utc"),
+                   "signal_ts": sig.get("entry_candle_ts"),
+                   "fill_ts": sig.get("fill_ts"),
+                   "entry_reason": sig.get("entry_reason"),
+                   "setup_type": sig.get("setup_type"),
+                   "confidence": sig.get("confidence"),
+                   "rr": sig.get("rr")}
             days_left = None
             if sig.get("time_stop_date"):
                 try:

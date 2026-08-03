@@ -54,6 +54,35 @@ def _engine_sha() -> str:
 _ENGINE_SHA = _engine_sha()
 
 
+def _entry_reason(d) -> str:
+    """Sinyal DOGARKEN 'neden girilmeli' gerekcesini tek cumleye yazar.
+    v3.14: sonradan yeniden kurmak yerine O ANKI karari saklariz - motor
+    parametreleri degisirse eski sinyalin gerekcesi bozulmaz."""
+    setup = {"trend_pullback": "Trend icinde geri cekilme alimi",
+             "breakout_retest": "Kirilim sonrasi geri test"}.get(
+        getattr(d.setup_type, "value", ""), "Setup")
+    parts = [setup]
+    reg = getattr(getattr(d, "market_regime", None), "value", None)
+    if reg:
+        parts.append(f"piyasa rejimi {reg}")
+    if d.rr:
+        parts.append(f"risk/odul {d.rr:.1f}x")
+    conf = getattr(getattr(d, "confidence", None), "value", None)
+    if conf:
+        parts.append(f"guven {conf}")
+    for attr in ("confluence", "confluences"):
+        extra = [str(c) for c in (getattr(d, attr, None) or []) if c][:3]
+        if extra:
+            parts.append("ek: " + ", ".join(extra))
+            break
+    for attr in ("volume_note", "setup_note", "note"):
+        note = getattr(d, attr, None)
+        if note:
+            parts.append(str(note))
+            break
+    return " · ".join(parts)[:400]
+
+
 def _cluster_id(d) -> str:
     """Kume kimligi: yon + islem gunu. Ayni gun ayni yonde dogan sinyaller
     tek kumedir (bagimsiz orneklem sayimi + kume tavani icin)."""
@@ -76,8 +105,12 @@ class SignalTracker:
     def _migrate(self) -> None:
         """Eski DB'lere confidence/setup_type kolonlarini guvenle ekler.
         (bybit v3.3 portu - oradaki ozyineleme hatasi burada duzeltildi.)"""
+        # v3.14: fill_ts (dolum ANI - eskiden yalniz fill_price vardi,
+        # "alim yapilan an" grafige isaretlenemiyordu) ve entry_reason
+        # (sinyal DOGARKEN yazilan gerekce; sonradan yeniden kurulmaz).
         for col in ("confidence", "setup_type", "blocked INTEGER DEFAULT 0",
-                    "block_reason", "cluster_id", "engine_sha"):
+                    "block_reason", "cluster_id", "engine_sha",
+                    "fill_ts INTEGER", "entry_reason"):
             try:
                 ddl = col if " " in col else f"{col} TEXT"
                 self._db.execute(f"ALTER TABLE signals ADD COLUMN {ddl}")
@@ -125,14 +158,15 @@ class SignalTracker:
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
-            "contract_json,confidence,setup_type,cluster_id,engine_sha) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "contract_json,confidence,setup_type,cluster_id,engine_sha,"
+            "entry_reason) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              json.dumps(d.contract_dict()),
              d.confidence.value, d.setup_type.value,
-             _cluster_id(d), _ENGINE_SHA))
+             _cluster_id(d), _ENGINE_SHA, _entry_reason(d)))
         log.info(kv(event="shadow_track", symbol=d.symbol,
                     direction=d.direction.value))
         return True
@@ -164,13 +198,14 @@ class SignalTracker:
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
-            "confidence,setup_type,blocked,block_reason,cluster_id,engine_sha) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "confidence,setup_type,blocked,block_reason,cluster_id,engine_sha,"
+            "entry_reason) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              d.confidence.value, d.setup_type.value, blocked_class, reason,
-             _cluster_id(d), _ENGINE_SHA))
+             _cluster_id(d), _ENGINE_SHA, _entry_reason(d)))
         log.info(kv(event="blocked_tracked", symbol=d.symbol,
                     blocked_class=blocked_class, reason=reason))
         return True
@@ -344,9 +379,12 @@ class SignalTracker:
                     elif not is_long and c["open"] > sig["entry_max"]:
                         fill_price = c["open"]
                     filled_at_idx = i
+                    # v3.14: dolum ANI da kaydedilir (grafikteki "alim
+                    # yapilan an" isareti bunu kullanir)
                     self._db.execute(
-                        "UPDATE signals SET status='FILLED', fill_price=? WHERE id=?",
-                        (fill_price, sig["id"]))
+                        "UPDATE signals SET status='FILLED', fill_price=?, "
+                        "fill_ts=? WHERE id=?",
+                        (fill_price, c["ts"], sig["id"]))
                 elif i + 1 >= self._fill_window:
                     self._close(sig["id"], "NOT_FILLED", None, 0.0)
                     return
@@ -444,7 +482,8 @@ class SignalTracker:
         rows = self._db.query(
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
-            "exit_price,r_multiple,closed_utc,confidence,setup_type,contract_json "
+            "exit_price,r_multiple,closed_utc,confidence,setup_type,contract_json,"
+            "fill_ts,entry_reason "
             "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
         for r in rows:                       # net-R (referans boy) rapora

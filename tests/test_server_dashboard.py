@@ -335,3 +335,44 @@ def test_mobile_tabbar_structure_and_coverage():
     # 5) menuden bolume gidince once dogru sekmeye gecilir
     assert "window.__tabForSection" in tpl
     assert "if(window.__tabForSection)window.__tabForSection(id);" in tpl
+
+
+def test_pane_shows_entry_reason_and_event_markers():
+    """v3.14: satira dokun -> grafik acilir; grafikte SINYAL/ALIM anlari,
+    TP1/TP2/stop seviyeleri ve 'neden bu pozisyon' gerekcesi bulunur."""
+    import json
+    import re
+    from pathlib import Path
+
+    tpl = json.loads(re.search(
+        r'<script type="__bundler/template">(.*?)</script>',
+        Path("app/dashboard.html").read_text(), re.S).group(1))
+
+    # grafik olay isaretleri (sinyal dogusu / alim ani)
+    assert '{{ paneI.events }}' in tpl
+    assert "markAt(num(sig.signal_ts),'SİNYAL'" in tpl
+    assert "markAt(num(sig.fill_ts),'ALIM'" in tpl
+    # ts'siz mumda uydurma isaret koyulmaz (regresyon)
+    assert "if(!seen) return;" in tpl
+    # TP2 hem olcege hem isaret listesine girer
+    assert "var scale=[stop,tp1,tp2v,lvlV]" in tpl
+    assert "{label:'TP2',v:tp2v" in tpl
+    # gerekce kutusu ve zaman satiri
+    assert '{{ paneI.entryReason }}' in tpl and '{{ paneI.whenTxt }}' in tpl
+    assert "Neden Bu Pozisyon" in tpl
+    # mobil tam ekran detay + kapatma butonu (gercek eleman)
+    assert 'id="sheet-close"' in tpl
+    assert ".sheet-open{position:fixed" in tpl
+
+
+def test_live_rows_expose_signal_and_fill_timestamps():
+    """Grafikteki isaretler icin /live satirlari zaman damgalarini ve
+    gerekceyi tasimali (aksi halde pano uydurmak zorunda kalir)."""
+    from pathlib import Path
+    src = Path("app/scheduler.py").read_text()
+    for field in ('"signal_ts"', '"fill_ts"', '"entry_reason"', '"created_utc"'):
+        assert field in src, field
+    tracker = Path("app/services/signal_tracker.py").read_text()
+    assert "fill_ts INTEGER" in tracker and "entry_reason" in tracker
+    assert "fill_ts=?" in tracker          # dolum ANI kaydediliyor
+    assert "def _entry_reason(" in tracker
