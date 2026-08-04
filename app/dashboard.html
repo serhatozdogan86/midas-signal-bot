@@ -44,6 +44,18 @@
     --shadow-hi:0 2px 6px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45);
     --pad:clamp(8px,1vh,14px);
   }
+  /* v4.1.2: durum bandi .app GRID'inin DISINDA yasar. Kok neden:
+     .app{grid-template-rows:56px 1fr 24px;height:100vh} tam UC cocuk
+     bekler; band+TAPE icine konunca ortuk satirlar acildi ve tum
+     yerlesim coktu (baslik ortada, KPI'lar dipte). */
+  #statusband{position:sticky;top:0;z-index:60;background:var(--bg)}
+  #statusband .tape{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding:5px 12px;font:11px/1.5 var(--mono);color:var(--muted);
+    border-bottom:1px solid var(--line)}
+  #statusband .tape a{color:var(--blue)}
+  #databand{margin:0;padding:7px 12px;background:var(--red-bg);
+    border-bottom:1px solid var(--red);color:var(--red-ink);
+    font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.06em}
   *{box-sizing:border-box;margin:0}
   html,body{height:100%}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);
@@ -56,7 +68,7 @@
   td.c-lv span[data-l]::before{content:attr(data-l) " ";font-family:var(--sans);
     font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   th.r{text-align:right}
-  .app{display:grid;grid-template-rows:56px minmax(0,1fr) 24px;height:100vh;
+  .app{display:grid;grid-template-rows:56px minmax(0,1fr) 24px;height:calc(100vh - 28px);
        gap:10px;padding:10px 12px 6px;max-width:1920px;margin:0 auto}
   .statusbar{display:flex;align-items:center;gap:14px;font-family:var(--mono);
        font-size:10.5px;color:var(--muted);padding:0 6px;white-space:nowrap;
@@ -472,9 +484,12 @@
 </style>
 </head>
 <body class="notranslate">
-<div class="app">
-<div id="databand" style="display:none;margin:0 0 6px;padding:7px 12px;border-radius:8px;background:var(--red-bg);border:1px solid var(--red);color:var(--red-ink);font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.06em">ÖRNEK VERİ — uçlara ulaşılamadı, ekrandaki değerler CANLI DEĞİL</div>
+<div id="statusband">
 <!--TAPE-->
+<div id="databand" style="display:none">ÖRNEK VERİ — uçlara ulaşılamadı, ekrandaki değerler CANLI DEĞİL</div>
+</div>
+<div class="app">
+
 
   <header class="hdr">
     <div class="logo"><span class="dot" id="dot"></span>MİDAS<b> SİNYAL</b></div>
@@ -1166,8 +1181,8 @@ function renderKpis(perf,status,uni,signals){
         arrow("open",openV))+
     kpi("NF","Giriş İsabeti",frV==null?"—":Math.round(frV)+"%","",
         `${filled} doldu / ${nf} değil`,arrow("fr",frV))+
-    kpi("ALL","Taranan Evren",uni?uni.count:"—","",
-        (uni?uni.mode:"")+" · "+(meta.scan_count??"—")+" tarama",null);
+    kpi("ALL","Taranan Evren",uni?(uni.filtered_count??uni.count??"—"):"—","",
+        (uni?("likit / "+(uni.raw_count??"—")+" ham"):"")+" · "+(meta.scan_count??"—")+" tarama",null);
   $("kpis").querySelectorAll(".kpi").forEach(k=>k.addEventListener("click",()=>{
     FILTER=k.dataset.f;renderChips();renderSignals();
     if(window.matchMedia("(max-width:760px)").matches)setTab("sinyaller");}));
@@ -1859,7 +1874,7 @@ function calcRun(){
   out.innerHTML=rows;translateNode(out);
 }
 function renderSys(uni,healthy){
-  if(uni)$("stratUni").textContent=(uni.mode||"")+"-"+(uni.count||"");
+  if(uni)$("stratUni").textContent=(uni.filtered_count??"—")+" / "+(uni.raw_count??"—");
   $("dot").className="dot"+(healthy?"":" err");
 }
 function renderFooter(backup,healthy,ms,perf){

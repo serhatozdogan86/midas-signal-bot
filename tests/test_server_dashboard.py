@@ -332,3 +332,24 @@ def test_new_dashboard_endpoints_return_expected_shapes(tmp_path):
     m = r.get_json()
     for k in ("majors", "breadth", "gainers", "losers", "liquid_universe"):
         assert k in m, k
+
+
+def test_app_grid_children_do_not_break_layout():
+    """v4.1.2 REGRESYON: .app{grid-template-rows:56px 1fr 24px} tam uc
+    AKIS ICI cocuk bekler. TAPE + databand grid icine konunca ortuk
+    satirlar acildi ve tum yerlesim coktu (baslik ortada, KPI dipte).
+    Durum bandi artik .app DISINDA (#statusband) yasar."""
+    import re
+    t = _tpl()
+    assert '<div id="statusband">' in t
+    # statusband, .app'ten ONCE gelmeli
+    assert t.index('id="statusband"') < t.index('class="app"')
+    # TAPE ve databand statusband icinde olmali (grid disi)
+    sb = t[t.index('id="statusband"'):t.index('class="app"')]
+    assert "<!--TAPE-->" in sb and 'id="databand"' in sb
+    # .app icinde akis-ici fazladan div OLMAMALI: header'dan once eleman yok
+    app_start = t.index('<div class="app">')
+    between = t[app_start:t.index("<header", app_start)]
+    assert not re.search(r"<div(?![^>]*class=\"app\")", between), between
+    # .app yuksekligi banda yer birakir
+    assert "height:calc(100vh - 28px)" in t
