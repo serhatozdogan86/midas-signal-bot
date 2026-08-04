@@ -373,7 +373,9 @@
     .step .d{display:none}
   }
   /* ---------- MOBIL (<=760px): sekmeli tek kolon + menekse vurgu ---------- */
-  .col[data-tab="ayar"],.col[data-tab="adaylar"]{display:none}   /* yalniz mobil sekmede gorunur */
+  .col[data-tab="ayar"]{display:none}   /* yalniz mobil sekmede */
+  /* v4.1.5: ADAYLAR = cikis laboratuvari; masaustunde de gorunsun */
+  .col[data-tab="adaylar"]{display:contents}
   .setrow{display:flex;align-items:center;justify-content:space-between;
      gap:12px;padding:11px 0;border-bottom:1px dashed var(--line)}
   .setrow:last-child{border-bottom:0}
@@ -967,6 +969,7 @@ async function j(url){
 }
 const OUT=s=>s.outcome||s.status;
 let PRICES={},PREV_PRICES={},PERF=null,LIVE=null;
+let FUND={};   // sembol -> sirket verisi (/fundamentals)
 const fmtPx=v=>v==null?"—":Number(v).toLocaleString("en-US",
   {maximumFractionDigits:v>=100?2:v>=1?4:6});
 const PREV={};
@@ -1220,7 +1223,7 @@ function renderCurve(signals){
   const ptCol=done.map(s=>OUT(s)==="WIN"?"#16A34A":"#DC2626");
   const tips=done.map((s,i)=>{
     const rn=(hasNet&&s.r_net!=null)?s.r_net:null;
-    const base=`${s.pair} ${s.direction} ${OUT(s)} ${(rOf(s)>0?"+":"")+num(rOf(s))}R`;
+    const base=`${s.symbol} ${s.direction} ${OUT(s)} ${(rOf(s)>0?"+":"")+num(rOf(s))}R`;
     return rn!=null?base+" (net)":base;});
   if(window.Chart){
     if(!document.getElementById("eqChart")){wrap.innerHTML='<canvas id="eqChart"></canvas>';eqChart=null;}
@@ -1349,7 +1352,7 @@ function pipeDetail(name){
   if(!rows.length){openModal(name,'<div class="empty">bu aşamada elenen hisse yok</div>');return;}
   if(name==="SIGNAL"){
     openModal("→ SIGNAL · "+rows.length+" hisse",
-      rows.map(d=>`<div class="kvgrid"><span class="k"><b>${d.pair}</b>
+      rows.map(d=>`<div class="kvgrid"><span class="k"><b>${d.symbol}</b>
         <span class="badge b-${d.direction}">${d.direction}</span> ${d.setup_type||""}</span>
         <span class="v num">RR ${num(d.rr,2)} · ${d.confidence||""}</span></div>`).join("")+
       `<div class="note">${LANG==="ru"
@@ -1366,7 +1369,7 @@ function pipeDetail(name){
       ? `это фильтр «${name}» движка; не прошедшая пара получает NO_TRADE в этом скане.`
       : `bu aşama motorun "${name}" filtresidir; geçilemeyen hisse o taramada NO_TRADE olur.`}</div>
      <div class="taglist">`+
-    rows.map(d=>`<span class="badge b-NOT_FILLED" title="${(d.reject_reason||"").replace(/"/g,"'")}">${d.pair}</span>`).join("")+
+    rows.map(d=>`<span class="badge b-NOT_FILLED" title="${(d.reject_reason||"").replace(/"/g,"'")}">${d.symbol}</span>`).join("")+
     "</div>");
 }
 function renderPipeline(status){
@@ -1453,7 +1456,7 @@ function signalDetail(s){
     g("Kapanış",s.closed_utc?fmtTs(s.closed_utc)+" UTC":"—")+
     g("Setup / Güven",(s.setup_type||"—")+" / "+(s.confidence||"—"))+
     g("Net R (maliyet v0)",s.r_net!=null?((s.r_net>0?"+":"")+num(s.r_net)):"—")+"</div>";
-  const live=LAST_STATUS&&LAST_STATUS.results&&LAST_STATUS.results[s.pair];
+  const live=LAST_STATUS&&LAST_STATUS.results&&LAST_STATUS.results[s.symbol];
   if(live&&live.decision==="SIGNAL"){
     html+=`<div class="note"><b>Son taramada aktif plan:</b> ${live.setup_type||""} · güven ${live.confidence||""}<br>
       <b>İnvalidasyon:</b> ${live.invalidation||"—"}<br>
@@ -1463,7 +1466,18 @@ function signalDetail(s){
   html+='<div class="note">Gölge muhasebe: varsayımsal giriş, kayma/komisyon yok; yatırım tavsiyesi değildir.</div>';
   html=`<div class="evid" id="evidBox"><div class="empty">${LANG==="ru"?"загрузка графика…":"grafik yükleniyor…"}</div></div>`+html;
   html+=`<div style="margin-top:10px"><button onclick='window.__calcSig(${s.id})'>🧮 ${LANG==="ru"?"Рассчитать позицию по сигналу":"Bu sinyalle pozisyon hesapla"}</button></div>`;
-  openModal(s.pair,html);
+  const fd=FUND[s.symbol];
+  if(fd){
+    const mc=fd.market_cap?("$"+(fd.market_cap/1e9).toFixed(1)+"B"):"—";
+    const pct=v=>v==null?"—":num(v,1)+"%";
+    html+=`<div class="kvgrid" style="margin-top:10px">
+      <span class="k">Sektör / Sanayi</span><span class="v">${fd.sector||"—"}${fd.industry?" · "+fd.industry:""}</span>
+      <span class="k">F/K · PD/DD</span><span class="v num">${fd.pe==null?"—":num(fd.pe,1)} · ${fd.price_to_book==null?"—":num(fd.price_to_book,2)}</span>
+      <span class="k">Piyasa değeri</span><span class="v num">${mc}</span>
+      <span class="k">FAVÖK marjı</span><span class="v num">${pct(fd.ebitda_margin)}</span>
+      <span class="k">Borç / Özkaynak</span><span class="v num">${pct(fd.debt_to_equity)}</span></div>`;
+  }
+  openModal(s.symbol,html);
   loadEvidence(s.id);
 }
 function renderSignals(){
@@ -1474,8 +1488,8 @@ function renderSignals(){
     const o=OUT(s),r=s.r_multiple;
     const open=o==="PENDING"||o==="FILLED";
     const age=open?`<div class="age">${fmtAge(s.created_utc)} / ${o==="PENDING"?"6 sa":"48 sa"}</div>`:"";
-    const px=PRICES[s.pair];
-    const ppx=PREV_PRICES[s.pair];
+    const px=PRICES[s.symbol];
+    const ppx=PREV_PRICES[s.symbol];
     const tick=(px!=null&&ppx!=null&&px!==ppx)?(px>ppx?" tick-up":" tick-down"):"";
     let pxCell;
     if(px==null){pxCell='<td class="num" style="color:var(--grey)">—</td>';}
@@ -1493,7 +1507,7 @@ function renderSignals(){
     }
     return `<tr data-i="${i}" class="dir-${s.direction}${o==="NOT_FILLED"?" dim":""}">
       <td class="num c-id">${s.id}</td>
-      <td class="c-pair"><b>${s.pair}</b>${s.confidence?`<span class="conf ${s.confidence}" title="${LANG==="ru"?"уверенность":"güven"}: ${s.confidence}${s.setup_type?" · "+s.setup_type:""}">${s.confidence[0]}</span>`:""}</td>
+      <td class="c-pair"><b>${s.symbol}</b>${s.confidence?`<span class="conf ${s.confidence}" title="${LANG==="ru"?"уверенность":"güven"}: ${s.confidence}${s.setup_type?" · "+s.setup_type:""}">${s.confidence[0]}</span>`:""}</td>
       <td class="c-dir"><span class="badge b-${s.direction}">${s.direction}</span></td>
       <td class="c-time">${fmtTs(s.created_utc)}${age}</td>
       <td class="c-st"><span class="badge b-${o}">${o}</span></td>
@@ -1563,9 +1577,13 @@ function renderNews(n){
   const el=$("news");
   if(!n||!n.items||!n.items.length){
     el.innerHTML='<li class="empty">haber kaynağına ulaşılamadı</li>';return;}
-  el.innerHTML=n.items.slice(0,4).map(it=>
-    `<li><a href="${it.url}" target="_blank" rel="noopener">${it.title}</a>
-     <span class="src">${it.source}${it.published_utc?" · "+fmtAge(it.published_utc)+" önce":""}</span></li>`).join("");
+  // midas /news alanlari: headline / datetime (epoch sn) / url / source
+  el.innerHTML=n.items.slice(0,6).map(it=>{
+    const t=it.title||it.headline||"—";
+    const ts=it.published_utc||(it.datetime?new Date(it.datetime*1000).toISOString():null);
+    const sym=(it.symbol&&it.symbol!=="MAKRO")?`<b>${it.symbol}</b> · `:"";
+    return `<li><a href="${it.url}" target="_blank" rel="noopener">${t}</a>
+     <span class="src">${sym}${it.source||""}${ts?" · "+fmtAge(ts)+" önce":""}</span></li>`;}).join("");
 }
 /* ---------- portfoy simulasyonu ---------- */
 function pfLoad(){
@@ -1684,8 +1702,11 @@ async function loadEvidence(id,win){
   const ru=(LANG==="ru");
   if(win) EV_ZOOM=win;
   try{
+    // midas /candles DUZ DIZI dondurur; drawEvidence {candles,signal} bekler.
+    // Seviyeler (entry/stop/tp) mumlarda yok -> sinyalin kendisi eklenir.
     const _s=SIGNALS.find(x=>x.id===id)||{};
-    const d=_s.symbol?await j(`/candles?symbol=${_s.symbol}&interval=1h`):null;
+    const _rows=_s.symbol?await j(`/candles?symbol=${_s.symbol}&interval=1h`):null;
+    const d=_rows?{candles:Array.isArray(_rows)?_rows:(_rows.candles||[]),signal:_s}:null;
     if(!d||d.error){box.innerHTML=`<div class="empty">${ru?"данные графика недоступны":"grafik verisi yok"}</div>`;return;}
     const e=d.evidence||{}, s=d.signal||{};
     const rows=[];
@@ -1696,7 +1717,7 @@ async function loadEvidence(id,win){
     if(e.regime||e.htf_bias) rows.push(`<b>${ru?"режим / 4H":"rejim / 4H"}</b> ${[e.regime,e.htf_bias].filter(Boolean).join(" · ")}`);
     const zb=[[12,ru?"вблизи":"yakın"],[24,ru?"обычно":"normal"],[48,ru?"шире":"geniş"]]
       .map(([v,l])=>`<button class="${EV_ZOOM===v?"on":""}" onclick="loadEvidence(${id},${v})">${l}</button>`).join("");
-    box.innerHTML=`<div class="zoombar"><span class="zl">${ru?"окно графика":"grafik penceresi"}: ±${EV_ZOOM} ${ru?"свечей 15m":"mum (15m)"}</span>${zb}</div>`+
+    box.innerHTML=`<div class="zoombar"><span class="zl">${ru?"окно графика":"grafik penceresi"}: ±${EV_ZOOM} ${ru?"свечей 15m":"mum (1h)"}</span>${zb}</div>`+
       drawEvidence(d)+
       (rows.length?`<div class="evlist">${rows.map(r=>`<div>${r}</div>`).join("")}</div>`:"");
     translateNode(box);
@@ -1812,7 +1833,7 @@ function calcPopulate(){
   const open=SIGNALS.filter(x=>["PENDING","FILLED"].includes(OUT(x)));
   const rest=SIGNALS.filter(x=>!["PENDING","FILLED"].includes(OUT(x))).slice(0,20);
   sel.innerHTML='<option value="">— manuel —</option>'+
-    [...open,...rest].map(x=>`<option value="${x.id}">#${x.id} ${x.pair} ${x.direction} (${OUT(x)})</option>`).join("");
+    [...open,...rest].map(x=>`<option value="${x.id}">#${x.id} ${x.symbol} ${x.direction} (${OUT(x)})</option>`).join("");
 }
 function openCalc(sig){
   calcPopulate();
@@ -1910,6 +1931,13 @@ async function refresh(){
     j("/commentary?limit=4"),j("/market"),j("/news"),j("/prices"),
     j("/backup/info"),j("/challengers"),j("/live")]);
   LIVE=live||null;
+  // v4.1.5: sirket verisi (sektor/F-K/FAVOK) - acik+bekleyen semboller
+  try{
+    const syms=[...new Set(SIGNALS.filter(x=>x.status!=="CLOSED").map(x=>x.symbol))]
+      .filter(Boolean).slice(0,40);
+    if(syms.length){const f=await j("/fundamentals?symbols="+syms.join(","));
+      if(f) FUND=Object.assign({},FUND,f);}
+  }catch(e){}
   // EMNIYET BANDI: cekirdek uclar cevap vermiyorsa ekran CANLI DEGILDIR
   // ve bunu SOYLEMELIDIR (bayat veriyi canliymis gibi gostermek yasak).
   const _band=document.getElementById("databand");

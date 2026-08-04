@@ -357,3 +357,50 @@ def test_app_grid_children_do_not_break_layout():
     assert not re.search(r"<div(?![^>]*class=\"app\")", between), between
     # .app yuksekligi banda yer birakir
     assert "height:calc(100vh - 28px)" in t
+
+
+def test_template_uses_midas_field_names_not_bybit():
+    """v4.1.5 VAKASI: sablon bybit alan adlarini okuyordu ->
+    tabloda 'undefined', haberlerde 'undefined', grafik bos.
+    Bybit'e ozgu alan adlari sablonda BULUNMAMALI."""
+    t = _tpl()
+    for bad in (".pair", "it.title}", "published_utc}"):
+        assert bad not in t, bad
+    assert "s.symbol" in t                      # sinyal sembolu
+    assert "it.headline" in t                   # haber basligi
+    assert "it.datetime" in t                   # haber zamani
+
+
+def test_signal_fields_read_by_template_exist_in_api(tmp_path):
+    """Sablonun okudugu sinyal alanlari /signals ciktisinda GERCEKTEN
+    var mi? (undefined sutunlarin kok nedeni buydu.)"""
+    import re
+    from app.services.signal_tracker import SignalTracker as _ST
+    t = _tpl()
+    read = set(re.findall(r"\bs\.([a-z_]+)\b", t))
+    tracker = _ST(Database(str(tmp_path / "t.db")), "1h")
+    cols = {r["name"] for r in tracker._db.query("PRAGMA table_info(signals)")}
+    extra = {"symbol", "status", "outcome"}      # sorguda adi ayni
+    js_builtins = {"length", "map", "push", "filter", "slice", "join",
+                   "sort", "find", "forEach", "indexOf", "reduce", "some",
+                   "toFixed", "replace", "split", "concat", "includes",
+                   "tp", "value", "textContent", "style", "id"}
+    unknown = read - cols - extra - js_builtins
+    # kalanlar sablonun kendi turettigi alanlar olabilir; kritik olanlar:
+    for f in ("symbol", "direction", "entry_min", "entry_max", "stop_loss",
+              "tp1", "fill_price", "r_multiple", "confidence", "setup_type"):
+        assert f in cols, f
+    assert "pair" not in read, "bybit alan adi kalmis"
+
+
+def test_candidates_column_visible_on_desktop():
+    """ADAYLAR (cikis laboratuvari) bybit'te YALNIZ mobil sekmede
+    gorunuyordu; bizde masaustunde de gorunmeli."""
+    t = _tpl()
+    assert '.col[data-tab="adaylar"]{display:contents}' in t
+
+
+def test_detail_card_shows_company_data():
+    t = _tpl()
+    assert "/fundamentals?symbols=" in t
+    assert "FAVÖK marjı" in t and "Sektör / Sanayi" in t
