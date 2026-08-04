@@ -1100,7 +1100,7 @@ function renderHeader(perf,status){
 
 /* ---------- Faz B: aday stratejiler sekmesi ---------- */
 const CHAL_ADI={V0_CANLI:"V0 · canlı çıkış",V1_KISMI:"V1 · kısmi kâr",
-  V2_GENIS:"V2 · geniş stop"};
+  V2_GENIS:"V2 · geniş stop",V3_ORTA:"V3 · hedefsiz, aynı stop"};
 function renderStrategyLab(sl){
   const el=document.getElementById("slabBody"); if(!el) return;
   if(!sl||sl.pending||!sl.strategies){

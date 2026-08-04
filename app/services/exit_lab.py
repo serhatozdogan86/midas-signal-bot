@@ -47,6 +47,12 @@ SLIP_PCT = 0.0005
 VARIANTS: dict[str, dict] = {
     "V1_KISMI": {"mode": "partial", "tp1_frac": 0.5, "rest_max_bars": 70},
     "V2_GENIS": {"mode": "wide", "stop_mult": 5.0 / 3.0, "max_bars": 140},
+    # v3.24: TARAMA BULGUSU - sabit hedefi kaldirmak, stopu genisletmekten
+    # ve sureyi uzatmaktan DAHA BUYUK kaldirac. Ayni giris/stop/sure ile
+    # yalnizca hedefi kaldirinca +48.5R -> +151.5R; sure 4->10 gun ile
+    # +315R. V3 tam bu hucreyi canli olcer: STOP AYNEN KALIR (1.0x),
+    # hedef YOK, sure ~10 islem gunu (70 saatlik bar).
+    "V3_ORTA": {"mode": "wide", "stop_mult": 1.0, "max_bars": 70},
 }
 
 

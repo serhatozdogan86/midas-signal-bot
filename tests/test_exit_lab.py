@@ -232,3 +232,22 @@ def test_snapshot_parser_skips_bad_rows():
     assert out["AAPL"] == {"price": 210.5, "prev_close": 208.0}
     assert out["MIN"]["price"] == 33.3 and out["MIN"]["prev_close"] is None
     assert "BOZUK" not in out and "EKSIK" not in out
+
+
+def test_v3_keeps_live_stop_but_removes_target():
+    """v3.24: V3 = ayni stop, HEDEF YOK, ~10 gun. Tarama bulgusuna gore
+    en buyuk kaldirac hedefi kaldirmak; V3 bunu canli olcer."""
+    from app.services.exit_lab import VARIANTS
+    assert VARIANTS["V3_ORTA"]["stop_mult"] == 1.0      # stop AYNEN
+    assert VARIANTS["V3_ORTA"]["mode"] == "wide"        # hedef yok
+    sig = _sig()
+    # V0'in TP1'de kapatacagi hareket V3'te devam etmeli
+    candles = [_fill_bar(),
+               _c(2, 102, 104.5, 101.5, 104),      # TP1 gecildi
+               _c(3, 104, 108, 103.5, 107.5)]      # ama devam ediyor
+    res = replay(sig, candles, "V3_ORTA", 12)
+    assert res.status == "FILLED"                  # hedefte kapanmadi
+    tail = [_c(4 + i, 107, 107.5, 106.5, 107) for i in range(71)]
+    done = replay(sig, candles + tail, "V3_ORTA", 12)
+    assert done.outcome == "EXPIRED"
+    assert done.r_gross > 1.5                      # TP1'den (1R) FAZLA
