@@ -302,6 +302,10 @@ def test_midas_palette_and_no_crypto_leftovers():
     low = t.lower()
     for word in ("bybit", "usdt", "parite", "funding"):
         assert word not in low, word
+    # mobil medya blogu paleti ACIK temaya cevirmemeli (v4.1.3 vakasi:
+    # bybit mobilde --bg:#F6F4FB'ye donuyordu, mobil bembeyaz acildi)
+    assert "--bg:#F6F4FB" not in t and "--card:#FFFFFF" not in t
+    assert "rgba(255,255,255,.97)" not in t
 
 
 def test_candidates_card_is_exit_lab():
