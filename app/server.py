@@ -287,11 +287,11 @@ def create_app(store: StateStore, scheduler: Scheduler,
         """{SYM: fiyat} - acik/bekleyen sinyaller + endeksler."""
         out = {}
         try:
-            live = scheduler.get_live_status()
-            for r in live.get("rows", []):
+            # NOT: get_live_status() LISTE dondurur (zarfi /live rotasi kurar)
+            for r in scheduler.get_live_status():
                 if r.get("quote") is not None:
                     out[r["symbol"]] = r["quote"]
-            for ix in live.get("indices", []):
+            for ix in scheduler.index_pulse():
                 if ix.get("price") is not None:
                     out[ix["symbol"]] = ix["price"]
         except Exception:
@@ -304,12 +304,12 @@ def create_app(store: StateStore, scheduler: Scheduler,
         Kripto sablonundaki 'majors/fng/breadth' alanlari hisse dunyasina
         esleniyor (fng yerine REJIM, funding yerine not)."""
         try:
-            live = scheduler.get_live_status()
+            rows_all = scheduler.get_live_status()
             reg = scheduler.regime.model_dump(mode="json")
             majors = [{"symbol": ix["symbol"], "last": ix.get("price"),
                        "pct24h": ix.get("pct"),
-                       "note": "endeks"} for ix in live.get("indices", [])]
-            rows = [r for r in live.get("rows", []) if r.get("quote") is not None]
+                       "note": "endeks"} for ix in scheduler.index_pulse()]
+            rows = [r for r in rows_all if r.get("quote") is not None]
             movers = []
             for r in rows:
                 q, e = r.get("quote"), r.get("fill_price") or r.get("entry_max")
@@ -318,7 +318,7 @@ def create_app(store: StateStore, scheduler: Scheduler,
                                    "pct24h": round((q / e - 1) * 100, 2)})
             movers.sort(key=lambda x: x["pct24h"], reverse=True)
             adv = sum(1 for m in movers if m["pct24h"] > 0)
-            uni = universe.describe()
+            uni = universe.describe() if universe is not None else {}
             return jsonify({
                 "updated_utc": datetime.now(timezone.utc).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"),

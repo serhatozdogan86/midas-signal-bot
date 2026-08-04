@@ -317,3 +317,18 @@ def test_server_contract_points_present():
     assert t.count('id="server-diag"') == 0        # sunucu kendisi basar
     assert "edge-cache atlatici" in t
     assert 'id="databand"' in t
+
+
+def test_new_dashboard_endpoints_return_expected_shapes(tmp_path):
+    """v4.1 uyumluluk uclari: canlida 503 dondurmusler cunku
+    get_live_status() LISTE dondurur, sozluk degil (zarfi /live rotasi
+    kurar). Sekil sozlesmesi burada kilitlenir."""
+    tracker = SignalTracker(Database(str(tmp_path / "t.db")), "1h")
+    c = _client(tmp_path, tracker=tracker)
+    r = c.get("/prices")
+    assert r.status_code == 200 and "prices" in r.get_json()
+    r = c.get("/market")
+    assert r.status_code == 200
+    m = r.get_json()
+    for k in ("majors", "breadth", "gainers", "losers", "liquid_universe"):
+        assert k in m, k
