@@ -214,3 +214,57 @@ def test_s5_uses_same_entries_as_s1():
     from pathlib import Path
     src = Path("app/services/strategy_lab.py").read_text()
     assert 'gens["S5_MOM_WIDE"] = gens["S1_MOMENTUM"]' in src
+
+
+# -------------------------- v4.4: bellek disiplini (OOM vakasi)
+def test_run_does_not_hold_whole_universe_in_memory():
+    """4 Agu: laboratuvar tum evrenin mumlarini AYNI ANDA tutuyordu
+    (~207 MB zirve) ve 512 MB'lik Render orneginde servis OOM ile
+    yeniden basladi (25 dk icinde 2 restart). Kod duzeyinde guvence:
+    iki gecis + sembol basina gecici mum, ham islemler ozet sonrasi
+    birakilir."""
+    from pathlib import Path
+    src = Path("app/services/strategy_lab.py").read_text()
+    assert "def bars_of(sym)" in src           # sembol basina gecici
+    assert "del bars" in src                   # hemen birakilir
+    assert "mom.clear()" in src                # momentum tablosu bosaltilir
+    assert "all_trades[name] = []" in src      # ozet sonrasi ham veri gider
+    assert "@dataclass(slots=True)" in src     # 20k+ nesne icin slots
+
+
+def test_scheduler_does_not_fetch_second_data_copy():
+    """Onbellek bosken laboratuvar KENDI verisini cekmemeli - gunluk
+    verinin ikinci kopyasi OOM'un dogrudan sebebiydi."""
+    from pathlib import Path
+    src = Path("app/scheduler.py").read_text()
+    assert "if not snapshot:\n                    return" in src
+    assert "get_daily_bulk(syms)" not in src.split("_kick_strategy_lab")[1][:1500]
+
+
+def test_run_still_correct_after_memory_refactor():
+    """Bellek optimizasyonu SONUCU degistirmemeli."""
+    import types
+    from app.services.strategy_lab import STRATEGIES, StrategyLab
+
+    class C:
+        __slots__ = ("ts", "open", "high", "low", "close", "volume")
+
+        def __init__(self, ts, o, h, low, c, v):
+            (self.ts, self.open, self.high, self.low, self.close,
+             self.volume) = ts, o, h, low, c, v
+
+    day = 86_400_000
+    daily = {}
+    for k, sym in enumerate(("AAA", "BBB", "CCC")):
+        cs = []
+        for i in range(300):
+            px = 100 + i * (0.1 + k * 0.05)
+            cs.append(C(1_700_000_000_000 + i * day, px, px + 1.5,
+                        px - 1.5, px + 0.2, 1e6))
+        daily[sym] = types.SimpleNamespace(candles=cs)
+    out = StrategyLab(settings=types.SimpleNamespace(
+        MAX_DAILY_SIGNALS=6, MAX_OPEN_SIGNALS=10)).run(daily)
+    assert out["universe"] == 3
+    assert set(out["strategies"]) == set(STRATEGIES)
+    for v in out["strategies"].values():
+        assert "kohort" in v and "tarihsel" in v

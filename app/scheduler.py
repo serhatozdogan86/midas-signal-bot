@@ -705,17 +705,14 @@ class Scheduler:
 
         def _work():
             try:
-                data = snapshot
-                if not data:
-                    # v4.2: onbellek bos (or. servis yeni basladi) -> veriyi
-                    # KENDI cek. Arka planda oldugu icin tick'i bloklamaz;
-                    # gunde bir kez. Aksi halde tablo hazirliga kadar bos
-                    # kaliyordu.
-                    syms = self._universe.get_symbols()
-                    if not syms:
-                        return
-                    data = self._md.get_daily_bulk(syms)
-                self._strategy_lab.run(data)
+                # v4.4: onbellek bosken KENDI VERISINI CEKMEZ. Eskiden
+                # cekiyordu ve bu, gunluk verinin IKINCI bir kopyasini
+                # bellekte tutuyordu; 512 MB'lik Render orneginde servis
+                # OOM ile yeniden basladi (4 Agu, 25 dk icinde 2 restart).
+                # Artik ilk taramanin onbellegi doldurmasi beklenir.
+                if not snapshot:
+                    return
+                self._strategy_lab.run(snapshot)
                 self._slab_date = today
             except Exception:
                 log.exception(kv(event="strategy_lab_error"))

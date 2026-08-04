@@ -178,7 +178,7 @@ def _volume_scores(bars: list[dict], n: int = 20) -> list[float]:
 
 
 # ------------------------------------------------------------ yurutme
-@dataclass
+@dataclass(slots=True)
 class Trade:
     strategy: str
     symbol: str
@@ -300,23 +300,39 @@ class StrategyLab:
     last: dict = field(default_factory=dict)
 
     def run(self, daily: dict) -> dict:
-        """daily: {symbol: KlineSeries}. Saf hesap + ozet; I/O yok."""
+        """daily: {symbol: KlineSeries}. Saf hesap + ozet; I/O yok.
+
+        BELLEK NOTU (v4.4): eskiden tum evrenin mumlari AYNI ANDA
+        sozluk-listesi olarak tutuluyordu; olcum 300 sembol icin ~207 MB
+        zirve gosterdi ve Render'in 512 MB'lik sinirinda servis
+        OOM ile yeniden basliyordu. Artik iki gecis yapilir ve her
+        gecis sembol basina gecici mum listesi uretip HEMEN birakir;
+        bellekte kalan tek buyuk yapi momentum tablosudur.
+        """
         universe = sorted(daily)
-        # kesitsel momentum icin gunluk siralama gerekir -> once topla
-        mom: dict[str, dict[str, float]] = {}
-        bars_map: dict[str, list[dict]] = {}
-        for sym in universe:
+
+        def bars_of(sym):
             cs = daily[sym].candles
             if len(cs) < 60:
-                continue
-            bars = [{"date": _iso(c.ts), "open": c.open, "high": c.high,
+                return None
+            cs = cs[-420:]          # momentum 252 + tampon; fazlasi gereksiz
+            return [{"date": _iso(c.ts), "open": c.open, "high": c.high,
                      "low": c.low, "close": c.close, "volume": c.volume}
                     for c in cs]
-            bars_map[sym] = bars
+
+        # --- GECIS 1: yalniz kesitsel momentum tablosu ---
+        mom: dict[str, dict[str, float]] = {}
+        n_ok = 0
+        for sym in universe:
+            bars = bars_of(sym)
+            if bars is None:
+                continue
+            n_ok += 1
             for i in range(len(bars)):
                 m = momentum_12_1(bars, i)
                 if m is not None:
                     mom.setdefault(bars[i]["date"], {})[sym] = m
+            del bars                     # hemen birak
 
         top_decile: dict[str, set[str]] = {}
         for day, vals in mom.items():
@@ -325,33 +341,31 @@ class StrategyLab:
             k = max(1, int(len(vals) * 0.1))
             top_decile[day] = {s for s, _ in sorted(
                 vals.items(), key=lambda kv: kv[1], reverse=True)[:k]}
+        mom.clear()                      # tablo artik gereksiz
 
+        # --- GECIS 2: sinyaller + yurutme (sembol basina gecici) ---
         all_trades: dict[str, list[Trade]] = {k: [] for k in STRATEGIES}
-        for sym, bars in bars_map.items():
+        for sym in universe:
+            bars = bars_of(sym)
+            if bars is None:
+                continue
             gens = {
                 "S1_MOMENTUM": [
-                    (b["date"] in top_decile
-                     and sym in top_decile[b["date"]]
-                     and _is_monday(b["date"]))          # haftalik yenileme
-                    for b in bars],
+                    (b["date"] in top_decile and sym in top_decile[b["date"]]
+                     and _is_monday(b["date"])) for b in bars],
                 "S2_DONCHIAN": signals_donchian(bars),
                 "S3_VOL_BREAK": signals_vol_break(bars),
                 "S4_RSI2": signals_rsi2(bars),
             }
             gens["S5_MOM_WIDE"] = gens["S1_MOMENTUM"]      # AYNI giris
-            # SKOR: her ailenin kendi "sinyal gucu" olcusu
             closes = [b["close"] for b in bars]
             r2 = rsi_wilder(closes, 2)
             a14 = atr(bars)
             scores = {
-                # momentum: evrendeki 12-1 getirisi (yuksek = guclu)
                 "S1_MOMENTUM": [(momentum_12_1(bars, i) or 0.0)
                                 for i in range(len(bars))],
-                # kirilimlar: ATR'ye gore kirilim mesafesi (temiz kirilim)
                 "S2_DONCHIAN": _breakout_scores(bars, a14),
-                # hacimli kirilim: hacim katsayisi
                 "S3_VOL_BREAK": _volume_scores(bars),
-                # RSI(2): ne kadar dusukse o kadar asiri satim
                 "S4_RSI2": [(100.0 - (r2[i] if r2[i] is not None else 100.0))
                             for i in range(len(bars))],
             }
@@ -363,10 +377,11 @@ class StrategyLab:
                                     stop_mult=cfg["stop_mult"],
                                     tp_mult=cfg["tp_mult"],
                                     max_hold=cfg["max_hold"]))
+            del bars, gens, scores, closes, r2, a14
 
         md = getattr(self.settings, "MAX_DAILY_SIGNALS", 6)
         mo = getattr(self.settings, "MAX_OPEN_SIGNALS", 10)
-        out = {"lab_start": self.lab_start, "universe": len(bars_map),
+        out = {"lab_start": self.lab_start, "universe": n_ok,
                "strategies": {}}
         for name in STRATEGIES:
             tr = all_trades[name]
@@ -379,12 +394,11 @@ class StrategyLab:
                            "tavanli": summarize(capped, self.lab_start)},
                 "tarihsel": {"tavansiz": summarize(tr),
                              "tavanli": summarize(capped),
-                             # secim sirasi onemli mi? kaliteye gore vs
-                             # alfabetik (rastgele vekili)
                              "tavanli_rastgele": summarize(capped_rnd)},
             }
+            all_trades[name] = []        # ozet alindi, ham islemleri birak
         self.last = out
-        log.info(kv(event="strategy_lab_run", universe=len(bars_map),
+        log.info(kv(event="strategy_lab_run", universe=n_ok,
                     **{k: out["strategies"][k]["tarihsel"]["tavansiz"]["n"]
                        for k in STRATEGIES}))
         return out
