@@ -57,9 +57,9 @@
     border-bottom:1px solid var(--red);color:var(--red-ink);
     font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.06em}
   *{box-sizing:border-box;margin:0}
-  html,body{height:100%}
+  html,body{height:auto;min-height:100%}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);
-       font-size:13px;line-height:1.45;overflow:hidden;
+       font-size:13px;line-height:1.45;overflow-x:hidden;
        font-variant-numeric:tabular-nums}
   .num{font-family:var(--mono);font-variant-numeric:tabular-nums;
        font-size:.94em;letter-spacing:-.01em}
@@ -68,8 +68,14 @@
   td.c-lv span[data-l]::before{content:attr(data-l) " ";font-family:var(--sans);
     font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   th.r{text-align:right}
-  .app{display:grid;grid-template-rows:56px minmax(0,1fr) 24px;height:calc(100vh - 28px);
-       gap:10px;padding:10px 12px 6px;max-width:1920px;margin:0 auto}
+  /* v4.1.6: DUNYA STANDARDI YERLESIM. eski sablon viewport'a
+     KILITLIYDI (height:100vh + sutun ici kaydirma kutulari): sol ustte
+     ve altta sikisik mini-scroll alanlari olusuyor, orta sutundaki
+     sinyal tablosu cokuyor ve BILGININ COGU GORUNMUYORDU.
+     Artik belge akisi: kartlar icerigi kadar uzar, sayfa kayar. */
+  .app{display:grid;grid-template-rows:auto auto auto;height:auto;
+       min-height:100vh;gap:10px;padding:10px 12px 24px;
+       max-width:1920px;margin:0 auto}
   .statusbar{display:flex;align-items:center;gap:14px;font-family:var(--mono);
        font-size:10.5px;color:var(--muted);padding:0 6px;white-space:nowrap;
        overflow:hidden}
@@ -105,23 +111,23 @@
   .icon{width:30px;padding:5px 0;text-align:center}
   /* ============ GRID ============ */
   .cols{display:grid;grid-template-columns:220px minmax(0,1fr) 300px;
-        gap:10px;min-height:0}
-  .col{display:flex;flex-direction:column;gap:10px;min-height:0}
-  /* yan sutunlar tasarsa kendi icinde kaysin (portfoy karti gizlenmesin) */
-  .cols > .col:first-child, .cols > .col:last-child{overflow-y:auto;
-     scrollbar-width:thin;padding-right:2px}
+        gap:10px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:10px;min-width:0}
+  /* v4.1.6: yan sutunlar KENDI ICINDE KAYMAZ - tum kartlar gorunur
+     olmali; tasma varsa SAYFA kayar (kullanici "tum bilgiye ulasmali"). */
+  .cols > .col{overflow:visible;padding-right:0}
   .cols > .col:first-child > .card{flex:0 0 auto}
   #pfCard{flex:0 0 auto}
   #pfCard .cbody{max-height:none}
   .card{background:var(--card);border:1px solid var(--line);border-radius:11px;
-        box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+        box-shadow:var(--shadow);display:flex;flex-direction:column}
   .chead{font-family:var(--disp);padding:var(--pad) 14px 0;font-size:11px;font-weight:700;
          letter-spacing:.04em;text-transform:uppercase;color:var(--head);
          display:flex;align-items:baseline;gap:8px}
   .chead .tag{margin-left:auto;font-weight:400;font-size:10.5px;
               text-transform:none;letter-spacing:0}
-  .cbody{padding:6px 14px var(--pad);min-height:0}
-  .scroll{overflow-y:auto;scrollbar-width:thin}
+  .cbody{padding:6px 14px var(--pad)}
+  .scroll{overflow:visible}          /* v4.1.6: ic kaydirma yok */
   .fill{flex:1}
   .empty{color:var(--muted);font-size:12px;padding:6px 0}
   .pos{color:var(--green)} .neg{color:var(--red)} .amb{color:var(--amber)}
@@ -133,7 +139,7 @@
         border-bottom:1px dashed var(--line)}
   .srow:last-child{border-bottom:0}
   .srow b{font-weight:600;color:var(--text)}
-  .pipe{overflow-y:auto;scrollbar-width:thin}
+  .pipe{overflow:visible}
   .step{padding:5px 6px;margin:0 -6px;border-radius:8px;cursor:pointer;
         transition:background .12s}
   .step:hover{background:var(--card2)}
@@ -363,7 +369,7 @@
   .step{outline:none}
   body.zoomed{overflow:auto}
   body.zoomed .app{height:auto;min-height:100vh}
-  body.zoomed .scroll{max-height:55vh}
+  body.zoomed .scroll{max-height:none}
   body.zoomed .midrow{min-height:280px}
   @media (max-height:940px){
     :root{--pad:7px}
@@ -374,8 +380,13 @@
   }
   /* ---------- MOBIL (<=760px): sekmeli tek kolon + menekse vurgu ---------- */
   .col[data-tab="ayar"]{display:none}   /* yalniz mobil sekmede */
-  /* v4.1.5: ADAYLAR = cikis laboratuvari; masaustunde de gorunsun */
-  .col[data-tab="adaylar"]{display:contents}
+  /* v4.1.6: ADAYLAR karti SAG SUTUNDA yasar. Onceki cozum
+     (display:contents) karti .cols grid'ine 4. SUTUN olarak sokuyordu;
+     bu yuzden piyasa nabzi asagi/sola itilmisti. */
+  /* aday tablosu dar sutunda tasiyordu: kompakt + yatay kaydirma kabi */
+  #chalBody{overflow-x:auto}
+  #chalBody table{width:100%;font-size:11.5px}
+  #chalBody th,#chalBody td{padding:4px 6px}
   .setrow{display:flex;align-items:center;justify-content:space-between;
      gap:12px;padding:11px 0;border-bottom:1px dashed var(--line)}
   .setrow:last-child{border-bottom:0}
@@ -420,8 +431,11 @@
     #setLang:empty::after{content:"başlıktaki TR/RU düğmesi";font-size:11.5px;
        color:var(--muted)}
     .hdr .icon{font-size:12px}
-    .col[data-tab="ayar"],.col[data-tab="adaylar"]{display:none}
-    .col[data-tab="ayar"].on,.col[data-tab="adaylar"].on{display:flex}
+    .col[data-tab="ayar"]{display:none}
+    .col[data-tab="ayar"].on{display:flex}
+    .card[data-tab="adaylar"]{display:none}
+    .card[data-tab="adaylar"].on{display:flex}
+    /* mobilde diger sekmelerdeyken sag sutun kartlari sirayla gorunur */
     .cols{grid-template-columns:1fr}
     /* sekme mantigi: yalniz aktif sutun gorunur */
     .col[data-tab]{display:none}
@@ -572,12 +586,6 @@
       </div>
     </div>
 
-    <div class="col" data-tab="adaylar">
-      <div class="card fill">
-        <div class="chead"><span class="tipwrap" tabindex="0" data-tip="Faz B gölge yarışı: 5 aday strateji, şampiyonla AYNI maliyet modeli ve AYNI sınavla (≥50 kapanmış küme + küme-CI alt sınırı > 0) kâğıt üzerinde ölçülür. Gerçek işlem yok. Girişler kapanış bazlı; v1 çıkışları sabit hedefli — trend adayları (S1/S2) için sonuçlar muhafazakâr alt sınırdır. Şampiyon Faz-1 sınavını geçemezse buradaki sıralama bir sonraki denemenin adayını belirler. Çoklu karşılaştırma düzeltmesi: kazanan, seçildikten SONRA toplanan veride de sınavı geçmek zorundadır. Yatırım tavsiyesi değildir.">Aday Stratejiler · Gölge Yarış <span class="i">ⓘ</span></span> <span class="tag">Faz B</span></div>
-        <div class="cbody scroll" id="chalBody"><div class="empty">aday verisi birikiyor…</div></div>
-      </div>
-    </div>
     <div class="col" data-tab="ayar">
       <div class="card">
         <div class="chead">Ayarlar <span class="tag">tercihler cihazında saklanır</span></div>
@@ -606,7 +614,12 @@
     </div>
 
     <div class="col" data-tab="piyasa">
-      <div class="card">
+      
+      <div class="card fill" data-tab="adaylar">
+        <div class="chead"><span class="tipwrap" tabindex="0" data-tip="Faz B gölge yarışı: 5 aday strateji, şampiyonla AYNI maliyet modeli ve AYNI sınavla (≥50 kapanmış küme + küme-CI alt sınırı > 0) kâğıt üzerinde ölçülür. Gerçek işlem yok. Girişler kapanış bazlı; v1 çıkışları sabit hedefli — trend adayları (S1/S2) için sonuçlar muhafazakâr alt sınırdır. Şampiyon Faz-1 sınavını geçemezse buradaki sıralama bir sonraki denemenin adayını belirler. Çoklu karşılaştırma düzeltmesi: kazanan, seçildikten SONRA toplanan veride de sınavı geçmek zorundadır. Yatırım tavsiyesi değildir.">Aday Stratejiler · Gölge Yarış <span class="i">ⓘ</span></span> <span class="tag">Faz B</span></div>
+        <div class="cbody scroll" id="chalBody"><div class="empty">aday verisi birikiyor…</div></div>
+      </div>
+<div class="card">
         <div class="chead">Piyasa Nabzı <span class="tag" id="mupd">canlı metrikler</span></div>
         <div class="cbody" id="market"><div class="empty">yükleniyor…</div></div>
       </div>
@@ -1025,7 +1038,9 @@ $("calcClose").addEventListener("click",()=>$("calc").classList.remove("show"));
 
 /* ---------- mobil sekmeler ---------- */
 function setTab(name){
-  document.querySelectorAll(".col[data-tab]").forEach(el=>
+  // v4.1.6: ADAYLAR karti artik sag sutunda bir KART; sekme mantigi
+  // hem .col hem .card [data-tab] elemanlarini yonetir.
+  document.querySelectorAll(".col[data-tab],.card[data-tab]").forEach(el=>
     el.classList.toggle("on", el.dataset.tab===name));
   document.querySelectorAll(".tb").forEach(b=>
     b.classList.toggle("active", b.dataset.go===name));

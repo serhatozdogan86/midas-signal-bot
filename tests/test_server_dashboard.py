@@ -355,8 +355,11 @@ def test_app_grid_children_do_not_break_layout():
     app_start = t.index('<div class="app">')
     between = t[app_start:t.index("<header", app_start)]
     assert not re.search(r"<div(?![^>]*class=\"app\")", between), between
-    # .app yuksekligi banda yer birakir
-    assert "height:calc(100vh - 28px)" in t
+    # v4.1.6: viewport kilidi KALKTI - kartlar icerigi kadar uzar,
+    # sayfa kayar (sikisik mini-scroll kutulari yok)
+    assert "min-height:100vh;gap:10px" in t
+    assert "height:calc(100vh - 28px)" not in t
+    assert ".cols > .col{overflow:visible" in t
 
 
 def test_template_uses_midas_field_names_not_bybit():
@@ -397,10 +400,65 @@ def test_candidates_column_visible_on_desktop():
     """ADAYLAR (cikis laboratuvari) bybit'te YALNIZ mobil sekmede
     gorunuyordu; bizde masaustunde de gorunmeli."""
     t = _tpl()
-    assert '.col[data-tab="adaylar"]{display:contents}' in t
+    # v4.1.6: kart SAG SUTUNDA gercek bir kart (display:contents grid'e
+    # 4. sutun sokuyor ve piyasa nabzini asagi itiyordu)
+    assert '<div class="card fill" data-tab="adaylar">' in t
+    assert 'display:contents}' not in t     # kural olarak yok (yorumda gecebilir)
 
 
 def test_detail_card_shows_company_data():
     t = _tpl()
     assert "/fundamentals?symbols=" in t
     assert "FAVÖK marjı" in t and "Sektör / Sanayi" in t
+
+
+def test_dashboard_renders_with_real_payloads():
+    """DUMAN TESTI: pano GERCEK API yanitlariyla jsdom'da calistirilir.
+    'Sinyal tablosu bos, ekran siyah' vakasinin tekrarini engeller -
+    sablon yuklenip 19 satir cizemezse test kirilir.
+    node+jsdom yoksa atlanir (CI'da opsiyonel)."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    import pytest
+    if not shutil.which("node"):
+        pytest.skip("node yok")
+    check = subprocess.run(["node", "-e", "require('jsdom')"],
+                           capture_output=True, cwd="/tmp")
+    if check.returncode != 0:
+        pytest.skip("jsdom yok")
+
+    fix = Path(tempfile.mkdtemp())
+    sig = [{"id": i, "symbol": "AAPL", "direction": "LONG",
+            "status": "CLOSED", "outcome": "WIN", "created_utc":
+            "2026-08-03T13:30:00Z", "entry_min": 100, "entry_max": 101,
+            "stop_loss": 98, "tp1": 104, "tp2": 107, "rr": 2.0,
+            "fill_price": 101, "r_multiple": 1.0, "confidence": "HIGH",
+            "setup_type": "breakout_retest"} for i in range(1, 20)]
+    (fix / "api_signals_limit_500.json").write_text(json.dumps(sig))
+    (fix / "api_performance.json").write_text(json.dumps(
+        {"decided_trades": 19, "win_rate": 0.5, "total_r_multiple": 1.0,
+         "open_signals": 0, "closed_by_outcome": {}, "by_direction": {},
+         "net": {}, "phases": {}}))
+    for name, body in (("api_status.json", {"meta": {}, "results": {}}),
+                       ("api_universe.json", {"filtered_count": 300,
+                                              "raw_count": 1637}),
+                       ("api_news.json", {"items": []}),
+                       ("api_challengers.json", {"strategies": {}}),
+                       ("api_market.json", {"majors": []}),
+                       ("api_prices.json", {"prices": {}}),
+                       ("api_live.json", {"rows": [], "indices": []})):
+        (fix / name).write_text(json.dumps(body))
+
+    script = str(Path("tools/dashboard_smoke.js").resolve())
+    out = subprocess.run(["node", script],
+                         capture_output=True, text=True, timeout=120,
+                         cwd="/tmp",
+                         env={"PATH": "/usr/bin:/bin",
+                              "NODE_PATH": "/tmp/node_modules",
+                              "DASH": str(Path("app/dashboard.html").resolve()),
+                              "FIXDIR": str(fix) + "/"})
+    assert "SMOKE_OK" in out.stdout, out.stdout + out.stderr

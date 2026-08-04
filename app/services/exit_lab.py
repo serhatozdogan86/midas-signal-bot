@@ -179,7 +179,8 @@ class ExitLab:
     """EOD'de kosar: lab kapsamindaki sinyalleri varyantlarla oynatir."""
 
     def __init__(self, db, md, tracker, mtf: str = "1h",
-                 fill_window: int = 12) -> None:
+                 fill_window: int = 12,
+                 default_start: str = "2026-08-03T00:00:00Z") -> None:
         self._db = db
         self._md = md
         self._tracker = tracker
@@ -191,15 +192,17 @@ class ExitLab:
             "fill_price REAL, exit_price REAL, r_gross REAL, r_net REAL,"
             "closed_ts INTEGER, legs_json TEXT, updated REAL,"
             "PRIMARY KEY(signal_id, variant))")
+        # v4.1.6: BASLANGIC SABIT OLMALI. Eskiden "ilk kurulumda bugun"
+        # yaziliyordu; gist geri yuklemesi meta satirini silince tarih
+        # ILERI kayiyor ve onceki gunlerin sinyalleri laboratuvar
+        # kapsamindan DUSUYORDU (4 Agu'da 3 Agu kohortu kayboldu).
+        # Artik varsayilan kodun icinde sabit; meta yalnizca override.
         row = self._db.query_one(
             "SELECT value FROM meta WHERE key='exit_lab_start'")
-        if row:
-            self.lab_start = row["value"]
-        else:
-            self.lab_start = time.strftime("%Y-%m-%dT00:00:00Z", time.gmtime())
-            self._db.execute(
-                "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
-                ("exit_lab_start", self.lab_start))
+        self.lab_start = (row["value"] if row else default_start)
+        self._db.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+            ("exit_lab_start", self.lab_start))
 
     def _lab_signals(self) -> list[dict]:
         return self._db.query(
@@ -261,6 +264,9 @@ class ExitLab:
         out = {"lab_start": self.lab_start, "signals": len(ids),
                "variants": {}}
         if not ids:
+            out["variants"] = {k: {"n_decided": 0, "net_r": 0.0, "wins": 0,
+                                   "open": 0}
+                               for k in ("V0_CANLI", *VARIANTS)}
             return out
         # V0 = canli sonuclar (Net-R, tracker maliyet modeliyle)
         v0 = {"n_decided": 0, "net_r": 0.0, "wins": 0, "open": 0}
