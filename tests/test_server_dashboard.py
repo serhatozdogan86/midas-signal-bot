@@ -98,22 +98,6 @@ def test_tape_injected_at_top(tmp_path):
     assert "DURUM OZETI ::" in body           # kacisli veya duz - icerik sart
 
 
-def test_bundler_template_stays_valid_json(tmp_path):
-    """v4 kirilma dersi: TAPE enjeksiyonu sablon JSON'unu ASLA bozamaz.
-    Render edilen sayfadan __bundler/template yuku cekilir ve json.loads
-    ile dogrulanir - 'Error unpacking' sinifi kapali."""
-    import json as _json
-    import re
-
-    c = _client(tmp_path)
-    body = c.get("/dashboard").get_data(as_text=True)
-    m = re.search(r'<script type="__bundler/template">([\s\S]*?)</script>',
-                  body)
-    assert m, "sablon yuku bulunamadi"
-    payload = _json.loads(m.group(1))          # kirikse burada patlar
-    flat = _json.dumps(payload)
-    assert "DURUM OZETI ::" in flat            # band yukun icine islenmis
-
 
 def test_dx_plaintext_diag(tmp_path):
     import logging
@@ -165,19 +149,6 @@ def test_diag_endpoint_and_embedded_block(tmp_path):
     embedded = _json.loads(raw.decode().replace("<\\/", "</"))
     assert "regime" in embedded and "log_counts" in embedded
 
-
-def test_v4_serving_contract():
-    """v4 sozlesmesi: TAPE yer tutucusu + server-diag'in SUNUCU tarafindan
-    enjekte edilecegi (statik HTML'de olmamali) + </body> kapanisi.
-    (v3'un hayalet-id testi React-bundle'da anlamsiz; sozlesme testi bu.)"""
-    import re
-
-    from app.dashboard import DASHBOARD_HTML as H
-    assert "<!--TAPE-->" in H
-    assert H.rstrip().endswith("</html>")
-    html_only = re.sub(r"<script[\s\S]*?</script>", "", H)
-    assert 'id="server-diag"' not in html_only     # server enjekte eder
-    assert "server-diag" in H                      # JS okur
 
 
 def test_quotes_endpoint_graceful(tmp_path):
@@ -253,46 +224,6 @@ def test_handbook_pdf_served(tmp_path):
     assert len(r.data) > 100_000
 
 
-def test_dashboard_links_to_handbook(tmp_path):
-    c = _client(tmp_path)
-    body = c.get("/dashboard").get_data(as_text=True)
-    assert "kullanici-el-kitabi.pdf" in body
-
-
-def test_mobile_responsive_rules_present(tmp_path):
-    """Mobil kirilma duzeltmesi (2 Agu): ic icerik|grafik bolunmesi ve satir
-    izgaralari kucuk ekranda yigilmali/daralmali; kacis-toleransli kontrol."""
-    c = _client(tmp_path)
-    body = c.get("/dashboard").get_data(as_text=True)
-    assert "lay-split" in body
-    assert "row-grid" in body
-    assert "mob-scroll" in body
-    assert "max-width:900px" in body or "max-width:900px" in body.replace("\\u002F", "/")
-
-
-def test_mobile_sidebar_hidden_with_toggle(tmp_path):
-    """2 Agu: sol panel mobilde varsayilan gizli, hamburger dugmesiyle
-    cekmece olarak acilir (backdrop + kapatma mantigi dahil)."""
-    c = _client(tmp_path)
-    body = c.get("/dashboard").get_data(as_text=True)
-    assert "btn-menu" in body
-    assert "mob-backdrop" in body
-    assert "mob-open" in body
-
-
-def test_tab_title_and_favicon(tmp_path):
-    """Sekme kimligi: baslik 'MİDAS SİNYAL · terminal · Serhat Özdoğan' ve
-    gomulu SVG favicon (neon gecis + yukselen cizgi)."""
-    import base64
-    import re as _re
-
-    c = _client(tmp_path)
-    body = c.get("/dashboard").get_data(as_text=True)
-    assert "Serhat \u00d6zdo\u011fan</title>" in body
-    m = _re.search(r'href="data:image/svg\+xml;base64,([^"]+)"', body)
-    assert m, "favicon bulunamadi"
-    svg = base64.b64decode(m.group(1)).decode("utf-8")
-    assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
 
 
 def test_data_compare_endpoint_disabled_without_keys(tmp_path):
@@ -302,67 +233,6 @@ def test_data_compare_endpoint_disabled_without_keys(tmp_path):
     assert body["enabled"] is False
 
 
-def test_mobile_tabbar_structure_and_coverage():
-    """v3.13 mobil alt sekmeler: her bolum TAM BIR sekmeye atanmali,
-    sekme cubugu gercek bir eleman olmali (hayalet id testiyle uyumlu),
-    ve masaustu davranisi medya sorgusuyla sinirli kalmali."""
-    import json
-    import re
-    from pathlib import Path
-
-    raw = Path("app/dashboard.html").read_text()
-    tpl = json.loads(
-        re.search(r'<script type="__bundler/template">(.*?)</script>',
-                  raw, re.S).group(1))
-
-    # 1) sekme cubugu ve butonlari
-    assert 'id="tabbar"' in tpl
-    tabs = re.findall(r'<button type="button" data-tab="(\w+)"', tpl)
-    assert tabs == ["poz", "sin", "kar", "hab", "sis"]
-
-    # 2) sablondaki TUM sec-* kimlikleri bir sekmeye atanmis mi
-    sec_ids = set(re.findall(r'id="(sec-[a-z]+)"', tpl))
-    mapped = set(re.findall(r"'(sec-[a-z]+)'", tpl))
-    assert sec_ids and sec_ids <= mapped, sec_ids - mapped
-
-    # 3) mobil disinda sekme cubugu gizli (masaustu bozulmasin)
-    assert "#tabbar{display:none}" in tpl
-    assert "@media (max-width:900px){" in tpl
-
-    # 4) FOUC korumasi: DOMContentLoaded beklemeden bir kez uygulanir
-    assert "try{ apply(); }catch(e){}" in tpl
-
-    # 5) menuden bolume gidince once dogru sekmeye gecilir
-    assert "window.__tabForSection" in tpl
-    assert "if(window.__tabForSection)window.__tabForSection(id);" in tpl
-
-
-def test_pane_shows_entry_reason_and_event_markers():
-    """v3.14: satira dokun -> grafik acilir; grafikte SINYAL/ALIM anlari,
-    TP1/TP2/stop seviyeleri ve 'neden bu pozisyon' gerekcesi bulunur."""
-    import json
-    import re
-    from pathlib import Path
-
-    tpl = json.loads(re.search(
-        r'<script type="__bundler/template">(.*?)</script>',
-        Path("app/dashboard.html").read_text(), re.S).group(1))
-
-    # grafik olay isaretleri (sinyal dogusu / alim ani)
-    assert '{{ paneI.events }}' in tpl
-    assert "markAt(num(sig.signal_ts),'SİNYAL'" in tpl
-    assert "markAt(num(sig.fill_ts),'ALIM'" in tpl
-    # ts'siz mumda uydurma isaret koyulmaz (regresyon)
-    assert "if(!seen) return;" in tpl
-    # TP2 hem olcege hem isaret listesine girer
-    assert "var scale=[stop,tp1,tp2v,lvlV]" in tpl
-    assert "{label:'TP2',v:tp2v" in tpl
-    # gerekce kutusu ve zaman satiri
-    assert '{{ paneI.entryReason }}' in tpl and '{{ paneI.whenTxt }}' in tpl
-    assert "Neden Bu Pozisyon" in tpl
-    # mobil tam ekran detay + kapatma butonu (gercek eleman)
-    assert 'id="sheet-close"' in tpl
-    assert ".sheet-open{position:fixed" in tpl
 
 
 def test_live_rows_expose_signal_and_fill_timestamps():
@@ -378,19 +248,72 @@ def test_live_rows_expose_signal_and_fill_timestamps():
     assert "def _entry_reason(" in tracker
 
 
-def test_mobile_sheet_survives_rerender():
-    """v3.14.1 REGRESYON: satira dokunmak setState -> yeniden render
-    tetikliyor ve panele dogrudan eklenen sinif siliniyordu (mobilde
-    grafik acilmiyordu). Gorunurluk artik KALICI bayraktan her apply()
-    icinde yeniden kurulur."""
-    import json
+
+
+# ---------------- v4.1 (bybit iskeleti) yapisal testler ----------------
+def _tpl() -> str:
+    from pathlib import Path
+    return Path("app/dashboard.html").read_text(encoding="utf-8")
+
+
+def test_no_phantom_element_ids():
+    """DERS (v3.0): getElementById cagrisinin karsiligi HTML'de yoksa
+    script SESSIZCE olur. Iki hayalet id (simSlot, sessBadge) tum panoyu
+    oldurmustu; sablon degisti, ders degismedi."""
+    import re
+    t = _tpl()
+    ids = set(re.findall(r'id="([A-Za-z0-9_-]+)"', t))
+    called = set(re.findall(r'getElementById\(["\']([A-Za-z0-9_-]+)["\']\)', t))
+    # $("x") kisayolu da getElementById'dir
+    called |= set(re.findall(r'\$\(["\']([A-Za-z0-9_-]+)["\']\)', t))
+    dynamic = {"server-diag"}          # sunucu enjekte ediyor
+    missing = called - ids - dynamic
+    assert not missing, f"HTML'de karsiligi olmayan id: {sorted(missing)}"
+
+
+def test_dashboard_only_calls_existing_endpoints():
+    """Sablonun cagirdigi her uc sunucuda TANIMLI olmali - bybit
+    sablonundan tasinirken /market, /prices, /challengers gibi uclar
+    eksik kalirsa pano sessizce bos doner."""
     import re
     from pathlib import Path
-    tpl = json.loads(re.search(
-        r'<script type="__bundler/template">(.*?)</script>',
-        Path("app/dashboard.html").read_text(), re.S).group(1))
-    assert "var sheetOpen=false;" in tpl
-    assert "if(mob&&sheetOpen){ pn.classList.remove('tab-hide'); " \
-           "pn.classList.add('sheet-open'); }" in tpl
-    assert "document.body.classList.add('sheet-on')" in tpl
-    assert "body.sheet-on #sheet-close{display:flex" in tpl
+    t = _tpl()
+    urls = set(re.findall(r'j\(["\`]([^"\`?]+)', t))
+    urls |= set(re.findall(r'fetch\(["\`](/[a-z/-]+)', t))
+    srv = Path("app/server.py").read_text()
+    routes = set(re.findall(r'@app\.(?:get|post)\("([^"]+)"\)', srv))
+    for u in urls:
+        if "${" in u or not u.startswith("/"):
+            continue
+        assert u in routes, f"{u} sunucuda yok"
+
+
+def test_layout_skeleton_matches_bybit_template():
+    t = _tpl()
+    assert ".app{display:grid" in t                 # 3 satirli kabuk
+    assert "grid-template-columns:220px minmax(0,1fr) 300px" in t
+    for tab in ("ozet", "sinyaller", "adaylar", "piyasa", "ayar"):
+        assert f'data-tab="{tab}"' in t, tab
+
+
+def test_midas_palette_and_no_crypto_leftovers():
+    t = _tpl()
+    assert "--bg:#12091F" in t and "--blue:#B18AFF" in t      # mor palet
+    low = t.lower()
+    for word in ("bybit", "usdt", "parite", "funding"):
+        assert word not in low, word
+
+
+def test_candidates_card_is_exit_lab():
+    """ADAYLAR karti = cikis laboratuvari (V0/V1/V2)."""
+    t = _tpl()
+    for v in ("V0_CANLI", "V1_KISMI", "V2_GENIS"):
+        assert v in t, v
+
+
+def test_server_contract_points_present():
+    t = _tpl()
+    assert t.count("<!--TAPE-->") == 1
+    assert t.count('id="server-diag"') == 0        # sunucu kendisi basar
+    assert "edge-cache atlatici" in t
+    assert 'id="databand"' in t

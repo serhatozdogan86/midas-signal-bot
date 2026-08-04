@@ -8,17 +8,22 @@ tum evreni tarar ve tam contract JSON dondurur; seans saati kontrolune takilmaz.
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 import os
 import time
 
+from datetime import datetime, timezone
+
 from flask import Flask, jsonify, request, send_from_directory
 
 from app.dashboard import DASHBOARD_HTML
-from app.logging_setup import get_ring_buffer
+from app.logging_setup import get_ring_buffer, kv
 from app.scheduler import Scheduler
 from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
+
+log = logging.getLogger("server")
 
 
 def create_app(store: StateStore, scheduler: Scheduler,
@@ -275,6 +280,80 @@ def create_app(store: StateStore, scheduler: Scheduler,
             return jsonify({"error": "gist sync disabled (GITHUB_TOKEN not set)"}), 404
         ok = gist_backup.sync()
         return jsonify({"synced": ok, **gist_backup.info()}), (200 if ok else 502)
+
+    # ---- v4 pano uyumluluk uclari (bybit sablonunun bekledigi sekiller) ----
+    @app.get("/prices")
+    def live_prices():
+        """{SYM: fiyat} - acik/bekleyen sinyaller + endeksler."""
+        out = {}
+        try:
+            live = scheduler.get_live_status()
+            for r in live.get("rows", []):
+                if r.get("quote") is not None:
+                    out[r["symbol"]] = r["quote"]
+            for ix in live.get("indices", []):
+                if ix.get("price") is not None:
+                    out[ix["symbol"]] = ix["price"]
+        except Exception:
+            log.exception(kv(event="prices_failed"))
+        return jsonify({"prices": out})
+
+    @app.get("/market")
+    def market_metrics():
+        """Piyasa nabzi: endeksler, genislik, yukselen/dusen, rejim okumasi.
+        Kripto sablonundaki 'majors/fng/breadth' alanlari hisse dunyasina
+        esleniyor (fng yerine REJIM, funding yerine not)."""
+        try:
+            live = scheduler.get_live_status()
+            reg = scheduler.regime.model_dump(mode="json")
+            majors = [{"symbol": ix["symbol"], "last": ix.get("price"),
+                       "pct24h": ix.get("pct"),
+                       "note": "endeks"} for ix in live.get("indices", [])]
+            rows = [r for r in live.get("rows", []) if r.get("quote") is not None]
+            movers = []
+            for r in rows:
+                q, e = r.get("quote"), r.get("fill_price") or r.get("entry_max")
+                if q and e:
+                    movers.append({"symbol": r["symbol"],
+                                   "pct24h": round((q / e - 1) * 100, 2)})
+            movers.sort(key=lambda x: x["pct24h"], reverse=True)
+            adv = sum(1 for m in movers if m["pct24h"] > 0)
+            uni = universe.describe()
+            return jsonify({
+                "updated_utc": datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"),
+                "majors": majors,
+                "fng": {"value": None, "label_tr": reg.get("regime", "-")},
+                "breadth": {"advancers": adv,
+                            "decliners": max(0, len(movers) - adv)},
+                "liquid_universe": uni.get("filtered_count", 0),
+                "gainers": movers[:5], "losers": movers[-5:][::-1],
+                "pulse": reg.get("detail") or reg.get("regime")})
+        except Exception:
+            log.exception(kv(event="market_failed"))
+            return jsonify({"error": "market info unavailable"}), 503
+
+    @app.get("/challengers")
+    def challengers_view():
+        """ADAYLAR = cikis laboratuvari (V0/V1/V2). Sablonun bekledigi
+        'strategies' sekline cevrilir; CI yok (n kucuk) -> None."""
+        try:
+            if scheduler._exit_lab is None:
+                return jsonify({"error": "exit lab disabled"}), 404
+            lab = scheduler._exit_lab.summary()
+            strategies = {}
+            for k, v in (lab.get("variants") or {}).items():
+                dec = v.get("n_decided", 0)
+                strategies[k] = {
+                    "open": v.get("open", 0), "decided": dec, "expired": 0,
+                    "win_rate": (v["wins"] / dec) if dec else None,
+                    "net_r": v.get("net_r", 0.0),
+                    "clusters": dec, "ci": None}
+            return jsonify({"strategies": strategies, "faz1_target": 60,
+                            "lab_start": lab.get("lab_start")})
+        except Exception:
+            log.exception(kv(event="challengers_failed"))
+            return jsonify({"error": "challengers unavailable"}), 503
 
     @app.get("/healthz")
     def healthz():
