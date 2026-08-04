@@ -88,7 +88,8 @@ def test_tag_candles_shape_and_alignment():
     h, low, c = _sweep_series()
     candles = [_c(x, x, y, z) for x, y, z in zip(h, low, c)]
     tags = tag_candles(candles, "LONG", entry=95.5)
-    assert set(tags) == {"fvg", "sweep", "range_pos", "smc_aligned"}
+    assert set(tags) == {"fvg", "sweep", "absorption", "range_pos",
+                         "smc_aligned"}     # v4.5: + Wyckoff
     assert tags["sweep"] is not None
     # giris iskontoda + avi var -> SMC ekolune gore hizali
     assert tags["smc_aligned"] is True
@@ -112,3 +113,41 @@ def test_smc_never_influences_decisions():
         src = Path("app/strategies") / mod
         if src.exists():
             assert "smc_tags" not in src.read_text(), mod
+
+
+# ------------------- v4.5: Wyckoff caba-sonuc (absorbsiyon) etiketi
+def test_absorption_needs_high_volume_and_narrow_range():
+    from app.strategies.smc_tags import find_absorption
+    h = [100 + i * 0.1 for i in range(40)]
+    low = [x - 2 for x in h]
+    c = [x - 1 for x in h]
+    v = [1e6] * 40
+    assert find_absorption(h, low, c, v) is None          # normal bar
+
+    h2, l2, v2 = h[:], low[:], v[:]
+    h2[-1], l2[-1] = c[-1] + 0.2, c[-1] - 0.2             # dar aralik
+    v2[-1] = 3e6                                          # yuksek hacim
+    got = find_absorption(h2, l2, c, v2)
+    assert got and got["vol_ratio"] == 3.0 and got["range_atr"] < 0.6
+
+    # yalniz hacim yeterli DEGIL (aralik genisse absorbsiyon yok)
+    assert find_absorption(h, low, c, v2) is None
+
+
+def test_absorption_returns_none_on_short_or_missing_data():
+    from app.strategies.smc_tags import find_absorption
+    assert find_absorption([1] * 5, [1] * 5, [1] * 5, [1] * 5) is None
+    h = [100 + i * 0.1 for i in range(40)]
+    assert find_absorption(h, [x - 2 for x in h], [x - 1 for x in h], []) is None
+
+
+def test_absorption_is_metadata_only():
+    """Wyckoff etiketi de karara KARISMAZ - smc_tags zaten karar
+    modulleri tarafindan import edilmiyor (test_smc_never_influences_
+    decisions), absorbsiyon o modulun icinde yasar."""
+    from app.strategies.smc_tags import tag_candles
+    from types import SimpleNamespace as N
+    h = [100 + i * 0.1 for i in range(40)]
+    cs = [N(high=h[i], low=h[i] - 2, close=h[i] - 1, volume=1e6)
+          for i in range(40)]
+    assert "absorption" in tag_candles(cs, "LONG")

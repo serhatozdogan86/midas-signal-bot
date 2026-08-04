@@ -1608,6 +1608,8 @@ function signalDetail(s){
       if(smc.sweep) ek.push("likidite avı: <b>var</b> (önceki dip süpürülüp geri kazanılmış)");
       if(smc.fvg) ek.push("fiyat boşluğu (FVG): <b>var</b>");
       if(smc.range_pos!=null) ek.push("aralık konumu: <b>%"+Math.round(smc.range_pos*100)+"</b> (0=dip, 100=tepe)");
+      if(smc.absorption) ek.push("Wyckoff absorbsiyon: <b>var</b> (hacim "+
+        num(smc.absorption.vol_ratio,1)+"×, aralık "+num(smc.absorption.range_atr,2)+"×ATR)");
     }
     if(ek.length) html+='<div class="note"><b>Ölçüm etiketleri</b> '+
       '<span style="color:var(--muted);font-size:11px">· karara girmez, analiz için</span><br>'+

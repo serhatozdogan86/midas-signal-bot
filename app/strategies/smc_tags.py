@@ -28,6 +28,14 @@ yuzden yalnizca KESIN KODLANABILIR uc kavram alindi:
 Not: order block, inducement, breaker gibi kavramlar BILINCLI olarak
 disarida birakildi - tanimlari yoruma acik oldugu icin olcum degeri
 tasimazlar.
+
+v4.5 EK - WYCKOFF ABSORBSIYONU:
+Wyckoff'un "caba vs sonuc" yasasinin kodlanabilir hali: YUKSEK hacim
+(caba) ama DAR aralik (sonuc) => birileri arzi yutuyor. Backtest'te
+dogru yonde ama olcum yetersizdi (20 gunde +0.99%, t=0.97, yalniz 263
+sinyal) - yani "ise yaramaz" DEGIL, "olculemedi". Bu yuzden karara
+sokulmuyor, ETIKET olarak kaydediliyor; kohort dolunca kendi
+defterimizden sorulacak.
 """
 from __future__ import annotations
 
@@ -109,6 +117,36 @@ def find_liquidity_sweep(highs: list[float], lows: list[float],
     return None
 
 
+def find_absorption(highs: list[float], lows: list[float],
+                    closes: list[float], volumes: list[float],
+                    vol_mult: float = 1.8, range_mult: float = 0.6,
+                    lookback: int = 20) -> dict | None:
+    """Wyckoff caba-sonuc uyusmazligi: hacim yuksek, aralik dar.
+    Son bar icin bakilir; veri yetersizse None (uydurma yok)."""
+    n = len(closes)
+    if n < lookback + 15 or not volumes:
+        return None
+    i = n - 1
+    vavg = sum(volumes[i - lookback:i]) / lookback
+    if vavg <= 0:
+        return None
+    # basit ATR(14)
+    trs = []
+    for k in range(i - 13, i + 1):
+        pc = closes[k - 1]
+        trs.append(max(highs[k] - lows[k], abs(highs[k] - pc),
+                       abs(lows[k] - pc)))
+    atr14 = sum(trs) / len(trs)
+    if atr14 <= 0:
+        return None
+    rng = highs[i] - lows[i]
+    vr = volumes[i] / vavg
+    if vr >= vol_mult and rng < range_mult * atr14:
+        return {"vol_ratio": round(vr, 2),
+                "range_atr": round(rng / atr14, 2)}
+    return None
+
+
 def range_position(highs: list[float], lows: list[float], price: float,
                    range_bars: int = 40) -> float | None:
     """0 = aralik dibi (iskonto), 1 = aralik tepesi (prim)."""
@@ -128,6 +166,7 @@ def tag_candles(candles, direction: str, entry: float | None = None) -> dict:
         highs = [float(c.high) for c in candles]
         lows = [float(c.low) for c in candles]
         closes = [float(c.close) for c in candles]
+        volumes = [float(getattr(c, "volume", 0) or 0) for c in candles]
     except Exception:
         return {}
     if len(closes) < 6:
@@ -139,6 +178,7 @@ def tag_candles(candles, direction: str, entry: float | None = None) -> dict:
     return {
         "fvg": fvg,
         "sweep": sweep,
+        "absorption": find_absorption(highs, lows, closes, volumes),
         "range_pos": pos,
         # SMC ekolunun tercihi: LONG iskontodan, SHORT primden
         "smc_aligned": bool(
