@@ -620,6 +620,9 @@
       <div class="card fill" data-tab="adaylar">
         <div class="chead"><span class="tipwrap" tabindex="0" data-tip="Faz B gölge yarışı: 5 aday strateji, şampiyonla AYNI maliyet modeli ve AYNI sınavla (≥50 kapanmış küme + küme-CI alt sınırı > 0) kâğıt üzerinde ölçülür. Gerçek işlem yok. Girişler kapanış bazlı; v1 çıkışları sabit hedefli — trend adayları (S1/S2) için sonuçlar muhafazakâr alt sınırdır. Şampiyon Faz-1 sınavını geçemezse buradaki sıralama bir sonraki denemenin adayını belirler. Çoklu karşılaştırma düzeltmesi: kazanan, seçildikten SONRA toplanan veride de sınavı geçmek zorundadır. Yatırım tavsiyesi değildir.">Aday Stratejiler · Gölge Yarış <span class="i">ⓘ</span></span> <span class="tag">Faz B</span></div>
         <div class="cbody scroll" id="chalBody"><div class="empty">aday verisi birikiyor…</div></div>
+        <div class="chead" style="padding-top:10px">Aday Giriş Stratejileri
+          <span class="tag">tüm evren · kohort</span></div>
+        <div class="cbody" id="slabBody"><div class="empty">gün sonu koşumunda dolar…</div></div>
       </div>
 <div class="card">
         <div class="chead">Piyasa Nabzı <span class="tag" id="mupd">canlı metrikler</span></div>
@@ -1098,6 +1101,33 @@ function renderHeader(perf,status){
 /* ---------- Faz B: aday stratejiler sekmesi ---------- */
 const CHAL_ADI={V0_CANLI:"V0 · canlı çıkış",V1_KISMI:"V1 · kısmi kâr",
   V2_GENIS:"V2 · geniş stop"};
+function renderStrategyLab(sl){
+  const el=document.getElementById("slabBody"); if(!el) return;
+  if(!sl||sl.pending||!sl.strategies){
+    el.innerHTML='<div class="empty">gün sonu koşumunda dolar…</div>';return;}
+  const sgn=v=>v==null?"—":(v>0?"+":"")+num(v,2);
+  const cell=o=>!o||!o.n?'<td class="num">—</td><td class="num">—</td>':
+    `<td class="num">${o.n}</td><td class="num ${o.net_r>0?"pos":o.net_r<0?"neg":""}">${sgn(o.net_r)}</td>`;
+  let h='<table class="sig"><thead><tr><th>strateji</th>'+
+    '<th colspan="2">kohort · tavansız</th><th colspan="2">kohort · tavanlı</th>'+
+    '</tr><tr><th></th><th>işlem</th><th>net R</th><th>işlem</th><th>net R</th>'+
+    '</tr></thead><tbody>';
+  let toplam=0;
+  for(const [k,v] of Object.entries(sl.strategies)){
+    toplam+=(v.kohort&&v.kohort.tavansiz?v.kohort.tavansiz.n:0);
+    h+=`<tr><td>${v.label||k}</td>${cell(v.kohort&&v.kohort.tavansiz)}`+
+       `${cell(v.kohort&&v.kohort.tavanli)}</tr>`;
+  }
+  h+="</tbody></table>";
+  if(!toplam) h+='<div class="empty" style="margin-top:6px">kohort verisi birikiyor — '+
+    'aşağıdaki tarihsel değerler BACKTEST\'tir, canlı kanıt değildir</div>';
+  h+='<div class="note" style="margin-top:8px"><b>Tarihsel referans (backtest)</b><br>'+
+    Object.entries(sl.strategies).map(([k,v])=>{
+      const t=v.tarihsel&&v.tarihsel.tavansiz;
+      return (v.label||k)+": "+(t?`${t.n} işlem · ${sgn(t.net_r)}R · beklenti ${sgn(t.expectancy)}`:"—");
+    }).join("<br>")+"</div>";
+  el.innerHTML=h;
+}
 function renderChallengers(ch){
   const el=$("chalBody");if(!el)return;
   if(!ch||!ch.strategies){el.innerHTML='<div class="empty">aday verisi birikiyor…</div>';return;}
@@ -1988,6 +2018,7 @@ async function refresh(){
     j("/performance"),j("/signals?limit=500"),j("/status"),j("/universe"),
     j("/commentary?limit=4"),j("/market"),j("/news"),j("/prices"),
     j("/backup/info"),j("/challengers"),j("/live")]);
+  const slab=await j("/strategy-lab");
   LIVE=live||null;
   // v4.1.5: sirket verisi (sektor/F-K/FAVOK) - acik+bekleyen semboller
   try{
@@ -2008,6 +2039,7 @@ async function refresh(){
   renderKpis(perf,status,uni,SIGNALS);
   renderMeasure(perf);
   renderChallengers(chal);
+  renderStrategyLab(slab);
   renderCurve(SIGNALS);
   renderDuel(SIGNALS);
   renderChips();renderSignals();

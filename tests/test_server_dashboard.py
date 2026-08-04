@@ -454,7 +454,8 @@ def test_dashboard_renders_with_real_payloads():
                        ("api_challengers.json", {"strategies": {}}),
                        ("api_market.json", {"majors": []}),
                        ("api_prices.json", {"prices": {}}),
-                       ("api_live.json", {"rows": [], "indices": []})):
+                       ("api_live.json", {"rows": [], "indices": []}),
+                       ("api_strategy_lab.json", {"pending": True})):
         (fix / name).write_text(json.dumps(body))
 
     script = str(Path("tools/dashboard_smoke.js").resolve())
@@ -479,3 +480,13 @@ def test_detail_shows_why_the_signal_fired():
     assert "kayıtlı gerekçe yok" in t
     assert "s.mom_pct" in t and "smc_tags" in t
     assert "karara girmez" in t
+
+
+def test_strategy_lab_layer_present():
+    """KATMAN 2: bagimsiz aday GIRIS stratejileri panoda gorunmeli;
+    tarihsel degerler BACKTEST olarak ETIKETLENMELI."""
+    t = _tpl()
+    assert "/strategy-lab" in t
+    assert "renderStrategyLab" in t and 'id="slabBody"' in t
+    assert "kohort · tavansız" in t and "kohort · tavanlı" in t
+    assert "canlı kanıt değildir" in t

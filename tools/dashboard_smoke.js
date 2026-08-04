@@ -3,7 +3,7 @@ const html=fs.readFileSync(process.env.DASH||'app/dashboard.html','utf8');
 const map={'/performance':'api_performance.json','/signals':'api_signals_limit_500.json',
  '/status':'api_status.json','/universe':'api_universe.json','/news':'api_news.json',
  '/challengers':'api_challengers.json','/market':'api_market.json','/prices':'api_prices.json',
- '/live':'api_live.json'};
+ '/live':'api_live.json','/strategy-lab':'api_strategy_lab.json'};
 const errs=[];
 const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://x.test/',
   beforeParse(w){

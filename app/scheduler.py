@@ -69,6 +69,9 @@ class Scheduler:
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._news = news              # None -> haber akisi kapali
         self._exit_lab = None          # main.py kurulumda baglar (v3.19)
+        # v3.21: KATMAN 2 - bagimsiz aday GIRIS stratejileri (ayni cikis)
+        from app.services.strategy_lab import StrategyLab
+        self._strategy_lab = StrategyLab(settings=settings)
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0
@@ -1282,6 +1285,12 @@ class Scheduler:
                 self._exit_lab.run(today)
             except Exception:
                 log.exception(kv(event="exit_lab_error"))
+        # aday stratejiler: tum evren taranir (tavansiz) + tavanli gorunum
+        try:
+            if self._daily_cache:
+                self._strategy_lab.run(self._daily_cache)
+        except Exception:
+            log.exception(kv(event="strategy_lab_error"))
         self._eod_date = today
         watch_txt = ", ".join(w["symbol"] for w in self._watchlist[:15]) or "-"
         shadow_line = ""

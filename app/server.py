@@ -333,6 +333,23 @@ def create_app(store: StateStore, scheduler: Scheduler,
             log.exception(kv(event="market_failed"))
             return jsonify({"error": "market info unavailable"}), 503
 
+    @app.get("/strategy-lab")
+    def strategy_lab_view():
+        """KATMAN 2: bagimsiz aday GIRIS stratejileri.
+        kohort = lab_start sonrasi (karar buna gore verilir),
+        tarihsel = 2 yillik referans (BACKTEST, canli kanit degil)."""
+        try:
+            lab = getattr(scheduler, "_strategy_lab", None)
+            if lab is None:
+                return jsonify({"error": "strategy lab disabled"}), 404
+            if not lab.last:
+                return jsonify({"pending": True,
+                                "note": "ilk gun sonu kosumunda dolar"})
+            return jsonify(lab.last)
+        except Exception:
+            log.exception(kv(event="strategy_lab_view_failed"))
+            return jsonify({"error": "strategy lab unavailable"}), 503
+
     @app.get("/challengers")
     def challengers_view():
         """ADAYLAR = cikis laboratuvari (V0/V1/V2). Sablonun bekledigi
