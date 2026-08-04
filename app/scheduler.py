@@ -175,6 +175,10 @@ class Scheduler:
                 self._last_fine = time.time()
         if now_et >= eod_dt and self._eod_date != today and self._prep_date == today:
             self.run_eod(today)
+        # aday strateji laboratuvari: gunde bir kez, ARKA PLANDA baslar
+        # (kendi kilidi var; hazirligi beklemeden gorunur olsun diye
+        # tick'ten de tetiklenir - tick bloklanmaz).
+        self._kick_strategy_lab()
         # --- en son: kozmetik veri (haber akisi) ---
         if self._news is not None:
             try:
