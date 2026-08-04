@@ -462,3 +462,14 @@ def test_dashboard_renders_with_real_payloads():
                               "DASH": str(Path("app/dashboard.html").resolve()),
                               "FIXDIR": str(fix) + "/"})
     assert "SMOKE_OK" in out.stdout, out.stdout + out.stderr
+
+
+def test_detail_shows_why_the_signal_fired():
+    """v4.1.7: 'hangi veriye gore sinyal geldi' detayda GORUNMELI.
+    entry_reason sinyal dogarken yazilir; momentum/SMC etiketleri
+    ayrica ve ACIKCA 'karara girmez' notuyla gosterilir."""
+    t = _tpl()
+    assert "NEDEN BU SİNYAL" in t
+    assert "s.entry_reason" in t
+    assert "s.mom_pct" in t and "smc_tags" in t
+    assert "karara girmez" in t

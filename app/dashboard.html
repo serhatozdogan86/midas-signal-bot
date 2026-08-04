@@ -1471,6 +1471,30 @@ function signalDetail(s){
     g("Kapanış",s.closed_utc?fmtTs(s.closed_utc)+" UTC":"—")+
     g("Setup / Güven",(s.setup_type||"—")+" / "+(s.confidence||"—"))+
     g("Net R (maliyet v0)",s.r_net!=null?((s.r_net>0?"+":"")+num(s.r_net)):"—")+"</div>";
+  // v4.1.7: NEDEN BU SINYAL? entry_reason sinyal DOGARKEN yazilir,
+  // sonradan yeniden kurulmaz (motor parametreleri degisse bile eski
+  // sinyalin gerekcesi bozulmaz).
+  if(s.entry_reason){
+    html+='<div class="note" style="border-left:3px solid var(--green);'+
+      'background:var(--green-bg);color:var(--text)">'+
+      '<b style="color:var(--green-ink)">NEDEN BU SİNYAL</b> '+
+      '<span style="color:var(--muted);font-size:11px">· sinyal doğduğu an kaydedildi</span><br>'+
+      s.entry_reason+'</div>';
+  }
+  {  // olcum etiketleri: karara GIRMEZ, sonraki analiz icin
+    const ek=[];
+    if(s.mom_pct!=null) ek.push("12-1 momentum: evrenin <b>%"+Math.round(s.mom_pct*100)+"</b> dilimi");
+    let smc=null;
+    try{ smc = (typeof s.smc_tags==="string") ? JSON.parse(s.smc_tags) : s.smc_tags; }catch(e){}
+    if(smc){
+      if(smc.sweep) ek.push("likidite avı: <b>var</b> (önceki dip süpürülüp geri kazanılmış)");
+      if(smc.fvg) ek.push("fiyat boşluğu (FVG): <b>var</b>");
+      if(smc.range_pos!=null) ek.push("aralık konumu: <b>%"+Math.round(smc.range_pos*100)+"</b> (0=dip, 100=tepe)");
+    }
+    if(ek.length) html+='<div class="note"><b>Ölçüm etiketleri</b> '+
+      '<span style="color:var(--muted);font-size:11px">· karara girmez, analiz için</span><br>'+
+      ek.join(" · ")+'</div>';
+  }
   const live=LAST_STATUS&&LAST_STATUS.results&&LAST_STATUS.results[s.symbol];
   if(live&&live.decision==="SIGNAL"){
     html+=`<div class="note"><b>Son taramada aktif plan:</b> ${live.setup_type||""} · güven ${live.confidence||""}<br>
@@ -1522,7 +1546,7 @@ function renderSignals(){
     }
     return `<tr data-i="${i}" class="dir-${s.direction}${o==="NOT_FILLED"?" dim":""}">
       <td class="num c-id">${s.id}</td>
-      <td class="c-pair"><b>${s.symbol}</b>${s.confidence?`<span class="conf ${s.confidence}" title="${LANG==="ru"?"уверенность":"güven"}: ${s.confidence}${s.setup_type?" · "+s.setup_type:""}">${s.confidence[0]}</span>`:""}</td>
+      <td class="c-pair" title="${(s.entry_reason||'').replace(/"/g,'&quot;')}"><b>${s.symbol}</b>${s.confidence?`<span class="conf ${s.confidence}" title="${LANG==="ru"?"уверенность":"güven"}: ${s.confidence}${s.setup_type?" · "+s.setup_type:""}">${s.confidence[0]}</span>`:""}</td>
       <td class="c-dir"><span class="badge b-${s.direction}">${s.direction}</span></td>
       <td class="c-time">${fmtTs(s.created_utc)}${age}</td>
       <td class="c-st"><span class="badge b-${o}">${o}</span></td>
