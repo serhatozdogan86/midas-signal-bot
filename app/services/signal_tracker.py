@@ -122,7 +122,8 @@ class SignalTracker:
         # (sinyal DOGARKEN yazilan gerekce; sonradan yeniden kurulmaz).
         for col in ("confidence", "setup_type", "blocked INTEGER DEFAULT 0",
                     "block_reason", "cluster_id", "engine_sha",
-                    "fill_ts INTEGER", "entry_reason", "smc_tags", "mom_pct REAL"):
+                    "fill_ts INTEGER", "entry_reason", "smc_tags", "mom_pct REAL",
+                    "atr_pct REAL", "atr_rank REAL"):
             try:
                 ddl = col if " " in col else f"{col} TEXT"
                 self._db.execute(f"ALTER TABLE signals ADD COLUMN {ddl}")
@@ -149,7 +150,9 @@ class SignalTracker:
 
     # ------------------------------------------------------ sinyal takibi
     def maybe_track(self, d: Decision, mtf: KlineSeries,
-                    mom_pct: float | None = None) -> bool:
+                    mom_pct: float | None = None,
+                    atr_pct: float | None = None,
+                    atr_rank: float | None = None) -> bool:
         """SIGNAL'i izlemeye al. Ayni symbol+direction icin acik GERCEK
         kayit varsa alma.
 
@@ -172,15 +175,15 @@ class SignalTracker:
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
             "contract_json,confidence,setup_type,cluster_id,engine_sha,"
-            "entry_reason,smc_tags,mom_pct) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "entry_reason,smc_tags,mom_pct,atr_pct,atr_rank) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
              json.dumps(d.contract_dict()),
              d.confidence.value, d.setup_type.value,
              _cluster_id(d), _ENGINE_SHA, _entry_reason(d),
-             _smc(d, mtf), mom_pct))
+             _smc(d, mtf), mom_pct, atr_pct, atr_rank))
         log.info(kv(event="shadow_track", symbol=d.symbol,
                     direction=d.direction.value))
         return True
@@ -498,7 +501,7 @@ class SignalTracker:
             "SELECT id,symbol,direction,created_utc,entry_candle_ts,status,outcome,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,fill_price,"
             "exit_price,r_multiple,closed_utc,confidence,setup_type,contract_json,"
-            "fill_ts,entry_reason,smc_tags,mom_pct "
+            "fill_ts,entry_reason,smc_tags,mom_pct,atr_pct,atr_rank "
             "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
         for r in rows:                       # net-R (referans boy) rapora

@@ -538,3 +538,22 @@ def test_volatility_endpoint_shape(tmp_path):
     assert r.status_code == 200
     body = r.get_json()
     assert body.get("pending") is True or "median" in body
+
+
+def test_atr_measurement_recorded_and_shown():
+    """v4.6: 'oynak hisselerdeki sinyaller daha mi iyiydi' sorusunu
+    kohort dolunca cevaplayabilmek icin ATR yuzdesi ve evren dilimi
+    sinyal DOGARKEN kaydedilir. SALT OLCUM - karara karismaz."""
+    from pathlib import Path
+    tr = Path("app/services/signal_tracker.py").read_text()
+    assert '"atr_pct REAL", "atr_rank REAL"' in tr
+    sched = Path("app/scheduler.py").read_text()
+    assert "def _atr_pcts(self, daily: dict)" in sched
+    assert "atr_pct=_ap[0], atr_rank=_ap[1]" in sched
+    assert '"atr_pct": sig.get("atr_pct")' in sched
+    t = _tpl()
+    assert "s.atr_pct" in t and "s.atr_rank" in t
+    assert "oynaklık: ATR" in t
+    # karar modulleri ATR SIRALAMASINI kullanmamali (yalniz olcum)
+    eng = Path("app/strategies/signal_engine.py").read_text()
+    assert "atr_rank" not in eng

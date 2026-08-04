@@ -1602,6 +1602,8 @@ function signalDetail(s){
   {  // olcum etiketleri: karara GIRMEZ, sonraki analiz icin
     const ek=[];
     if(s.mom_pct!=null) ek.push("12-1 momentum: evrenin <b>%"+Math.round(s.mom_pct*100)+"</b> dilimi");
+    if(s.atr_pct!=null) ek.push("oynaklık: ATR <b>%"+num(s.atr_pct,2)+"</b>"+
+      (s.atr_rank!=null?(" · evrenin <b>%"+Math.round(s.atr_rank*100)+"</b> dilimi"):""));
     let smc=null;
     try{ smc = (typeof s.smc_tags==="string") ? JSON.parse(s.smc_tags) : s.smc_tags; }catch(e){}
     if(smc){

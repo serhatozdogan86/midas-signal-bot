@@ -350,6 +350,7 @@ class Scheduler:
         # icindeki yuzdeligi damgalanir; kohort dolunca "ust dilim
         # sinyalleri daha mi iyi" sorusu KENDI defterimizden cevaplanir.
         mom_pct_map = self._momentum_pcts(daily)
+        atr_pct_map = self._atr_pcts(daily)
         # v3.18: Finnhub takvimi yoksa YALNIZ bu adaylar icin yedek
         # kaynak (yfinance) calisir - 300 sembol degil ~50.
         try:
@@ -391,9 +392,11 @@ class Scheduler:
                     self._tracker.record_decision(d)
                     if symbol in hourly:
                         if block is None:
+                            _ap = atr_pct_map.get(symbol) or (None, None)
                             self._tracker.maybe_track(
                                 d, hourly[symbol],
-                                mom_pct=mom_pct_map.get(symbol))
+                                mom_pct=mom_pct_map.get(symbol),
+                                atr_pct=_ap[0], atr_rank=_ap[1])
                         else:
                             self._tracker.track_blocked(
                                 d, hourly[symbol], block[0], block[1])
@@ -518,7 +521,9 @@ class Scheduler:
                    "setup_type": sig.get("setup_type"),
                    "confidence": sig.get("confidence"),
                    "rr": sig.get("rr"),
-                   "smc": _json_or_none(sig.get("smc_tags"))}
+                   "smc": _json_or_none(sig.get("smc_tags")),
+                   "atr_pct": sig.get("atr_pct"),
+                   "atr_rank": sig.get("atr_rank")}
             days_left = None
             if sig.get("time_stop_date"):
                 try:
@@ -722,6 +727,37 @@ class Scheduler:
         self._slab_running = True
         threading.Thread(target=_work, daemon=True,
                          name="strategy-lab").start()
+
+    def _atr_pcts(self, daily: dict) -> dict[str, tuple]:
+        """Sembol -> (ATR yuzdesi, evren icindeki yuzdelik dilim).
+
+        v4.6: 4 Agu gozlemi - acik pozisyonlarimizin TAMAMI evren
+        ortancasinin altinda/civarinda oynakliktaydi (%2.2-3.7 vs
+        ortanca %3.46). Filtrelerimiz dogal olarak sakin hisseleri
+        seciyor olabilir; bu iyi de olabilir kotu de. Sinyal basina
+        kaydedip kohort dolunca KENDI defterimizden soracagiz:
+        "oynak hisselerdeki sinyaller daha mi iyiydi?"
+        SALT OLCUM - karara karismaz.
+        """
+        from app.services.strategy_lab import atr as _atr
+        vals: dict[str, float] = {}
+        for sym, series in daily.items():
+            cs = series.candles
+            if len(cs) < 20:
+                continue
+            bars = [{"high": c.high, "low": c.low, "close": c.close}
+                    for c in cs[-40:]]
+            a14 = _atr(bars)
+            last, px = a14[-1], bars[-1]["close"]
+            if last and px:
+                vals[sym] = round(100 * last / px, 3)
+        if len(vals) < 30:
+            return {}
+        ordered = sorted(vals.values())
+        n = len(ordered)
+        import bisect
+        return {sym: (v, round(bisect.bisect_left(ordered, v) / (n - 1), 3))
+                for sym, v in vals.items()}
 
     def _momentum_pcts(self, daily: dict) -> dict[str, float]:
         """12-1 momentum yuzdeligi (kesitsel). 253+ gunluk bari olan
