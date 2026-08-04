@@ -167,7 +167,7 @@
   .kpi .tr{position:absolute;top:8px;right:12px;font-size:12px}
   /* KPI tooltip balonu */
   .kpi::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);
-    left:50%;transform:translateX(-50%);background:#2A241B;color:#FBF8F2;
+    left:50%;transform:translateX(-50%);background:var(--card2);color:var(--text);
     padding:8px 11px;border-radius:9px;font-size:11.8px;line-height:1.45;
     font-weight:400;width:max-content;max-width:250px;white-space:normal;
     opacity:0;visibility:hidden;pointer-events:none;z-index:40;
@@ -175,7 +175,7 @@
     transition:opacity .15s ease .25s,visibility 0s .4s}
   .kpi::before{content:"";position:absolute;top:calc(100% + 2px);left:50%;
     transform:translateX(-50%);border:6px solid transparent;
-    border-bottom-color:#2A241B;opacity:0;visibility:hidden;z-index:41;
+    border-bottom-color:var(--card2);opacity:0;visibility:hidden;z-index:41;
     transition:opacity .15s ease .25s,visibility 0s .4s}
   .kpi:hover::after,.kpi:hover::before,
   .kpi:focus-visible::after,.kpi:focus-visible::before{
@@ -185,15 +185,15 @@
   .tipwrap{position:relative;cursor:help}
   .tipwrap .i{color:var(--blue);font-size:10px;vertical-align:1px}
   .tipwrap::after{content:attr(data-tip);position:absolute;
-    top:calc(100% + 9px);left:0;transform:none;background:#2A241B;
-    color:#FBF8F2;padding:9px 12px;border-radius:9px;font-size:11.8px;
+    top:calc(100% + 9px);left:0;transform:none;background:var(--card2);
+    color:var(--text);padding:9px 12px;border-radius:9px;font-size:11.8px;
     line-height:1.5;font-weight:400;width:max-content;max-width:310px;
     white-space:normal;text-transform:none;letter-spacing:0;
     opacity:0;visibility:hidden;pointer-events:none;z-index:40;
     box-shadow:0 8px 24px rgba(42,36,27,.28);
     transition:opacity .15s ease .25s,visibility 0s .4s}
   .tipwrap::before{content:"";position:absolute;top:calc(100% + 3px);
-    left:16px;border:6px solid transparent;border-bottom-color:#2A241B;
+    left:16px;border:6px solid transparent;border-bottom-color:var(--card2);
     opacity:0;visibility:hidden;z-index:41;
     transition:opacity .15s ease .25s,visibility 0s .4s}
   .tipwrap:hover::after,.tipwrap:hover::before,
@@ -228,7 +228,9 @@
      position:sticky;top:0;z-index:1}
   td{padding:5px 10px;border-bottom:1px solid var(--card2);white-space:nowrap}
   tbody tr{cursor:pointer}
-  tbody tr:nth-child(even) td{background:rgba(249,245,236,.55)}
+  /* v4.1.8: zebra eski sablonun KREM tonuydu - koyu
+     zeminde gri leke gibi goruntu veriyordu. */
+  tbody tr:nth-child(even) td{background:rgba(177,138,255,.055)}
   tbody tr:hover td{background:var(--card2)}
   @keyframes tickU{0%{background:rgba(22,163,74,.28)}100%{background:transparent}}
   @keyframes tickD{0%{background:rgba(220,38,38,.28)}100%{background:transparent}}
@@ -270,7 +272,7 @@
             color:var(--muted)}
   .fng .lbl b{color:var(--text)}
   .fng .track{position:relative;height:10px;border-radius:5px;margin-top:4px;
-    background:linear-gradient(90deg,#DC2626,#F59E0B 40%,#B9B29F 52%,
+    background:linear-gradient(90deg,#DC2626,#F59E0B 40%,#3A2560 52%,
                                #84CC16 68%,#16A34A);
     border:1px solid var(--line)}
   .fng .mark{position:absolute;top:-3px;width:3px;height:16px;
@@ -362,7 +364,7 @@
   a{color:var(--blue)}
   /* buyuk yazi modu: tek-ekran kilidi kalkar, sayfa kayar; uzun listeler
      yine kendi icinde kayar (55vh tavan) */
-  #tipbox{position:fixed;display:none;background:#2A241B;color:#FBF8F2;
+  #tipbox{position:fixed;display:none;background:var(--card2);color:var(--text);
     padding:9px 12px;border-radius:9px;font-size:11.8px;line-height:1.5;
     max-width:320px;z-index:60;box-shadow:0 8px 24px rgba(42,36,27,.28);
     pointer-events:none}
@@ -1253,7 +1255,7 @@ function renderCurve(signals){
         {data:series,borderColor:"#2563EB",borderWidth:2.5,fill:true,
          backgroundColor:grad,tension:.35,
          pointRadius:4,pointHoverRadius:6,
-         pointBackgroundColor:ptCol,pointBorderColor:"#FFFEFA",
+         pointBackgroundColor:ptCol,pointBorderColor:"#1B0F30",
          pointBorderWidth:2}];
     if(hasNet)sets.push(
         {data,borderColor:"#B7AE9A",borderWidth:1.4,borderDash:[5,4],
@@ -1270,7 +1272,7 @@ function renderCurve(signals){
             :(hasNet&&i.datasetIndex===1?"brüt "+(data[i.dataIndex]>0?"+":"")+num(data[i.dataIndex])+"R":"")}}},
         scales:{x:{display:false},
           y:{grid:{color:"#F0EAD9"},border:{display:false},
-             ticks:{font:{size:10},color:"#8A7F6C",
+             ticks:{font:{size:10},color:"#A99AC4",
              callback:v=>(v>0?"+":"")+v+"R"}}}},
       plugins:[shadowPlugin]};
     if(eqChart){eqChart.data=cfg.data;eqChart.update("none");}
@@ -1288,7 +1290,7 @@ function renderCurve(signals){
   const mk=a=>a.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");
   const path=mk(pts);
   const pathG=hasNet?`<path d="${mk(ptsG)}" fill="none" stroke="#B7AE9A" stroke-width="1.4" stroke-dasharray="5 4"/>`:"";
-  const dots=done.map((s,i)=>`<circle cx="${X(i+1)}" cy="${Y(series[i])}" r="4" fill="${ptCol[i]}" stroke="#FFFEFA" stroke-width="2"><title>${tips[i]}</title></circle>`).join("");
+  const dots=done.map((s,i)=>`<circle cx="${X(i+1)}" cy="${Y(series[i])}" r="4" fill="${ptCol[i]}" stroke="#1B0F30" stroke-width="2"><title>${tips[i]}</title></circle>`).join("");
   wrap.innerHTML=`<svg viewBox="0 0 ${W} ${H2}" preserveAspectRatio="none">
     <defs><filter id="ds"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#2563EB" flood-opacity=".3"/></filter></defs>
     <line x1="${P}" y1="${Y(0)}" x2="${W-8}" y2="${Y(0)}" stroke="#B7AE9A" stroke-dasharray="4 4"/>
@@ -1474,12 +1476,29 @@ function signalDetail(s){
   // v4.1.7: NEDEN BU SINYAL? entry_reason sinyal DOGARKEN yazilir,
   // sonradan yeniden kurulmaz (motor parametreleri degisse bile eski
   // sinyalin gerekcesi bozulmaz).
-  if(s.entry_reason){
+  {  // NEDEN BU SINYAL - kayitli gerekce yoksa DURUSTCE soyle
+    const SETUP_TR={breakout_retest:"kırılım sonrası geri test",
+      trend_pullback:"trend içinde geri çekilme alımı"};
+    let body, tag;
+    if(s.entry_reason){
+      body=s.entry_reason;
+      tag="sinyal doğduğu an kaydedildi";
+    }else{
+      // 3 Agu oncesi sinyallerde kayit yok (ozellik sonra geldi).
+      // Uydurma yapmiyoruz: plan verisinden OZET cikarip bunu SOYLUYORUZ.
+      const p=[];
+      if(s.setup_type) p.push("Kurulum: "+(SETUP_TR[s.setup_type]||s.setup_type));
+      p.push("Yön: "+s.direction);
+      if(s.rr!=null) p.push("plan risk/ödül "+num(s.rr,2)+"x");
+      if(s.confidence) p.push("güven "+s.confidence);
+      body=p.join(" · ");
+      tag="kayıtlı gerekçe yok (bu sinyal özellikten önce doğdu) — plan verisinden özet";
+    }
     html+='<div class="note" style="border-left:3px solid var(--green);'+
       'background:var(--green-bg);color:var(--text)">'+
       '<b style="color:var(--green-ink)">NEDEN BU SİNYAL</b> '+
-      '<span style="color:var(--muted);font-size:11px">· sinyal doğduğu an kaydedildi</span><br>'+
-      s.entry_reason+'</div>';
+      '<span style="color:var(--muted);font-size:11px">· '+tag+'</span><br>'+
+      body+'</div>';
   }
   {  // olcum etiketleri: karara GIRMEZ, sonraki analiz icin
     const ek=[];
@@ -1821,7 +1840,7 @@ function drawEvidence(d){
   const mark=(ts,px,col,lbl)=>{
     if(px==null) return "";
     let idx=cs.findIndex(c=>c.ts>=ts); if(idx<0) idx=cs.length-1;
-    return `<circle cx="${X(idx)+BW/2}" cy="${Y(px)}" r="4" fill="${col}" stroke="#FFFEFA" stroke-width="1.5"/>
+    return `<circle cx="${X(idx)+BW/2}" cy="${Y(px)}" r="4" fill="${col}" stroke="#1B0F30" stroke-width="1.5"/>
       <text x="${X(idx)+BW/2+7}" y="${Y(px)-6}" fill="${col}">${lbl}</text>`;};
   /* Dolus ani: sinyal mumundan SONRA fiyatin giris bolgesine ilk degdigi mum.
      (Sinyal ani ile dolus ani ayni degildir; fiyatin bolgeye gelmesi saatler
@@ -1842,7 +1861,7 @@ function drawEvidence(d){
     if(fi>=0){
       const py=Math.min(hiE,Math.max(lo,s.fill_price));   // nokta bant icinde
       out+=`<circle cx="${X(fi)+BW/2}" cy="${Y(py)}" r="4.5" fill="#2563EB"
-              stroke="#FFFEFA" stroke-width="1.5"/>
+              stroke="#1B0F30" stroke-width="1.5"/>
         <text x="${X(fi)+BW/2+7}" y="${Y(py)-7}" fill="#2563EB">${ru?"фактический вход":"gerçekleşen giriş"}</text>`;
     }
   }

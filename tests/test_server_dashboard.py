@@ -299,6 +299,10 @@ def test_layout_skeleton_matches_bybit_template():
 def test_midas_palette_and_no_crypto_leftovers():
     t = _tpl()
     assert "--bg:#12091F" in t and "--blue:#B18AFF" in t      # mor palet
+    # v4.1.8: acik tema RENK KALINTILARI (krem zebra, linen ipucu kutusu)
+    for leftover in ("rgba(249,245,236", "#2A241B", "#FFFEFA", "#8A7F6C",
+                     "#B9B29F", "#FBF8F2"):
+        assert leftover not in t, leftover
     low = t.lower()
     for word in ("bybit", "usdt", "parite", "funding"):
         assert word not in low, word
@@ -471,5 +475,7 @@ def test_detail_shows_why_the_signal_fired():
     t = _tpl()
     assert "NEDEN BU SİNYAL" in t
     assert "s.entry_reason" in t
+    # kayit yoksa BOS BIRAKMA: durustce soyle + plan verisinden ozet
+    assert "kayıtlı gerekçe yok" in t
     assert "s.mom_pct" in t and "smc_tags" in t
     assert "karara girmez" in t
