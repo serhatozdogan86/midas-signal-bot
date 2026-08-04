@@ -1121,11 +1121,19 @@ function renderStrategyLab(sl){
   h+="</tbody></table>";
   if(!toplam) h+='<div class="empty" style="margin-top:6px">kohort verisi birikiyor — '+
     'aşağıdaki tarihsel değerler BACKTEST\'tir, canlı kanıt değildir</div>';
-  h+='<div class="note" style="margin-top:8px"><b>Tarihsel referans (backtest)</b><br>'+
+  h+='<div class="note" style="margin-top:8px"><b>Tarihsel referans (backtest — canlı kanıt değildir)</b>'+
+    '<table class="sig" style="margin-top:4px"><thead><tr><th>strateji</th>'+
+    '<th>tavansız</th><th>tavanlı · kaliteye göre</th><th>tavanlı · rastgele</th>'+
+    '</tr></thead><tbody>'+
     Object.entries(sl.strategies).map(([k,v])=>{
-      const t=v.tarihsel&&v.tarihsel.tavansiz;
-      return (v.label||k)+": "+(t?`${t.n} işlem · ${sgn(t.net_r)}R · beklenti ${sgn(t.expectancy)}`:"—");
-    }).join("<br>")+"</div>";
+      const t=v.tarihsel||{}, f=o=>!o||!o.n?"—":
+        `${o.n} işlem · <span class="${o.net_r>0?"pos":o.net_r<0?"neg":""}">${sgn(o.net_r)}R</span>`;
+      return `<tr><td>${v.label||k}</td><td>${f(t.tavansiz)}</td>`+
+             `<td>${f(t.tavanli)}</td><td>${f(t.tavanli_rastgele)}</td></tr>`;
+    }).join("")+'</tbody></table>'+
+    '<div style="margin-top:6px;color:var(--muted)">Seçim sırası: sinyal sayısı '+
+    'tavana takıldığında EN İYİ skorlular alınır. Rastgele sütunu bu kuralın '+
+    'ne kadar fark yarattığını gösterir.</div></div>';
   el.innerHTML=h;
 }
 function renderChallengers(ch){

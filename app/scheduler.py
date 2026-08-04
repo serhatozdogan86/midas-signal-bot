@@ -205,6 +205,7 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="universe_stale_check_failed"))
         self.progress = f"hazirlik: bilanco takvimi ({len(symbols)} sembol)"
+        self._kick_strategy_lab()
         self._earnings.refresh(today, force=True)
         # v3.16: takvim yuklenemediyse SESSIZ KALMA - bu bir KARAR
         # filtresidir; yoksa motor fail-closed'a gecer ve o gun sinyal
@@ -685,6 +686,34 @@ class Scheduler:
         return None
 
     # ---------------------------------------- seans korumasi (v3.9)
+    def _kick_strategy_lab(self) -> None:
+        """Aday stratejileri ARKA PLANDA kos. 300 sembol x ~1400 bar
+        hesabi tick dongusunde saniyeler surer; haber vakasindan
+        ogrendik: islem-kritik akisi ASLA bloklamayiz. Ayni anda tek
+        kosum, gunde bir kez."""
+        import threading
+        if getattr(self, "_slab_running", False):
+            return
+        today = self._calendar.now_et().date().isoformat()
+        if getattr(self, "_slab_date", None) == today:
+            return
+        if not self._daily_cache:
+            return
+        snapshot = dict(self._daily_cache)     # kosum sirasinda degismesin
+
+        def _work():
+            try:
+                self._strategy_lab.run(snapshot)
+                self._slab_date = today
+            except Exception:
+                log.exception(kv(event="strategy_lab_error"))
+            finally:
+                self._slab_running = False
+
+        self._slab_running = True
+        threading.Thread(target=_work, daemon=True,
+                         name="strategy-lab").start()
+
     def _momentum_pcts(self, daily: dict) -> dict[str, float]:
         """12-1 momentum yuzdeligi (kesitsel). 253+ gunluk bari olan
         semboller uzerinden; kisa gecmisliler haric (None kalir)."""
@@ -1285,12 +1314,7 @@ class Scheduler:
                 self._exit_lab.run(today)
             except Exception:
                 log.exception(kv(event="exit_lab_error"))
-        # aday stratejiler: tum evren taranir (tavansiz) + tavanli gorunum
-        try:
-            if self._daily_cache:
-                self._strategy_lab.run(self._daily_cache)
-        except Exception:
-            log.exception(kv(event="strategy_lab_error"))
+        self._kick_strategy_lab()
         self._eod_date = today
         watch_txt = ", ".join(w["symbol"] for w in self._watchlist[:15]) or "-"
         shadow_line = ""

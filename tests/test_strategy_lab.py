@@ -158,3 +158,31 @@ def test_summary_max_drawdown():
                 r_net=r, outcome="W") for i, r in enumerate([1, -2, -1, 3], 1)]
     s = summarize(tr)
     assert s["net_r"] == 1.0 and s["max_dd_r"] == 3.0     # +1 -> -2 dip
+
+
+# --------------------------- v3.22: tavan SECIM SIRASI onemli mi?
+def test_ranked_cap_prefers_high_score():
+    """Tavan devredeyken EN IYI skorlu sinyaller alinmali.
+    S4 vakasi: rastgele secimde tavansiz +79R olan strateji -148R'ye
+    dusuyordu; kaliteye gore secimde -25R. Secim kurali sonucu
+    DEGISTIRIYOR, bu yuzden acikca olculur."""
+    def t(sym, score):
+        return Trade(strategy="S", symbol=sym, signal_date="2026-08-04",
+                     entry_date="2026-08-04", entry=10, stop=9, tp=11,
+                     exit_date="2026-08-05", r_net=score, outcome="WIN",
+                     score=score)
+    trades = [t("ZZZ", 9.0), t("AAA", 1.0), t("MMM", 5.0)]
+    ranked = apply_caps(trades, max_daily=2, max_open=10, ranked=True)
+    alpha = apply_caps(trades, max_daily=2, max_open=10, ranked=False)
+    assert [x.symbol for x in ranked] == ["ZZZ", "MMM"]     # skor sirasi
+    assert [x.symbol for x in alpha] == ["AAA", "MMM"]      # alfabetik
+    assert sum(x.r_net for x in ranked) > sum(x.r_net for x in alpha)
+
+
+def test_ranked_is_deterministic_on_ties():
+    def t(sym):
+        return Trade(strategy="S", symbol=sym, signal_date="d",
+                     entry_date="d", entry=10, stop=9, tp=11,
+                     exit_date="d", r_net=0.1, outcome="WIN", score=1.0)
+    kept = apply_caps([t("B"), t("A"), t("C")], 2, 10, ranked=True)
+    assert [x.symbol for x in kept] == ["A", "B"]     # esitlikte alfabetik

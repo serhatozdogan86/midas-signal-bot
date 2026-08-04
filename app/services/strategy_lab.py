@@ -144,6 +144,26 @@ def momentum_12_1(bars: list[dict], i: int) -> float | None:
     return recent / old - 1
 
 
+def _breakout_scores(bars: list[dict], a14: list[float | None],
+                     n: int = 20) -> list[float]:
+    """Kirilim gucu: (kapanis - onceki n gun zirvesi) / ATR."""
+    out = [0.0] * len(bars)
+    for i in range(n, len(bars)):
+        hi = max(b["high"] for b in bars[i - n:i])
+        if a14[i]:
+            out[i] = (bars[i]["close"] - hi) / a14[i]
+    return out
+
+
+def _volume_scores(bars: list[dict], n: int = 20) -> list[float]:
+    out = [0.0] * len(bars)
+    for i in range(n, len(bars)):
+        v = sum(b["volume"] for b in bars[i - n:i]) / n
+        if v > 0:
+            out[i] = bars[i]["volume"] / v
+    return out
+
+
 # ------------------------------------------------------------ yurutme
 @dataclass
 class Trade:
@@ -158,10 +178,12 @@ class Trade:
     exit_date: str | None = None
     r_net: float | None = None
     outcome: str | None = None
+    score: float = 0.0        # tavan secimi icin kalite olcusu (buyuk = iyi)
 
 
 def simulate_symbol(symbol: str, bars: list[dict], sig: list[bool],
-                    strategy: str) -> list[Trade]:
+                    strategy: str,
+                    scores: list[float] | None = None) -> list[Trade]:
     """Sinyal gunu t -> giris t+1 acilisi. Saf fonksiyon."""
     a = atr(bars)
     out: list[Trade] = []
@@ -199,16 +221,23 @@ def simulate_symbol(symbol: str, bars: list[dict], sig: list[bool],
                          stop=stop, tp=tp, exit_price=px,
                          exit_date=exit_date,
                          r_net=round(r_gross - cost_r, 4),
+                         score=(scores[i] if scores else 0.0),
                          outcome=("WIN" if r_gross > 0 else
                                   "LOSS" if why in ("STOP", "GAP_STOP")
                                   else "EXPIRED")))
     return out
 
 
-def apply_caps(trades: list[Trade], max_daily: int,
-               max_open: int) -> list[Trade]:
-    """Portfoy tavanlari: gunluk yeni sinyal ve es zamanli acik siniri.
-    Secim deterministik (sembol alfabetik) - skor uydurmuyoruz."""
+def apply_caps(trades: list[Trade], max_daily: int, max_open: int,
+               ranked: bool = True) -> list[Trade]:
+    """Portfoy tavanlari: gunluk yeni sinyal + es zamanli acik siniri.
+
+    v3.22: SECIM SIRASI ONEMLI. Once alfabetikti; S4 vakasi gosterdi ki
+    tavansiz +79R olan strateji, tavan RASTGELE secerse -148R'ye
+    dusuyor. Artik varsayilan KALITEYE GORE (score buyukten kucuge);
+    ranked=False alfabetik (rastgele vekili) - ikisi kiyaslanabilsin
+    diye ikisi de olculur.
+    """
     taken: list[Trade] = []
     open_until: list[str] = []          # acik islemlerin cikis tarihleri
     by_day: dict[str, list[Trade]] = {}
@@ -219,8 +248,9 @@ def apply_caps(trades: list[Trade], max_daily: int,
         slots = max_open - len(open_until)
         if slots <= 0:
             continue
-        for t in sorted(by_day[day], key=lambda x: x.symbol)[:min(max_daily,
-                                                                  slots)]:
+        order = (sorted(by_day[day], key=lambda x: (-x.score, x.symbol))
+                 if ranked else sorted(by_day[day], key=lambda x: x.symbol))
+        for t in order[:min(max_daily, slots)]:
             taken.append(t)
             open_until.append(t.exit_date or day)
     return taken
@@ -291,9 +321,25 @@ class StrategyLab:
                 "S3_VOL_BREAK": signals_vol_break(bars),
                 "S4_RSI2": signals_rsi2(bars),
             }
+            # SKOR: her ailenin kendi "sinyal gucu" olcusu
+            closes = [b["close"] for b in bars]
+            r2 = rsi_wilder(closes, 2)
+            a14 = atr(bars)
+            scores = {
+                # momentum: evrendeki 12-1 getirisi (yuksek = guclu)
+                "S1_MOMENTUM": [(momentum_12_1(bars, i) or 0.0)
+                                for i in range(len(bars))],
+                # kirilimlar: ATR'ye gore kirilim mesafesi (temiz kirilim)
+                "S2_DONCHIAN": _breakout_scores(bars, a14),
+                # hacimli kirilim: hacim katsayisi
+                "S3_VOL_BREAK": _volume_scores(bars),
+                # RSI(2): ne kadar dusukse o kadar asiri satim
+                "S4_RSI2": [(100.0 - (r2[i] if r2[i] is not None else 100.0))
+                            for i in range(len(bars))],
+            }
             for name, sig in gens.items():
                 all_trades[name].extend(
-                    simulate_symbol(sym, bars, sig, name))
+                    simulate_symbol(sym, bars, sig, name, scores[name]))
 
         md = getattr(self.settings, "MAX_DAILY_SIGNALS", 6)
         mo = getattr(self.settings, "MAX_OPEN_SIGNALS", 10)
@@ -301,13 +347,17 @@ class StrategyLab:
                "strategies": {}}
         for name in STRATEGIES:
             tr = all_trades[name]
-            capped = apply_caps(tr, md, mo)
+            capped = apply_caps(tr, md, mo, ranked=True)
+            capped_rnd = apply_caps(tr, md, mo, ranked=False)
             out["strategies"][name] = {
                 "label": LABELS[name],
                 "kohort": {"tavansiz": summarize(tr, self.lab_start),
                            "tavanli": summarize(capped, self.lab_start)},
                 "tarihsel": {"tavansiz": summarize(tr),
-                             "tavanli": summarize(capped)},
+                             "tavanli": summarize(capped),
+                             # secim sirasi onemli mi? kaliteye gore vs
+                             # alfabetik (rastgele vekili)
+                             "tavanli_rastgele": summarize(capped_rnd)},
             }
         self.last = out
         log.info(kv(event="strategy_lab_run", universe=len(bars_map),
