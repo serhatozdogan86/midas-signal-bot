@@ -333,6 +333,64 @@ def create_app(store: StateStore, scheduler: Scheduler,
             log.exception(kv(event="market_failed"))
             return jsonify({"error": "market info unavailable"}), 503
 
+    @app.get("/volatility")
+    def volatility_view():
+        """Evren genelinde ATR yuzdesi dagilimi + acik pozisyonlarimizin
+        yeri. Neden: sinyal kalitesini gozle degerlendirmek icin
+        "bu hisse evrene gore ne kadar oynak" sorusunun cevabi lazim.
+        Gunluk onbellekten hesaplanir; onbellek bossa 'pending'."""
+        try:
+            daily = getattr(scheduler, "_daily_cache", None) or {}
+            if not daily:
+                return jsonify({"pending": True,
+                                "note": "gunluk veri henuz yuklenmedi"})
+            from app.services.strategy_lab import atr as _atr
+            vals = {}
+            for sym, series in daily.items():
+                cs = series.candles
+                if len(cs) < 20:
+                    continue
+                bars = [{"high": c.high, "low": c.low, "close": c.close}
+                        for c in cs[-60:]]
+                a14 = _atr(bars)
+                last, px = a14[-1], bars[-1]["close"]
+                if last and px:
+                    vals[sym] = round(100 * last / px, 2)
+            if not vals:
+                return jsonify({"pending": True, "note": "hesaplanamadi"})
+            ordered = sorted(vals.values())
+            n = len(ordered)
+
+            def pct(q):
+                return ordered[min(n - 1, max(0, int(q * n)))]
+            # dagilim kovalari (yuzde ATR)
+            edges = [0, 1, 1.5, 2, 3, 4, 6, 100]
+            buckets = []
+            for i in range(len(edges) - 1):
+                lo, hi = edges[i], edges[i + 1]
+                buckets.append({"lo": lo, "hi": hi,
+                                "n": sum(1 for v in ordered if lo <= v < hi)})
+            top = sorted(vals.items(), key=lambda kv: -kv[1])[:5]
+            calm = sorted(vals.items(), key=lambda kv: kv[1])[:5]
+            ours = []
+            try:
+                for r in scheduler.get_live_status():
+                    sym = r.get("symbol")
+                    if sym in vals:
+                        ours.append({"symbol": sym, "atr_pct": vals[sym],
+                                     "status": r.get("status")})
+            except Exception:
+                pass
+            return jsonify({
+                "count": n, "median": pct(0.5), "p10": pct(0.1),
+                "p90": pct(0.9), "buckets": buckets,
+                "most_volatile": [{"symbol": k, "atr_pct": v} for k, v in top],
+                "calmest": [{"symbol": k, "atr_pct": v} for k, v in calm],
+                "ours": ours})
+        except Exception:
+            log.exception(kv(event="volatility_failed"))
+            return jsonify({"error": "volatility unavailable"}), 503
+
     @app.get("/strategy-lab")
     def strategy_lab_view():
         """KATMAN 2: bagimsiz aday GIRIS stratejileri.

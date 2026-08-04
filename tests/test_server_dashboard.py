@@ -512,3 +512,29 @@ def test_status_exposes_engine_config(tmp_path):
     for k in ("risk_reward_min", "volume_mult", "earnings_blackout_days",
               "time_stop_days", "max_daily_signals", "max_open_signals"):
         assert k in meta, k
+
+
+def test_keyboard_shortcuts_do_not_hijack_typing():
+    """v4.3: 1-5 sekme, R yenile, ? yardim. Girdi alanindayken veya
+    modifier basiliyken DEVREYE GIRMEMELI - aksi halde hesaplayiciya
+    rakam yazmak sekme degistirir."""
+    t = _tpl()
+    assert "const KEY_TABS=" in t
+    assert "function inInput(t)" in t
+    assert "if(inInput(e.target)||e.ctrlKey||e.metaKey||e.altKey) return;" in t
+    assert 'id="keyhelp"' in t          # yardim katmani gercek eleman
+
+
+def test_volatility_card_present():
+    t = _tpl()
+    assert "/volatility" in t and "renderVolatility" in t
+    assert 'id="volBody"' in t
+
+
+def test_volatility_endpoint_shape(tmp_path):
+    """Gunluk veri yokken 'pending' doner, patlamaz."""
+    c = _client(tmp_path)
+    r = c.get("/volatility")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body.get("pending") is True or "median" in body

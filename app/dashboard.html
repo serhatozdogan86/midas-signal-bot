@@ -56,6 +56,12 @@
   #databand{margin:0;padding:7px 12px;background:var(--red-bg);
     border-bottom:1px solid var(--red);color:var(--red-ink);
     font-family:var(--disp);font-weight:700;font-size:12px;letter-spacing:.06em}
+  #keyhelp{display:none;position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    z-index:120;background:var(--card2);border:1px solid var(--line);border-radius:10px;
+    padding:10px 16px;box-shadow:var(--shadow-hi);font-size:12px;color:var(--text)}
+  #keyhelp.show{display:block}
+  #keyhelp kbd{display:inline-block;padding:1px 6px;border:1px solid var(--line);
+    border-radius:4px;background:var(--bg);font-family:var(--mono);font-size:11px}
   *{box-sizing:border-box;margin:0}
   html,body{height:auto;min-height:100%}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);
@@ -626,6 +632,10 @@
           <span class="tag">tüm evren · kohort</span></div>
         <div class="cbody" id="slabBody"><div class="empty">gün sonu koşumunda dolar…</div></div>
       </div>
+      <div class="card">
+        <div class="chead">Volatilite <span class="tag">evren · ATR %</span></div>
+        <div class="cbody" id="volBody"><div class="empty">yükleniyor…</div></div>
+      </div>
 <div class="card">
         <div class="chead">Piyasa Nabzı <span class="tag" id="mupd">canlı metrikler</span></div>
         <div class="cbody" id="market"><div class="empty">yükleniyor…</div></div>
@@ -1085,6 +1095,23 @@ $("cSig").addEventListener("change",()=>{
   if(s)calcFill(s);});
 $("howtoBtn").addEventListener("click",()=>$("overlay").classList.add("show"));
 $("howtoClose").addEventListener("click",()=>$("overlay").classList.remove("show"));
+/* ---------- v4.3: klavye kisayollari (terminal aliskanligi) ----------
+   1-5 sekme, R yenile, / arama, ? yardim. Bir girdi alanindayken
+   VEYA modifier basiliyken devreye GIRMEZ - yazi yazmayi bozmasin. */
+const KEY_TABS={"1":"ozet","2":"sinyaller","3":"adaylar","4":"piyasa","5":"ayar"};
+function inInput(t){
+  return t && (t.tagName==="INPUT"||t.tagName==="SELECT"||t.tagName==="TEXTAREA"
+               ||t.isContentEditable);
+}
+document.addEventListener("keydown",e=>{
+  if(inInput(e.target)||e.ctrlKey||e.metaKey||e.altKey) return;
+  const k=e.key;
+  if(KEY_TABS[k]){ e.preventDefault(); setTab(KEY_TABS[k]); return; }
+  if(k==="r"||k==="R"){ e.preventDefault(); if(typeof load==="function") load(); return; }
+  if(k==="?"){ e.preventDefault(); const h=$("keyhelp");
+    if(h) h.classList.toggle("show"); }
+});
+
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){$("overlay").classList.remove("show");$("modal").classList.remove("show");$("calc").classList.remove("show");}});
 
@@ -1103,6 +1130,38 @@ function renderHeader(perf,status){
 /* ---------- Faz B: aday stratejiler sekmesi ---------- */
 const CHAL_ADI={V0_CANLI:"V0 · canlı çıkış",V1_KISMI:"V1 · kısmi kâr",
   V2_GENIS:"V2 · geniş stop",V3_ORTA:"V3 · hedefsiz, aynı stop"};
+function renderVolatility(v){
+  const el=document.getElementById("volBody"); if(!el) return;
+  if(!v||v.pending||!v.count){
+    el.innerHTML='<div class="empty">günlük veri yüklenince dolar…</div>';return;}
+  const max=Math.max(...v.buckets.map(b=>b.n))||1;
+  const bar=b=>{
+    const w=Math.round(100*b.n/max);
+    const lbl=(b.hi>=100?("%"+b.lo+"+"):("%"+b.lo+"–"+b.hi));
+    return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+      <span class="num" style="width:56px;color:var(--muted);font-size:11px">${lbl}</span>
+      <span style="flex:1;height:9px;background:var(--card2);border-radius:3px;overflow:hidden">
+        <span style="display:block;height:100%;width:${w}%;background:var(--blue)"></span></span>
+      <span class="num" style="width:28px;text-align:right;font-size:11px">${b.n}</span></div>`;};
+  const chip=(x)=>`<span class="num" style="margin-right:8px">${x.symbol}
+    <b style="color:var(--blue-ink)">%${num(x.atr_pct,1)}</b></span>`;
+  let h=`<div class="num" style="margin-bottom:6px">
+    ortanca <b>%${num(v.median,2)}</b>
+    <span style="color:var(--muted)"> · %10 dilim %${num(v.p10,2)}
+    · %90 dilim %${num(v.p90,2)} · ${v.count} sembol</span></div>`;
+  h+=v.buckets.map(bar).join("");
+  h+=`<div class="note" style="margin-top:8px"><b>En oynak</b><br>
+    ${v.most_volatile.map(chip).join("")}<br>
+    <b>En sakin</b><br>${v.calmest.map(chip).join("")}</div>`;
+  if(v.ours&&v.ours.length){
+    h+=`<div class="note" style="margin-top:6px"><b>Bizim pozisyonlar</b>
+      <span style="color:var(--muted);font-size:11px">· evren ortancası %${num(v.median,2)}</span><br>`+
+      v.ours.map(o=>`<span class="num" style="margin-right:8px">${o.symbol}
+        <b style="color:${o.atr_pct>v.median?"var(--amber-ink)":"var(--green-ink)"}">%${num(o.atr_pct,1)}</b></span>`).join("")+
+      "</div>";
+  }
+  el.innerHTML=h;
+}
 function renderStrategyLab(sl){
   const el=document.getElementById("slabBody"); if(!el) return;
   if(!sl||sl.pending||!sl.strategies){
@@ -2040,6 +2099,7 @@ async function refresh(){
     j("/commentary?limit=4"),j("/market"),j("/news"),j("/prices"),
     j("/backup/info"),j("/challengers"),j("/live")]);
   const slab=await j("/strategy-lab");
+  const vol=await j("/volatility");
   LIVE=live||null;
   // v4.1.5: sirket verisi (sektor/F-K/FAVOK) - acik+bekleyen semboller
   try{
@@ -2061,6 +2121,7 @@ async function refresh(){
   renderMeasure(perf);
   renderChallengers(chal);
   renderStrategyLab(slab);
+  renderVolatility(vol);
   renderCurve(SIGNALS);
   renderDuel(SIGNALS);
   renderChips();renderSignals();
@@ -2097,5 +2158,7 @@ pfLoad();
   pfSave();renderPortfolio(SIGNALS);}));
 refresh();schedule();
 </script>
+<div id="keyhelp"><b>Klavye kısayolları</b>
+<div><kbd>1</kbd>–<kbd>5</kbd> sekmeler · <kbd>R</kbd> yenile · <kbd>?</kbd> bu pencere · <kbd>Esc</kbd> kapat</div></div>
 </body>
 </html>
