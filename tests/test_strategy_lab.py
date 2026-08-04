@@ -186,3 +186,31 @@ def test_ranked_is_deterministic_on_ties():
                      exit_date="d", r_net=0.1, outcome="WIN", score=1.0)
     kept = apply_caps([t("B"), t("A"), t("C")], 2, 10, ranked=True)
     assert [x.symbol for x in kept] == ["A", "B"]     # esitlikte alfabetik
+
+
+# ------------------- v3.23: S5 = S1 girisi + V2 (genis) cikisi
+def test_wide_exit_has_no_target_and_survives_v0_stop():
+    """V2 profili: hedef YOK, stop 2 ATR, 20 gun. Ayni seride V0
+    stop olurken V2 hayatta kalmali (kombinasyonun tum fikri bu)."""
+    bars = _flat(20) + _bars([(100, 101, 99, 100),      # sinyal
+                              (100, 101, 99, 100),      # giris
+                              (100, 101, 97.0, 98)])    # V0 stop bolgesi
+    bars += _flat(6, px=105)
+    sig = [False] * 20 + [True] + [False] * (len(bars) - 21)
+    v0 = simulate_symbol("X", bars, sig, "S1")[0]
+    v2 = simulate_symbol("X", bars, sig, "S5", stop_mult=2.0,
+                         tp_mult=None, max_hold=20)[0]
+    assert v0.outcome == "LOSS"                 # 1.2 ATR stop calisti
+    assert v2.outcome != "LOSS"                 # 2.0 ATR stop dayandi
+    assert v2.tp == 0.0                         # hedef yok
+
+
+def test_s5_uses_same_entries_as_s1():
+    """S5 AYNI giris sinyallerini kullanir; yalniz cikis farklidir.
+    Aksi halde kombinasyon degil, bambaska bir strateji olur."""
+    from app.services.strategy_lab import EXEC_OF, STRATEGIES
+    assert "S5_MOM_WIDE" in STRATEGIES
+    assert EXEC_OF["S1_MOMENTUM"] == "V0" and EXEC_OF["S5_MOM_WIDE"] == "V2"
+    from pathlib import Path
+    src = Path("app/services/strategy_lab.py").read_text()
+    assert 'gens["S5_MOM_WIDE"] = gens["S1_MOMENTUM"]' in src

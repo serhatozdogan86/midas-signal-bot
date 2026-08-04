@@ -51,12 +51,25 @@ STOP_MULT = 1.2
 TP_MULT = 1.0
 MAX_HOLD = 4
 
-STRATEGIES = ("S1_MOMENTUM", "S2_DONCHIAN", "S3_VOL_BREAK", "S4_RSI2")
+STRATEGIES = ("S1_MOMENTUM", "S2_DONCHIAN", "S3_VOL_BREAK", "S4_RSI2",
+              "S5_MOM_WIDE")
+
+# Yurutme profilleri: S1-S4 canli cikisla (V0 esdegeri) kosar ki fark
+# YALNIZ girisden gelsin. S5 ayni S1 girisidir ama V2 (genis stop,
+# hedefsiz, uzun tutma) cikisiyla - "en iyi giris + en iyi cikis"
+# birlesimi kombinasyon olarak olculur.
+EXEC = {
+    "V0": {"stop_mult": 1.2, "tp_mult": 1.0, "max_hold": 4},
+    "V2": {"stop_mult": 2.0, "tp_mult": None, "max_hold": 20},
+}
+EXEC_OF = {"S1_MOMENTUM": "V0", "S2_DONCHIAN": "V0", "S3_VOL_BREAK": "V0",
+           "S4_RSI2": "V0", "S5_MOM_WIDE": "V2"}
 LABELS = {
     "S1_MOMENTUM": "S1 · kesitsel momentum",
     "S2_DONCHIAN": "S2 · Donchian kırılımı",
     "S3_VOL_BREAK": "S3 · hacimli kırılım",
     "S4_RSI2": "S4 · RSI(2) dönüş",
+    "S5_MOM_WIDE": "S5 · momentum + geniş çıkış",
 }
 
 
@@ -183,7 +196,10 @@ class Trade:
 
 def simulate_symbol(symbol: str, bars: list[dict], sig: list[bool],
                     strategy: str,
-                    scores: list[float] | None = None) -> list[Trade]:
+                    scores: list[float] | None = None,
+                    stop_mult: float = STOP_MULT,
+                    tp_mult: float | None = TP_MULT,
+                    max_hold: int = MAX_HOLD) -> list[Trade]:
     """Sinyal gunu t -> giris t+1 acilisi. Saf fonksiyon."""
     a = atr(bars)
     out: list[Trade] = []
@@ -194,18 +210,19 @@ def simulate_symbol(symbol: str, bars: list[dict], sig: list[bool],
         entry = bars[i + 1]["open"]
         if not entry or entry <= 0:
             continue
-        risk = STOP_MULT * a[i]
-        stop, tp = entry - risk, entry + TP_MULT * a[i]
+        risk = stop_mult * a[i]
+        stop = entry - risk
+        tp = (entry + tp_mult * a[i]) if tp_mult is not None else None
         px = None
         why = None
-        j_end = min(i + 1 + MAX_HOLD, n)
+        j_end = min(i + 1 + max_hold, n)
         for j in range(i + 1, j_end):
             b = bars[j]
             if b["open"] <= stop:                 # gap ile stop otesi
                 px, why = b["open"], "GAP_STOP"
             elif b["low"] <= stop:                # kotumser: stop once
                 px, why = stop, "STOP"
-            elif b["high"] >= tp:
+            elif tp is not None and b["high"] >= tp:
                 px, why = tp, "TP"
             if px is not None:
                 exit_date = b["date"]
@@ -218,7 +235,7 @@ def simulate_symbol(symbol: str, bars: list[dict], sig: list[bool],
         out.append(Trade(strategy=strategy, symbol=symbol,
                          signal_date=bars[i]["date"],
                          entry_date=bars[i + 1]["date"], entry=entry,
-                         stop=stop, tp=tp, exit_price=px,
+                         stop=stop, tp=(tp if tp is not None else 0.0), exit_price=px,
                          exit_date=exit_date,
                          r_net=round(r_gross - cost_r, 4),
                          score=(scores[i] if scores else 0.0),
@@ -321,6 +338,7 @@ class StrategyLab:
                 "S3_VOL_BREAK": signals_vol_break(bars),
                 "S4_RSI2": signals_rsi2(bars),
             }
+            gens["S5_MOM_WIDE"] = gens["S1_MOMENTUM"]      # AYNI giris
             # SKOR: her ailenin kendi "sinyal gucu" olcusu
             closes = [b["close"] for b in bars]
             r2 = rsi_wilder(closes, 2)
@@ -337,9 +355,14 @@ class StrategyLab:
                 "S4_RSI2": [(100.0 - (r2[i] if r2[i] is not None else 100.0))
                             for i in range(len(bars))],
             }
+            scores["S5_MOM_WIDE"] = scores["S1_MOMENTUM"]
             for name, sig in gens.items():
+                cfg = EXEC[EXEC_OF[name]]
                 all_trades[name].extend(
-                    simulate_symbol(sym, bars, sig, name, scores[name]))
+                    simulate_symbol(sym, bars, sig, name, scores[name],
+                                    stop_mult=cfg["stop_mult"],
+                                    tp_mult=cfg["tp_mult"],
+                                    max_hold=cfg["max_hold"]))
 
         md = getattr(self.settings, "MAX_DAILY_SIGNALS", 6)
         mo = getattr(self.settings, "MAX_OPEN_SIGNALS", 10)
@@ -351,6 +374,7 @@ class StrategyLab:
             capped_rnd = apply_caps(tr, md, mo, ranked=False)
             out["strategies"][name] = {
                 "label": LABELS[name],
+                "exit": EXEC_OF[name],
                 "kohort": {"tavansiz": summarize(tr, self.lab_start),
                            "tavanli": summarize(capped, self.lab_start)},
                 "tarihsel": {"tavansiz": summarize(tr),
