@@ -534,13 +534,15 @@
       <div class="card">
         <div class="chead">Strateji <span class="tag">strateji sözleşmesi</span></div>
         <div class="cbody strat">
-          <p><b>Conservative swing.</b> Yapı önce gelir; indikatörler yalnız teyittir. Kenar net değilse karar <b>NO_TRADE</b>.</p>
-          <div class="srow"><span>Zaman dilimi</span><b>4H → 15m</b></div>
-          <div class="srow"><span>Hacim teyidi</span><b>≥ 1.5× ort.</b></div>
-          <div class="srow"><span>Risk/ödül bandı</span><b>2.0 – 6.0</b></div>
-          <div class="srow"><span>Yön kapısı</span><b>BTC 4H rejimi</b></div>
-          <div class="srow"><span>Setup</span><b>retest · sweep</b></div>
-          <div class="srow"><span>Evren</span><b id="stratUni">top-150</b></div>
+          <p><b>Kısa vadeli swing (ABD hisseleri).</b> Yapı önce gelir; indikatörler yalnız teyittir. Kenar net değilse karar <b>NO_TRADE</b>.</p>
+          <div class="srow"><span>Zaman dilimi</span><b>1G → 1S</b></div>
+          <div class="srow"><span>Hacim teyidi</span><b id="stratVol">—</b></div>
+          <div class="srow"><span>Risk/ödül eşiği</span><b id="stratRR">—</b></div>
+          <div class="srow"><span>Yön kapısı</span><b>SPY + QQQ rejimi</b></div>
+          <div class="srow"><span>Kurulum</span><b>geri çekilme · kırılım-retest</b></div>
+          <div class="srow"><span>Bilanço penceresi</span><b id="stratEarn">—</b></div>
+          <div class="srow"><span>Time-stop</span><b id="stratHold">—</b></div>
+          <div class="srow"><span>Evren</span><b id="stratUni">—</b></div>
         </div>
       </div>
       <div class="card">
@@ -763,8 +765,8 @@ const RU={
 "gölge takipte":"в теневом учёте","top · 1 tarama":"top · 1 скан",
 /* strateji karti */
 "Zaman dilimi":"Таймфрейм","Hacim teyidi":"Подтверждение объёмом","Risk/ödül bandı":"Диапазон риск/прибыль",
-"Yön kapısı":"Ворота направления","Setup":"Сетап","Evren":"Вселенная","BTC 4H rejimi":"режим BTC 4H",
-"retest · sweep":"ретест · свип","Conservative swing.":"Conservative swing.",
+"Yön kapısı":"Ворота направления","Setup":"Сетап","Evren":"Вселенная","SPY + QQQ rejimi":"режим SPY + QQQ",
+"geri çekilme · kırılım-retest":"откат · ретест пробоя","Conservative swing.":"Conservative swing.",
 /* boru hatti */
 "Yeterli mum yok (yeni listeleme)":"Недостаточно свечей (новый листинг)",
 "ADX<20: yönsüz piyasa":"ADX<20: рынок без направления",
@@ -1381,7 +1383,7 @@ const STEPS=[
   ["VOLUME","Tetik hacmi <1.5× ort.","no volume confirmation","#84CC16",
    "Tetik barın hacmi, son 20 barın ortalamasının en az 1.5 katı olmalı. Katılımsız kırılım güvenilmezdir — büyük oyuncu yoksa hareket taşınmaz. Hacim teyidi olmayan kurulum elenir."],
   ["MARKET GATE","Rejim karşıtı yön bloklandı","counter-regime","#0EA5A4",
-   "v3.0 filtresi: her turda BTC 4H kapanışının EMA200'e göre rejimi belirlenir (boğa/ayı/nötr, ±%0.25 bant). Rejime TERS yöndeki sinyaller bloklanır: ayıda LONG, boğada SHORT. İlk 49 sinyalde karşı-trend tarafın sistematik kaybı (−6.99R) üzerine eklendi. BTC verisi alınamazsa kapı açık kalır (fail-open)."],
+   "Endeks rejimi: her turda SPY ve QQQ'nun 200 günlük ortalamaya göre konumu ve eğimi ile BULL/BEAR/NEUTRAL belirlenir. Rejime TERS yöndeki sinyaller bloklanır: BEAR'da LONG, BULL'da SHORT. Endeks verisi alınamazsa rejim UNKNOWN olur ve sinyal üretilmez (fail-closed)."],
   ["RISK/REWARD","Plan RR bandı dışı (<2 / >6)","RR ","#16A34A",
    "Plan risk/ödül bandı 2.0–6.0. Alt sınır: hedef, riske edilenin en az 2 katı olmalı — kenar yoksa işlem yok. Üst sınır (v3.0): RR>6 çoğunlukla fiyatın dibine sıkışmış stop demektir; gürültü ilk dalgada stoplar. Gölge veride RR≥6 planlı 4 sinyalin 4'ü de kaybetti — tavan bu kanıtla kondu."],
 ];
@@ -1391,7 +1393,7 @@ const STEPS_RU={
  "HTF STRUCTURE":["Структура 4H противоречива","Анализ 4-часовой структуры: растущие минимумы-максимумы (HH-HL) или падающие (LH-LL)? Если вместе с положением EMA200 сторона не определяется — отсев. В нерешительном рынке это самый частый фильтр, и это здорово."],
  "LTF SETUP":["Нет подтверждённого ретеста/свипа","На 15m ищется конкретная формация: ретест принятого уровня после пробоя либо возврат уровня после снятия ликвидности (sweep-reclaim). «Красиво выглядит» недостаточно."],
  "VOLUME":["Объём триггера <1.5× сред.","Объём триггерного бара должен быть не ниже 1.5× среднего за 20 баров. Пробой без участия крупного игрока не выносит движение."],
- "MARKET GATE":["Направление против режима заблокировано","Фильтр v3.0: по закрытию BTC 4H относительно EMA200 определяется режим (бык/медведь/нейтраль, гистерезис ±0.5%, подтверждение двумя закрытиями). Сигналы ПРОТИВ режима блокируются: лонги в медвежьем, шорты в бычьем. Если данных BTC нет дольше 2 часов — ворота закрывают оба направления (fail-closed)."],
+ "MARKET GATE":["Направление против режима заблокировано","Индексный режим: положение и наклон SPY и QQQ относительно 200-дневной средней задают BULL/BEAR/NEUTRAL. Сигналы против режима блокируются. Без данных индекса режим UNKNOWN и сигнал не выпускается."],
  "RISK/REWARD":["RR плана вне диапазона (<2 / >6)","Диапазон риск/прибыль 2.0–6.0. Нижняя граница: цель должна быть минимум вдвое дальше риска. Верхняя (v3.0): RR>6 обычно означает стоп, вжатый в цену; рыночный шум выбивает его первой волной. В теневых данных все 4 сигнала с RR≥6 проиграли."],
  "SIGNAL":["Прошедшие все этапы берутся в учёт","Решения, прошедшие все семь этапов. Берутся в теневой учёт: 6 часов ждём подхода цены к зоне входа; при входе — 48 часов наблюдения (сначала стоп = LOSS, сначала цель = WIN)."]};
 const SIGNAL_TIP="Yedi aşamanın tamamını geçen kararlar. Gölge takibe alınır: fiyatın giriş bölgesine gelmesi 6 saat beklenir; dolarsa 48 saat izlenir (önce stop = LOSS, önce hedef = WIN). Tıklayınca bu taramada geçenlerin setup/RR/güven dökümü açılır.";
@@ -1988,7 +1990,18 @@ function calcRun(){
   out.innerHTML=rows;translateNode(out);
 }
 function renderSys(uni,healthy){
-  if(uni)$("stratUni").textContent=(uni.filtered_count??"—")+" / "+(uni.raw_count??"—");
+  if(uni)$("stratUni").textContent=(uni.filtered_count??"—")+" likit / "+(uni.raw_count??"—")+" ham";
+  // v4.2: strateji karti CANLI ayarlardan doldurulur (sabit metin yok)
+  try{
+    const cfg=(LAST_STATUS&&LAST_STATUS.meta)||{};
+    const set=(id,v)=>{const el=$(id); if(el&&v!=null&&v!=="") el.textContent=v;};
+    set("stratRR", cfg.risk_reward_min?("≥ "+cfg.risk_reward_min):"≥ 2.0");
+    set("stratVol", cfg.volume_mult?("≥ "+cfg.volume_mult+"× ort."):"≥ 1.5× ort.");
+    set("stratEarn", cfg.earnings_blackout_days!=null?
+      ("±"+cfg.earnings_blackout_days+" işlem günü"):"±2 işlem günü");
+    set("stratHold", cfg.time_stop_days!=null?
+      (cfg.time_stop_days+" işlem günü"):"4 işlem günü");
+  }catch(e){}
   $("dot").className="dot"+(healthy?"":" err");
 }
 function renderFooter(backup,healthy,ms,perf){

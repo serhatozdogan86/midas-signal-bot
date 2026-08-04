@@ -378,7 +378,22 @@ def create_app(store: StateStore, scheduler: Scheduler,
 
     @app.get("/status")
     def status():
-        payload = {"meta": store.get_meta(),
+        # v4.2: strateji karti SABIT METIN yerine canli ayarlardan
+        # beslensin (pano bybit'ten gelen "BTC 4H rejimi / 4H->15m"
+        # degerlerini gosteriyordu - bizim motorumuzla ilgisi yoktu).
+        cfg = {}
+        try:
+            st = scheduler._settings
+            cfg = {"risk_reward_min": st.RISK_REWARD_MIN,
+                   "volume_mult": st.VOLUME_MULT,
+                   "earnings_blackout_days": st.EARNINGS_BLACKOUT_DAYS,
+                   "time_stop_days": st.TIME_STOP_DAYS,
+                   "htf": st.HTF, "mtf": st.MTF,
+                   "max_daily_signals": st.MAX_DAILY_SIGNALS,
+                   "max_open_signals": st.MAX_OPEN_SIGNALS}
+        except Exception:
+            log.exception(kv(event="status_cfg_failed"))
+        payload = {"meta": {**store.get_meta(), **cfg},
                    "regime": scheduler.regime.model_dump(mode="json"),
                    "results": store.get_results()}
         return app.response_class(json.dumps(payload, indent=2),

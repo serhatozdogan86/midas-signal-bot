@@ -490,3 +490,25 @@ def test_strategy_lab_layer_present():
     assert "renderStrategyLab" in t and 'id="slabBody"' in t
     assert "kohort · tavansız" in t and "kohort · tavanlı" in t
     assert "canlı kanıt değildir" in t
+
+
+def test_strategy_card_reflects_our_engine_not_bybit():
+    """v4.2: strateji karti bybit'in SABIT metnini gosteriyordu
+    (BTC 4H rejimi, 4H->15m, retest·sweep) - bizim motorumuzla ilgisi
+    yoktu. Artik midas gercegi + canli ayarlardan doldurulan alanlar."""
+    t = _tpl()
+    assert "BTC" not in t
+    assert "SPY + QQQ rejimi" in t
+    assert "1G → 1S" in t
+    for el in ("stratRR", "stratVol", "stratEarn", "stratHold", "stratUni"):
+        assert f'id="{el}"' in t, el
+    assert "cfg.risk_reward_min" in t and "cfg.time_stop_days" in t
+
+
+def test_status_exposes_engine_config(tmp_path):
+    """Strateji karti canli ayarlardan beslenebilmeli."""
+    c = _client(tmp_path)
+    meta = c.get("/status").get_json()["meta"]
+    for k in ("risk_reward_min", "volume_mult", "earnings_blackout_days",
+              "time_stop_days", "max_daily_signals", "max_open_signals"):
+        assert k in meta, k

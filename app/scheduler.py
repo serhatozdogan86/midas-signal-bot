@@ -697,13 +697,21 @@ class Scheduler:
         today = self._calendar.now_et().date().isoformat()
         if getattr(self, "_slab_date", None) == today:
             return
-        if not self._daily_cache:
-            return
         snapshot = dict(self._daily_cache)     # kosum sirasinda degismesin
 
         def _work():
             try:
-                self._strategy_lab.run(snapshot)
+                data = snapshot
+                if not data:
+                    # v4.2: onbellek bos (or. servis yeni basladi) -> veriyi
+                    # KENDI cek. Arka planda oldugu icin tick'i bloklamaz;
+                    # gunde bir kez. Aksi halde tablo hazirliga kadar bos
+                    # kaliyordu.
+                    syms = self._universe.get_symbols()
+                    if not syms:
+                        return
+                    data = self._md.get_daily_bulk(syms)
+                self._strategy_lab.run(data)
                 self._slab_date = today
             except Exception:
                 log.exception(kv(event="strategy_lab_error"))
