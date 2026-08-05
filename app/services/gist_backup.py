@@ -73,7 +73,30 @@ class GistBackup:
         self._interval = sync_interval_sec
         self._gist_id: str | None = pinned_gist_id or None
         self._last_sync: float = 0.0
-        self._last_sync_utc: str | None = None
+        # v4.10: zaman damgasi SURECLE BIRLIKTE OLMESIN. Eskiden yalniz
+        # bellekteydi; her restart'ta None oluyordu ve "yedek ne zaman
+        # alindi" sorusu CEVAPSIZ kaliyordu (oz-denetim de bunu korluk
+        # sayip bildirdi). Artik meta tablosunda kalici.
+        self._last_sync_utc: str | None = self._read_meta_sync()
+
+    # -------------------------------------------------- kalici zaman damgasi
+    _META_KEY = "gist_last_sync_utc"
+
+    def _read_meta_sync(self) -> str | None:
+        try:
+            row = self._tracker._db.query_one(
+                "SELECT value FROM meta WHERE key=?", (self._META_KEY,))
+            return row["value"] if row else None
+        except Exception:
+            return None
+
+    def _write_meta_sync(self, iso: str) -> None:
+        try:
+            self._tracker._db.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                (self._META_KEY, iso))
+        except Exception:
+            log.exception(kv(event="gist_meta_write_failed"))
 
     # ------------------------------------------------------------- durum
     def info(self) -> dict:
@@ -82,9 +105,23 @@ class GistBackup:
             "gist_url": (self._client.gist_url(self._gist_id)
                          if self._gist_id else None),
             "last_sync_utc": self._last_sync_utc,
+            "age_hours": self._age_hours(),
             "sync_interval_sec": self._interval,
             "candle_mode": self._candle_mode,
         }
+
+    def _age_hours(self) -> float | None:
+        """Son basarili yedegin yasi (saat). Restart'tan bagimsiz."""
+        if not self._last_sync_utc:
+            return None
+        try:
+            t = datetime.strptime(self._last_sync_utc[:19],
+                                  "%Y-%m-%dT%H:%M:%S").replace(
+                tzinfo=timezone.utc)
+            return round((datetime.now(timezone.utc) - t).total_seconds()
+                         / 3600, 2)
+        except Exception:
+            return None
 
     # ------------------------------------------------------------- sync
     def build_files(self) -> dict[str, str]:
@@ -141,6 +178,7 @@ class GistBackup:
             self._last_sync = time.time()
             self._last_sync_utc = datetime.now(timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%SZ")
+            self._write_meta_sync(self._last_sync_utc)
             log.info(kv(event="gist_sync_ok", gist_id=self._gist_id,
                         files=len(files)))
         return ok
