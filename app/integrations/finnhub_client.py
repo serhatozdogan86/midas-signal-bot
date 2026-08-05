@@ -9,6 +9,7 @@ Limit: 60 cagri/dk -> izleme listesi boyutunu dogal olarak sinirlar.
 from __future__ import annotations
 
 import logging
+import time
 
 import requests
 
@@ -25,15 +26,35 @@ class FinnhubClient:
         self._key = api_key
         self._base = base_url.rstrip("/")
         self._session = requests.Session()
+        self._fail_count = 0        # ardisik 5xx (v4.7)
+        self._blocked_until = 0.0   # devre kesici bitisi
 
     @property
     def configured(self) -> bool:
         return bool(self._key)
 
+    def _trip(self, path: str) -> None:
+        self._fail_count += 1
+        if self._fail_count >= 5:
+            self._blocked_until = time.time() + min(
+                60.0 * (2 ** (self._fail_count - 5)), 600.0)
+
+    def _reset_breaker(self) -> None:
+        if self._fail_count:
+            log.info(kv(event="finnhub_recovered", fails=self._fail_count))
+        self._fail_count = 0
+        self._blocked_until = 0.0
+
+    def breaker_open(self) -> bool:
+        return time.time() < self._blocked_until
+
     def _get(self, path: str, params: dict,
              timeout: float | None = None) -> dict | None:
         if not self.configured:
             log.warning(kv(event="finnhub_not_configured", path=path))
+            return None
+        if self.breaker_open():
+            # saglayici cokuk: bosuna deneme, cagiran yedege gecsin
             return None
         try:
             resp = self._session.get(f"{self._base}{path}",
@@ -43,9 +64,21 @@ class FinnhubClient:
                 log.warning(kv(event="finnhub_rate_limited", path=path))
                 return None
             if resp.status_code != 200:
-                log.error(kv(event="finnhub_http_error", path=path,
-                             status=resp.status_code))
+                # v4.7: SAGLAYICI ARIZASI (5xx) bizim hatamiz degil ve
+                # YEDEGIMIZ var (Alpaca). 4 Agu gecesi tek kesintide 30
+                # ERROR satiri dustu; gercek bir sorun bu gurultunun
+                # icinde kaybolur. 5xx -> WARNING + devre kesici;
+                # 4xx (yanlis anahtar/istek) -> ERROR olarak KALIR.
+                if 500 <= resp.status_code < 600:
+                    self._trip(path)
+                    log.warning(kv(event="finnhub_provider_down", path=path,
+                                   status=resp.status_code,
+                                   fails=self._fail_count))
+                else:
+                    log.error(kv(event="finnhub_http_error", path=path,
+                                 status=resp.status_code))
                 return None
+            self._reset_breaker()
             return resp.json()
         except (requests.RequestException, ValueError) as exc:
             log.error(kv(event="finnhub_error", path=path, error=str(exc)[:200]))
