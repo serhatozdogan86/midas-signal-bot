@@ -301,6 +301,11 @@ def test_deadman_alert_once(tmp_path):
                       InMemoryStateStore(), notifier, tracker)
     sched.last_scan_info = {"ts_utc": (datetime.now(timezone.utc)
                             - timedelta(minutes=40)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    # v4.13: alarm artik ISINMA suresinde bastirilir. Bu senaryo
+    # "gercekten kilitlenmis dongu"yu temsil ediyor, yani servis uzun
+    # suredir ayakta olmali.
+    import time as _t
+    sched._started_at = _t.time() - 3600
     now = datetime(2026, 7, 30, 11, 0, tzinfo=ZoneInfo("America/New_York"))
     open_dt = now.replace(hour=9, minute=30)
     sched._deadman_check(now, open_dt, now.date())

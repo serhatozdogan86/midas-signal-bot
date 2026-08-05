@@ -69,6 +69,7 @@ class Scheduler:
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._news = news              # None -> haber akisi kapali
         self._exit_lab = None          # main.py kurulumda baglar (v3.19)
+        self._started_at = time.time()   # dead-man isinma muafiyeti (v4.13)
         self._tg_muted = 0            # susturulan mesaj sayisi (v4.9)
         self._tg_fail = 0             # gonderilemeyen uyari sayisi
         self._tg_last_ok = 0.0        # son basarili uyari zamani
@@ -1107,6 +1108,17 @@ class Scheduler:
             return                      # seans yeni acildi, tarama hakki taninir
         if self._deadman_date == today:
             return
+        # v4.13: YENIDEN BASLAMA MUAFIYETI. last_scan_info BELLEKTE
+        # tutuluyor; servis seans ortasinda yeniden baslarsa "hic tarama
+        # yok" gorunur ve alarm oter - oysa hazirlik + ilk tarama ~10 dk
+        # surer. 5 Agu'da tam bu oldu: restart 14:03, alarm 14:13, ilk
+        # tarama 14:13:49. Yanlis alarm, alarmin degerini dusurur.
+        up_min = (time.time() - self._started_at) / 60 if getattr(
+            self, "_started_at", None) else None
+        if up_min is not None and up_min < limit_min:
+            log.info(kv(event="deadman_suppressed_warmup",
+                        uptime_min=round(up_min, 1)))
+            return
         last_ts = (self.last_scan_info or {}).get("ts_utc")
         stale = True
         if last_ts:
@@ -1124,7 +1136,9 @@ class Scheduler:
                 f"DEAD-MAN UYARISI | Seans acik ama {limit_min} dk'dan uzun "
                 f"suredir tarama yok (son: {last_ts or 'hic'}).\n"
                 f"Olasi nedenler: veri kaynagi kilidi, dongu hatasi, servis "
-                f"sorunu. Dashboard/loglari kontrol et.")
+                f"sorunu. Dashboard/loglari kontrol et.\n"
+                f"(servis {round((time.time() - self._started_at) / 60)} dk'dir "
+                f"ayakta)")
 
     def build_heartbeat(self) -> dict:
         """Uzaktan izleme nabzi: saglik ozetinin tamami tek JSON'da."""
