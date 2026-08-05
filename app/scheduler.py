@@ -1359,6 +1359,23 @@ class Scheduler:
                 self._exit_lab.run(today)
             except Exception:
                 log.exception(kv(event="exit_lab_error"))
+        # v4.8: OZ-DENETIM - degismezleri kontrol et, BOZULANI bildir.
+        # Bugune kadarki ciddi hatalarin hepsi elle "Durum?" bakarken
+        # yakalandi; elle bakmak olceklenmez.
+        try:
+            from app.services.self_audit import run_audit
+            from app.services.signal_tracker import _ENGINE_SHA
+            rep = run_audit(
+                db=self._tracker._db if self._tracker else None,
+                tracker=self._tracker, universe=self._universe,
+                earnings=self._earnings, gist=self._gist,
+                exit_lab=self._exit_lab,
+                strategy_lab=getattr(self, "_strategy_lab", None),
+                engine_sha=_ENGINE_SHA, settings=self._settings)
+            if not rep.ok:
+                self._send(rep.telegram_text())
+        except Exception:
+            log.exception(kv(event="self_audit_error"))
         self._kick_strategy_lab()
         self._eod_date = today
         watch_txt = ", ".join(w["symbol"] for w in self._watchlist[:15]) or "-"

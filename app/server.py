@@ -333,6 +333,27 @@ def create_app(store: StateStore, scheduler: Scheduler,
             log.exception(kv(event="market_failed"))
             return jsonify({"error": "market info unavailable"}), 503
 
+    @app.get("/audit")
+    def audit_view():
+        """OZ-DENETIM: degismezlerin canli sonucu. Bozulan varsa
+        'failed' > 0 doner ve her kontrol NE YAPILACAGINI soyler."""
+        try:
+            from app.services.self_audit import run_audit
+            from app.services.signal_tracker import _ENGINE_SHA
+            rep = run_audit(
+                db=tracker._db if tracker else None,
+                tracker=tracker, universe=universe,
+                earnings=getattr(scheduler, "_earnings", None),
+                gist=gist_backup,
+                exit_lab=getattr(scheduler, "_exit_lab", None),
+                strategy_lab=getattr(scheduler, "_strategy_lab", None),
+                engine_sha=_ENGINE_SHA,
+                settings=getattr(scheduler, "_settings", None))
+            return jsonify(rep.to_dict())
+        except Exception:
+            log.exception(kv(event="audit_failed"))
+            return jsonify({"error": "audit unavailable"}), 503
+
     @app.get("/volatility")
     def volatility_view():
         """Evren genelinde ATR yuzdesi dagilimi + acik pozisyonlarimizin
