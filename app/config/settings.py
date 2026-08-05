@@ -65,7 +65,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Telegram
-    TELEGRAM_ENABLED: bool = True
+    # v4.9: IKI KANAL. Sinyal bildirimleri golge modda kapali tutulabilir
+    # (islem yapilmiyor, gurultu olur) ama UYARILAR her zaman gitmeli -
+    # bilanco takvimi cokerse, gap nobeti bir pozisyonu kontrol edemezse
+    # ya da oz-denetim bozulma bulursa ekran basinda olmadan bilmeliyiz.
+    TELEGRAM_ENABLED: bool = True          # sinyal/ozet mesajlari
+    TELEGRAM_ALERTS_ENABLED: bool = True   # uyari + denetim mesajlari
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
     TELEGRAM_PARSE_MODE: str = ""    # "" (plain) | MarkdownV2 (Phase 3)

@@ -136,3 +136,32 @@ def test_audit_never_mutates_state(tmp_path):
     before = db.query("SELECT * FROM signals")
     run_audit(db=db, universe=_Uni(0), earnings=_Earn(True), gist=_Gist(1))
     assert db.query("SELECT * FROM signals") == before
+
+
+# ------------------- v4.9: bildirim kanali kontrolu
+def test_muted_alert_channel_is_critical(tmp_path):
+    """4-5 Agu vakasi: TELEGRAM_ENABLED=false oldugu icin KRITIK
+    uyarilar da sessizce yutuluyordu ve haftalarca fark edilmedi."""
+    rep = run_audit(db=_db(tmp_path), universe=_Uni(0), earnings=_Earn(True),
+                    gist=_Gist(1),
+                    telegram={"configured": True, "alerts_on": False,
+                              "muted": 42, "failed": 0})
+    c = _check(rep, "uyari kanali")
+    assert not c.ok and c.severity == "critical"
+    assert "TELEGRAM_ALERTS_ENABLED" in c.action
+
+
+def test_unconfigured_telegram_is_caught(tmp_path):
+    rep = run_audit(db=_db(tmp_path), universe=_Uni(0), earnings=_Earn(True),
+                    gist=_Gist(1),
+                    telegram={"configured": False, "alerts_on": True,
+                              "muted": 0, "failed": 0})
+    assert not _check(rep, "uyari kanali").ok
+
+
+def test_healthy_alert_channel_passes(tmp_path):
+    rep = run_audit(db=_db(tmp_path), universe=_Uni(0), earnings=_Earn(True),
+                    gist=_Gist(1),
+                    telegram={"configured": True, "alerts_on": True,
+                              "muted": 0, "failed": 0})
+    assert _check(rep, "uyari kanali").ok

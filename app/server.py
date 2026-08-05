@@ -79,6 +79,10 @@ def create_app(store: StateStore, scheduler: Scheduler,
             diag["session_guard"] = {"error": "guard_info_failed"}
         # v3.16: bilanco takvimi KARAR filtresidir - durumu gorunur olmali
         try:
+            diag["telegram"] = scheduler.telegram_status()
+        except Exception:
+            diag["telegram"] = {"error": "telegram_status_failed"}
+        try:
             diag["earnings"] = scheduler._earnings.status()
         except Exception:
             diag["earnings"] = {"error": "earnings_status_failed"}
@@ -348,7 +352,8 @@ def create_app(store: StateStore, scheduler: Scheduler,
                 exit_lab=getattr(scheduler, "_exit_lab", None),
                 strategy_lab=getattr(scheduler, "_strategy_lab", None),
                 engine_sha=_ENGINE_SHA,
-                settings=getattr(scheduler, "_settings", None))
+                settings=getattr(scheduler, "_settings", None),
+                telegram=scheduler.telegram_status())
             return jsonify(rep.to_dict())
         except Exception:
             log.exception(kv(event="audit_failed"))

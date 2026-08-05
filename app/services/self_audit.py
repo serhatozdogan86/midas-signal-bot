@@ -87,7 +87,8 @@ def _iso_age_hours(iso: str | None) -> float | None:
 
 def run_audit(db, tracker=None, universe=None, earnings=None,
               gist=None, exit_lab=None, strategy_lab=None,
-              engine_sha: str | None = None, settings=None) -> AuditReport:
+              engine_sha: str | None = None, settings=None,
+              notifier=None, telegram=None) -> AuditReport:
     """Tum degismezleri kontrol eder. Hicbir sey DEGISTIRMEZ."""
     rep = AuditReport()
 
@@ -190,6 +191,25 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
                 "Tavan asilmis: _entry_block mantigini incele")
         except Exception as e:
             add("portfoy tavani", "KOHORT", False, f"okunamadi: {e!r}")
+
+    # ---------------- BILDIRIM ----------------
+    # v4.9 vakasi: TELEGRAM_ENABLED=false oldugu icin KRITIK uyarilar da
+    # sessizce yutuluyordu ve bunu haftalarca kimse fark etmedi. Denetimin
+    # kendisi de telegramla bildirildigi icin, bildirim kanali BOZUKSA
+    # denetim de sessiz kalir - bu yuzden ayrica /audit'te gorunur.
+    if telegram is not None:
+        try:
+            add("uyari kanali", "BILDIRIM",
+                bool(telegram.get("configured") and telegram.get("alerts_on")),
+                f"yapilandirildi={telegram.get('configured')} "
+                f"uyarilar_acik={telegram.get('alerts_on')} "
+                f"susturulan={telegram.get('muted')} "
+                f"gonderilemeyen={telegram.get('failed')}",
+                "Uyarilar kapaliysa kritik olaylari EKRAN BASINDA "
+                "olmadan ogrenemezsin; TELEGRAM_ALERTS_ENABLED ve "
+                "TELEGRAM_BOT_TOKEN/CHAT_ID kontrol et", "critical")
+        except Exception as e:
+            add("uyari kanali", "BILDIRIM", False, f"okunamadi: {e!r}")
 
     # ---------------- YEDEK ----------------
     if gist is not None:

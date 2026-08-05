@@ -11,7 +11,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.8
       - key: TELEGRAM_ENABLED
-        value: "false"          # golge mod: 1-2 hafta sessiz dogrulama (plan bolum 7)
+        value: "false"          # SINYAL mesajlari: golge modda sessiz (plan bolum 7)
+      - key: TELEGRAM_ALERTS_ENABLED
+        value: "true"           # UYARI/denetim mesajlari: HER ZAMAN acik (v4.9)
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID

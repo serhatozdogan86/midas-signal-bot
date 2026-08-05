@@ -69,6 +69,9 @@ class Scheduler:
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._news = news              # None -> haber akisi kapali
         self._exit_lab = None          # main.py kurulumda baglar (v3.19)
+        self._tg_muted = 0            # susturulan mesaj sayisi (v4.9)
+        self._tg_fail = 0             # gonderilemeyen uyari sayisi
+        self._tg_last_ok = 0.0        # son basarili uyari zamani
         # v3.21: KATMAN 2 - bagimsiz aday GIRIS stratejileri (ayni cikis)
         from app.services.strategy_lab import StrategyLab
         self._strategy_lab = StrategyLab(settings=settings)
@@ -202,7 +205,7 @@ class Scheduler:
             if stale is None or stale > 0:
                 log.warning(kv(event="universe_stale", stale_days=stale,
                                count=len(symbols)))
-                self._notifier.send(
+                self._send_alert(
                     f"UYARI: evren listesi tazelenemedi "
                     f"(bayatlik: {stale if stale is not None else '?'} gun, "
                     f"{len(symbols)} sembol). Tarama eski listeyle suruyor.")
@@ -218,7 +221,7 @@ class Scheduler:
             est = self._earnings.status()
             if not est.get("ready"):
                 log.error(kv(event="earnings_unavailable", **est))
-                self._notifier.send(
+                self._send_alert(
                     "UYARI: bilanco takvimi yuklenemedi (Finnhub). Guvenli "
                     "taraf devrede: takvim gelene kadar YENI SINYAL "
                     "URETILMEYECEK. 10 dk'da bir yeniden denenecek.")
@@ -1091,7 +1094,7 @@ class Scheduler:
         if stale:
             self._deadman_date = today
             log.error(kv(event="deadman_alert", last_scan=last_ts))
-            self._send(
+            self._send_alert(
                 f"DEAD-MAN UYARISI | Seans acik ama {limit_min} dk'dan uzun "
                 f"suredir tarama yok (son: {last_ts or 'hic'}).\n"
                 f"Olasi nedenler: veri kaynagi kilidi, dongu hatasi, servis "
@@ -1300,7 +1303,7 @@ class Scheduler:
             if missing_pos:
                 log.error(kv(event="gap_watch_quote_missing",
                              symbols=",".join(missing_pos)))
-                self._send("UYARI: gap nobetinde fiyat alinamadi -> "
+                self._send_alert("UYARI: gap nobetinde fiyat alinamadi -> "
                            + ", ".join(missing_pos)
                            + ". Bu pozisyonlar KONTROL EDILEMEDI, "
                              "acilista kendiniz bakin.")
@@ -1371,9 +1374,10 @@ class Scheduler:
                 earnings=self._earnings, gist=self._gist,
                 exit_lab=self._exit_lab,
                 strategy_lab=getattr(self, "_strategy_lab", None),
-                engine_sha=_ENGINE_SHA, settings=self._settings)
+                engine_sha=_ENGINE_SHA, settings=self._settings,
+                telegram=self.telegram_status())
             if not rep.ok:
-                self._send(rep.telegram_text())
+                self._send_alert(rep.telegram_text())
         except Exception:
             log.exception(kv(event="self_audit_error"))
         self._kick_strategy_lab()
@@ -1431,10 +1435,44 @@ class Scheduler:
         elif d.decision is DecisionType.NO_TRADE and self._settings.SEND_NO_TRADE:
             self._send(telegram_formatter.render(d, self._settings.TELEGRAM_PARSE_MODE))
 
+    def telegram_status(self) -> dict:
+        """Bildirim kanalinin sagligi (v4.9) - /diag ve denetim icin."""
+        return {
+            "configured": bool(getattr(self._notifier, "configured", False)),
+            "signals_on": bool(self._settings.TELEGRAM_ENABLED),
+            "alerts_on": bool(getattr(self._settings,
+                                      "TELEGRAM_ALERTS_ENABLED", True)),
+            "muted": self._tg_muted,
+            "failed": self._tg_fail,
+            "last_ok_age_min": (round((time.time() - self._tg_last_ok) / 60)
+                                if self._tg_last_ok else None),
+        }
+
     def _send(self, text: str) -> bool:
+        """SINYAL / ozet mesajlari - golge modda susturulabilir."""
         if not self._settings.TELEGRAM_ENABLED:
+            self._tg_muted += 1
             return False  # sessiz mod: uretim surer, mesaj gitmez
         return self._notifier.send(text)
+
+    def _send_alert(self, text: str) -> bool:
+        """UYARI / denetim mesajlari - AYRI kanal.
+
+        v4.9 vakasi: render.yaml'da TELEGRAM_ENABLED=false idi (golge
+        modun bilincli karari) ve bu yuzden KRITIK uyarilar da sessizce
+        yutuluyordu - bilanco takvimi cokusu, gap nobetinde kontrol
+        edilemeyen pozisyon, oz-denetim raporu. Sinyal gurultusunu
+        istemiyoruz ama bunlari istiyoruz; bu yuzden iki kanal.
+        """
+        if not self._settings.TELEGRAM_ALERTS_ENABLED:
+            self._tg_muted += 1
+            return False
+        ok = self._notifier.send(text)
+        if ok:
+            self._tg_last_ok = time.time()
+        else:
+            self._tg_fail += 1
+        return ok
 
     def _startup_message(self) -> None:
         s = self._settings
