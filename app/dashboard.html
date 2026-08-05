@@ -443,6 +443,12 @@
     .col[data-tab="ayar"].on{display:flex}
     .card[data-tab="adaylar"]{display:none}
     .card[data-tab="adaylar"].on{display:flex}
+    /* ADAYLAR sekmesi: kartin yasadigi sutunu ac, KARDESLERINI gizle */
+    body[data-tab="adaylar"] .col[data-tab="piyasa"]{display:flex}
+    body[data-tab="adaylar"] .col[data-tab="piyasa"] > .card:not([data-tab="adaylar"]){
+      display:none}
+    /* PIYASA sekmesinde aday karti gorunmesin (kendi sekmesi var) */
+    body[data-tab="piyasa"] .card[data-tab="adaylar"]{display:none!important}
     /* mobilde diger sekmelerdeyken sag sutun kartlari sirayla gorunur */
     .cols{grid-template-columns:1fr}
     /* sekme mantigi: yalniz aktif sutun gorunur */
@@ -1059,6 +1065,12 @@ function setTab(name){
   // hem .col hem .card [data-tab] elemanlarini yonetir.
   document.querySelectorAll(".col[data-tab],.card[data-tab]").forEach(el=>
     el.classList.toggle("on", el.dataset.tab===name));
+  // v4.14: MOBILDE yalniz aktif SUTUN gorunur; ADAYLAR karti ise
+  // Piyasa sutununun ICINDE yasiyor. Kart .on olsa bile ustundeki
+  // sutun gizli kaldigi icin ekranda HICBIR SEY gorunmuyordu.
+  // Govdeye aktif sekmeyi yaziyoruz; CSS sutunu ve kardes kartlari
+  // buna gore yonetiyor.
+  try{ document.body.dataset.tab=name; }catch(e){}
   document.querySelectorAll(".tb").forEach(b=>
     b.classList.toggle("active", b.dataset.go===name));
   window.scrollTo({top:0,behavior:"smooth"});

@@ -557,3 +557,27 @@ def test_atr_measurement_recorded_and_shown():
     # karar modulleri ATR SIRALAMASINI kullanmamali (yalniz olcum)
     eng = Path("app/strategies/signal_engine.py").read_text()
     assert "atr_rank" not in eng
+
+
+def test_candidates_visible_on_mobile_tab():
+    """v4.14 VAKASI: mobilde 'Adaylar' sekmesine dokununca HICBIR SEY
+    gorunmuyordu. Sebep: mobilde yalniz aktif SUTUN gorunur, aday karti
+    ise Piyasa sutununun ICINDE yasiyor - kart .on olsa bile ustundeki
+    sutun gizliydi. jsdom'da CSS gercekten uygulanarak dogrulanir."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    import pytest
+    if not shutil.which("node"):
+        pytest.skip("node yok")
+    if subprocess.run(["node", "-e", "require('jsdom')"],
+                      capture_output=True, cwd="/tmp").returncode != 0:
+        pytest.skip("jsdom yok")
+
+    out = subprocess.run(
+        ["node", str(Path("tools/mobile_tab_visibility.js").resolve())],
+        capture_output=True, text=True, timeout=90, cwd="/tmp",
+        env={"PATH": "/usr/bin:/bin", "NODE_PATH": "/tmp/node_modules",
+             "DASH": str(Path("app/dashboard.html").resolve())})
+    assert "VIS_OK" in out.stdout, out.stdout + out.stderr
