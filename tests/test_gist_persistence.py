@@ -79,3 +79,17 @@ def test_audit_sees_persisted_backup_age(tmp_path):
     rep = run_audit(db=db, gist=b2)
     chk = next(c for c in rep.checks if c.name == "gist yedegi")
     assert chk.ok, chk.detail
+
+
+def test_backup_runs_outside_session_too():
+    """v4.11: maybe_sync yalniz kaba tarama sonunda cagriliyordu;
+    seans kapaliyken (gece/hafta sonu) saatlerce yedek alinmiyordu.
+    Render'in dosya sistemi kalici olmadigi icin restart defteri SON
+    YEDEGE dondurur - bu bosluk veri kaybi demekti."""
+    from pathlib import Path
+    src = Path("app/scheduler.py").read_text()
+    tick = src[src.index("    def tick(self"):src.index("    def run_prep(")]
+    assert "self._gist.maybe_sync()" in tick, "tick'te saatlik yedek yok"
+    # gun sonu kosulsuz arsiv hala yerinde olmali
+    eod = src[src.index("    def run_eod(self"):]
+    assert "self._gist.sync()" in eod
