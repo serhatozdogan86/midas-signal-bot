@@ -722,6 +722,20 @@ class Scheduler:
         if getattr(self, "_slab_date", None) == today:
             return
         snapshot = dict(self._daily_cache)     # kosum sirasinda degismesin
+        # v4.12: EKSIK ONBELLEKLE KOSMA. 5 Agu'da laboratuvar 8 sembolle
+        # kostu (onbellek daha dolmamisti) ve gunu "kostu" isaretleyip
+        # kilitledi -> tum gun COP sonuc gosterildi. Artik evrenin en az
+        # yarisi hazir degilse kosulmaz ve gun isaretlenmez; sonraki
+        # tick tekrar dener.
+        try:
+            need = max(50, len(self._universe.get_symbols()) // 2)
+        except Exception:
+            need = 50
+        if len(snapshot) < need:
+            log.info(kv(event="strategy_lab_deferred",
+                        have=len(snapshot), need=need))
+            self._slab_running = False
+            return
 
         def _work():
             try:

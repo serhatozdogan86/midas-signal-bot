@@ -397,6 +397,12 @@ class StrategyLab:
                              "tavanli_rastgele": summarize(capped_rnd)},
             }
             all_trades[name] = []        # ozet alindi, ham islemleri birak
+        # v4.12: yarim evrenle uretilmis sonucu YAYINLAMA (8 sembollu
+        # kosum gunu boyunca panoda cop gosterdi). Esik altindaysa
+        # onceki saglam sonuc korunur.
+        if n_ok < 50:
+            log.warning(kv(event="strategy_lab_too_few_symbols", universe=n_ok))
+            return self.last or out
         self.last = out
         log.info(kv(event="strategy_lab_run", universe=n_ok,
                     **{k: out["strategies"][k]["tarihsel"]["tavansiz"]["n"]

@@ -268,3 +268,17 @@ def test_run_still_correct_after_memory_refactor():
     assert set(out["strategies"]) == set(STRATEGIES)
     for v in out["strategies"].values():
         assert "kohort" in v and "tarihsel" in v
+
+
+def test_lab_refuses_to_run_on_partial_cache():
+    """5 Agu vakasi: laboratuvar 8 sembolluk yarim onbellekle kostu ve
+    gunu 'kostu' isaretledi -> tum gun COP sonuc gosterildi. Eksik
+    onbellekte kosmamali ve gunu KILITLEMEMELI."""
+    from pathlib import Path
+    src = Path("app/scheduler.py").read_text()
+    blk = src[src.index("def _kick_strategy_lab"):src.index("def _momentum_pcts")]
+    assert "strategy_lab_deferred" in blk
+    assert "if len(snapshot) < need:" in blk
+    # erken donuste gun ISARETLENMEMELI (yalniz _slab_running sifirlanir)
+    early = blk[blk.index("if len(snapshot) < need:"):]
+    assert "_slab_date" not in early.split("def _work")[0]
