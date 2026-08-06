@@ -25,7 +25,7 @@ from app.logging_setup import kv
 from app.models.decision import Decision, DecisionType, MarketRegime, SetupType
 from app.services.earnings_service import EarningsService
 from app.services.market_calendar import MarketCalendar
-from app.services import market_report, premarket_watch
+from app.services import hypo_lab, market_report, premarket_watch
 from app.services.market_data_service import MarketDataService
 from app.services.state_store import StateStore
 from app.services.universe import UniverseProvider
@@ -418,6 +418,24 @@ class Scheduler:
                         else:
                             self._tracker.track_blocked(
                                 d, hourly[symbol], block[0], block[1])
+                        # v3.21 HIPOTEZ (yalniz gozlem, kilit ihlali yok):
+                        # hacimde elenen pullback -> blocked=5 kohortu.
+                        # Ayrinti: app/services/hypo_lab.py docstring'i.
+                        if (self._settings.HYPO_VOLUME_PULLBACK
+                                and symbol in daily
+                                and hypo_lab.eligible(d)):
+                            hypo = hypo_lab.build_volume_hypo(
+                                d, daily[symbol], hourly[symbol],
+                                self._regime, self._params, bench_df)
+                            if hypo is not None:
+                                h, why = hypo
+                                h.time_stop_date = (
+                                    self._calendar.add_trading_days(
+                                        today, self._params.time_stop_days)
+                                    .isoformat())
+                                self._tracker.track_blocked(
+                                    h, hourly[symbol], why,
+                                    hypo_lab.BLOCKED_HYPO_VOLUME)
                     self._tracker.evaluate_open(symbol)
                 except Exception:
                     log.exception(kv(event="tracker_error", symbol=symbol))

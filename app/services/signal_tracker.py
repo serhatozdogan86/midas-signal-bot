@@ -615,8 +615,12 @@ class SignalTracker:
     def setup_mix(self) -> dict:
         """Acik sinyallerde setup/guven dagilimi (denge izlemesi)."""
         rows = self._db.query(
+            # v3.21: blocked=0 filtresi eklendi - blocked kohortlari (ozellikle
+            # yeni hacim/pullback hipotezi, sinif 5) denge panelinde PB sayisini
+            # sisirip "mix duzeldi" yanilsamasi yaratirdi. Panel CANLI defteri
+            # yansitir; hipotez kohortu blocked_summary'de ayri okunur.
             "SELECT setup_type, confidence, COUNT(*) AS n FROM signals "
-            "WHERE status!='CLOSED' GROUP BY setup_type, confidence")
+            "WHERE status!='CLOSED' AND blocked=0 GROUP BY setup_type, confidence")
         mix: dict = {"setup": {}, "confidence": {}}
         for r in rows:
             st = (r["setup_type"] or "?").replace("breakout_retest", "BO")                                          .replace("trend_pullback", "PB")
