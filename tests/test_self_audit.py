@@ -165,3 +165,20 @@ def test_healthy_alert_channel_passes(tmp_path):
                     telegram={"configured": True, "alerts_on": True,
                               "muted": 0, "failed": 0})
     assert _check(rep, "uyari kanali").ok
+
+
+def test_claude_md_covers_nonnegotiables():
+    """CLAUDE.md yeni oturumlarin anayasasi. Icindeki pazarliksiz
+    kurallar SILINMEMELI - silinirse yeni bir oturum kilit kohortunu
+    veya fail-closed disiplinini bilmeden bozabilir."""
+    from pathlib import Path
+    doc = Path("CLAUDE.md").read_text(encoding="utf-8")
+    for kural in ("Asla uydurma veri gösterme",
+                  "fail-closed",
+                  "Kilit kohortuna dokunma",
+                  "Ölçüm etiketleri karara karışmaz",
+                  "Deploy penceresi",
+                  "Yalnızca yeşilse push"):
+        assert kural in doc, kural
+    # es degerler dokumanla tutarli olmali
+    assert "60 sonuçlanan işlem" in doc and "+0.15R" in doc
