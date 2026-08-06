@@ -35,6 +35,13 @@ Bir karar filtresi verisini alamıyorsa **sinyal üretme**, "veri yok" ile
 `EARNINGS_FAIL_CLOSED` ile sinyal üretmez. Yeni filtre eklerken aynı
 soruyu sor: *verisi gelmezse ne oluyor?*
 
+**Belgelenmiş tek istisna:** v3.9 endeks kill-switch'i veri yokken
+**fail-open + WARNING** çalışır — o bir karar filtresi değil, filtrelerin
+ÜSTÜNE eklenmiş ek bir frendir; veri yok diye tüm taramayı durdurmak
+orantısız olur (gerekçe: config-lock.md v3.9). Bu istisna geneli bozmaz:
+yeni bir bileşen fail-open olacaksa aynı şekilde burada ve config-lock'ta
+gerekçesiyle listelenmek zorundadır.
+
 ### 2.3 Kilit kohortuna dokunma
 `docs/config-lock.md` motor parametrelerini kilitler. Kilit döneminde
 strateji/eşik/çıkış **değiştirilemez**. Değiştirmek gerekiyorsa:
@@ -42,8 +49,17 @@ strateji/eşik/çıkış **değiştirilemez**. Değiştirmek gerekiyorsa:
 kohort başlat. Ölçüm ortasında parametre oynatmak, haftalarca biriken
 veriyi çöpe atar.
 
-**Karar eşiği:** 60 sonuçlanan işlem VE 25 küme VE net beklenti ≥ +0.15R
-VE maks düşüş ≤ 8R. Bu eşikler sonuçlara bakılarak değiştirilmez.
+**Eşiklerin tek doğruluk kaynağı** `app/config/settings.py` +
+`docs/go-live-kriteri.md`'dir; buradaki özet bilgilendiricidir, çelişkide
+onlar kazanır. İki AYRI karar vardır, karıştırma:
+1. **Go-live kararı** (gölge → gerçek para): ≥60 sonuçlanan işlem VE ≥25
+   küme VE tek kümenin payı ≤%25 VE net beklenti ≥ +0.15R VE maks düşüş
+   ≤ 8R (beşli VE; ayrıntı go-live-kriteri.md).
+2. **Çıkış varyantı kararı** (V0 → V1/V2/V3): kohort 60 işlem / 25 kümeye
+   ulaşınca; varyant hem toplam net-R hem beklenti olarak V0'ı geçmeli
+   VE işaret iki yarı-dönemde tutarlı olmalı (config-lock.md v3.19).
+
+Bu eşikler sonuçlara bakılarak değiştirilmez.
 
 ### 2.4 Ölçüm etiketleri karara karışmaz
 `smc_tags`, `mom_pct`, `atr_pct/atr_rank`, çıkış laboratuvarı, strateji
@@ -52,9 +68,23 @@ modülleri bunları import etmez; testlerle kilitli. Bozma.
 
 ### 2.5 Deploy penceresi
 `main`'e push = Render'da **otomatik deploy** = servis yeniden başlar.
-ABD seansı TR saatiyle **16:30–23:00**. Bu aralıkta `main`'e push YOK
-(kritik güvenlik düzeltmesi hariç, o da açıkça söylenerek). İş dalda
-birikir, seans sonrası birleştirilir.
+Pencere ABD seansına göre tanımlıdır: **NYSE 09:30–16:00 ET** açıkken
+`main`'e push YOK (kritik güvenlik düzeltmesi hariç, o da açıkça
+söylenerek). İş dalda birikir, seans sonrası birleştirilir.
+
+**TR saatine güvenme, ET'ye bak:** Türkiye yaz saati kullanmaz, ABD
+kullanır. Yaz döneminde seans TR 16:30–23:00, kış döneminde (Kasım–Mart)
+TR 17:30–00:00'dır. Sabit "16:30–23:00 TR" ezberi Kasım'da yanlışlanır.
+Kontrol: `TZ=America/New_York date` (tatiller için `market_calendar`).
+
+**Geri dönüş (rollback) tarifi** — kötü deploy anında doğaçlama yapma:
+1. Birincil yol: `git revert <kotu-commit>` → pytest yeşilse `main`'e
+   push (seans içindeyse bu "kritik düzeltme" istisnasıdır, açıkça yaz).
+   `git push --force` ile tarih silme YOK; revert izlenebilirlik bırakır.
+2. Alternatif: Render panosundan önceki başarılı deploy'a "Rollback"
+   (varsa) — ama `main` hâlâ bozuk kodu gösterir; revert'i yine yap,
+   yoksa bir sonraki push bozuk kodu geri getirir.
+3. Deploy sonrası 4.3'teki canlı doğrulamayı MUTLAKA koş.
 
 ### 2.6 Yalnızca yeşilse push
 ```bash
@@ -151,6 +181,10 @@ Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
 
 ## 5. Şu anki durum (6 Ağustos 2026)
 
+> **Bu bölüm tarihli bir anlık görüntüdür, canlı veri DEĞİLDİR** (bkz.
+> 2.1). Güncel durum daima `/dx` + `/audit` + `/diag` uçlarından alınır
+> (4.4 ritüeli); buradaki sayılarla canlı uçlar çelişirse uçlar kazanır.
+
 - Gölge defter: ~7 açık, ~15 sonuçlanan, ≈ −11R (ağırlıklı kohort-0)
 - Kohort eşiği 60 işlemde; şu an ~15
 - Çıkış laboratuvarı: V0 (canlı) / V1 (kısmi kâr) / V2 (geniş stop) /
@@ -193,7 +227,7 @@ Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
 - Yeni strateji fikrini doğrudan motora ekleme — önce `research/` içinde
   ölç, `docs/research-log.md`'ye yaz, karar kuralını **önceden** belirle.
 - Pano şablonunu yeniden yazma; tek dosya bilinçli tercih.
-- Seans saatinde (16:30–23:00 TR) push etme.
+- NYSE seansı açıkken (09:30–16:00 ET; bkz. 2.5) `main`'e push etme.
 
 ---
 
