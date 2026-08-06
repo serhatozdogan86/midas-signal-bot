@@ -1293,7 +1293,10 @@ function renderStrategyLab(sl){
   const sgn=v=>v==null?"—":(v>0?"+":"")+num(v,2);
   const cell=o=>!o||!o.n?'<td class="num">—</td><td class="num">—</td>':
     `<td class="num">${o.n}</td><td class="num ${o.net_r>0?"pos":o.net_r<0?"neg":""}">${sgn(o.net_r)}</td>`;
-  let h='<table class="sig"><thead><tr><th>strateji</th>'+
+  let h="";
+  if(sl.computed_utc) h+='<div style="color:var(--muted);font-size:11px;margin-bottom:4px">'+
+    'hesaplandı: '+fmtTs(sl.computed_utc)+' UTC</div>';
+  h+='<table class="sig"><thead><tr><th>strateji</th>'+
     '<th colspan="2">kohort · tavansız</th><th colspan="2">kohort · tavanlı</th>'+
     '</tr><tr><th></th><th>işlem</th><th>net R</th><th>işlem</th><th>net R</th>'+
     '</tr></thead><tbody>';

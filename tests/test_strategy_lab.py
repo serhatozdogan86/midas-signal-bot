@@ -282,3 +282,39 @@ def test_lab_refuses_to_run_on_partial_cache():
     # erken donuste gun ISARETLENMEMELI (yalniz _slab_running sifirlanir)
     early = blk[blk.index("if len(snapshot) < need:"):]
     assert "_slab_date" not in early.split("def _work")[0]
+
+
+def test_result_survives_restart(tmp_path):
+    """v4.16: sonuc yalniz BELLEKTEYDI; her restart'ta siliniyor ve pano
+    'gun sonu kosumunda dolar' diye BOS kaliyordu - gunluk onbellek
+    hazirliga (15:45) kadar dolmadigi icin saatlerce. Gist damgasiyla
+    ayni ders: kalici olmali."""
+    import types
+
+    from app.services.database import Database
+    from app.services.signal_tracker import SignalTracker
+    from app.services.strategy_lab import StrategyLab
+
+    db = Database(str(tmp_path / "s.db"))
+    SignalTracker(db, "1h")
+    cfg = types.SimpleNamespace(MAX_DAILY_SIGNALS=6, MAX_OPEN_SIGNALS=10)
+    lab = StrategyLab(settings=cfg, db=db)
+    assert lab.last == {}
+    lab.last = {"universe": 300, "computed_utc": "2026-08-06T05:00:00Z",
+                "strategies": {"S1_MOMENTUM": {"label": "S1"}}}
+    lab._persist()
+
+    lab2 = StrategyLab(settings=cfg, db=db)      # RESTART
+    assert lab2.last.get("universe") == 300
+    assert lab2.last.get("computed_utc")         # bayatlik gorunur olsun
+
+
+def test_persist_is_optional_without_db():
+    """db verilmezse patlamamali (testler ve hafif kullanim)."""
+    import types
+
+    from app.services.strategy_lab import StrategyLab
+    lab = StrategyLab(settings=types.SimpleNamespace())
+    lab.last = {"x": 1}
+    lab._persist()                                # sessizce gecmeli
+    assert lab.last == {"x": 1}

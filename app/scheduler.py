@@ -75,7 +75,9 @@ class Scheduler:
         self._tg_last_ok = 0.0        # son basarili uyari zamani
         # v3.21: KATMAN 2 - bagimsiz aday GIRIS stratejileri (ayni cikis)
         from app.services.strategy_lab import StrategyLab
-        self._strategy_lab = StrategyLab(settings=settings)
+        self._strategy_lab = StrategyLab(
+            settings=settings,
+            db=(tracker._db if tracker is not None else None))
         self._params = settings.strategy_params
 
         self._last_coarse = 0.0

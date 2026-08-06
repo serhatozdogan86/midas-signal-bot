@@ -34,6 +34,7 @@ kohort penceresine bakilarak verilir.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -298,6 +299,33 @@ class StrategyLab:
     settings: object
     lab_start: str = "2026-08-04"
     last: dict = field(default_factory=dict)
+    db: object = None          # verilirse sonuc meta tablosunda KALICI
+
+    _META_KEY = "strategy_lab_last"
+
+    def __post_init__(self):
+        # v4.16: sonuc yalniz BELLEKTEYDI; her restart'ta siliniyor ve
+        # pano "gun sonu kosumunda dolar" diye BOS kaliyordu (gunluk
+        # onbellek hazirliga kadar dolmadigi icin saatlerce). Gist
+        # damgasiyla ayni ders: kalici olmali.
+        if self.db is not None and not self.last:
+            try:
+                row = self.db.query_one(
+                    "SELECT value FROM meta WHERE key=?", (self._META_KEY,))
+                if row and row["value"]:
+                    self.last = json.loads(row["value"])
+            except Exception:
+                log.exception(kv(event="strategy_lab_restore_failed"))
+
+    def _persist(self) -> None:
+        if self.db is None:
+            return
+        try:
+            self.db.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                (self._META_KEY, json.dumps(self.last)))
+        except Exception:
+            log.exception(kv(event="strategy_lab_persist_failed"))
 
     def run(self, daily: dict) -> dict:
         """daily: {symbol: KlineSeries}. Saf hesap + ozet; I/O yok.
@@ -403,11 +431,18 @@ class StrategyLab:
         if n_ok < 50:
             log.warning(kv(event="strategy_lab_too_few_symbols", universe=n_ok))
             return self.last or out
+        out["computed_utc"] = _now_iso()
         self.last = out
+        self._persist()
         log.info(kv(event="strategy_lab_run", universe=n_ok,
                     **{k: out["strategies"][k]["tarihsel"]["tavansiz"]["n"]
                        for k in STRATEGIES}))
         return out
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _iso(ts_ms: int) -> str:
