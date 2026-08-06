@@ -641,3 +641,38 @@ def test_candidate_rows_open_detailed_explanation():
              "DASH": str(Path("app/dashboard.html").resolve()),
              "FIXDIR": str(fix) + "/"})
     assert "ADAY_OK" in out.stdout, out.stdout + out.stderr
+
+
+def test_favicon_and_manifest_are_real():
+    """v4.17: sablon /manifest.webmanifest ve /icon-180.png cagiriyordu
+    ama iki uc da SUNUCUDA YOKTU (bybit sablonundan kalma, 404).
+    Favicon da bybit'in mavi karesiydi."""
+    import re
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+    from urllib.parse import unquote
+
+    t = _tpl()
+    assert "/icon-180.png" not in t                 # kirik baglanti gitti
+    m = re.search(r'<link rel="icon" type="image/svg\+xml" '
+                  r'href="data:image/svg\+xml,([^"]*)">', t)
+    assert m, "svg favicon yok"
+    svg = unquote(m.group(1))
+    ET.fromstring(svg)                              # BOZUK SVG sessizce bos kare gosterir
+    for c in ("#1B0F30", "#B18AFF", "#5BE49B"):     # midas paleti
+        assert c in svg, c
+
+    srv = Path("app/server.py").read_text()
+    assert '@app.get("/icon.svg")' in srv
+    assert '@app.get("/manifest.webmanifest")' in srv
+
+
+def test_icon_and_manifest_served(tmp_path):
+    c = _client(tmp_path)
+    r = c.get("/icon.svg")
+    assert r.status_code == 200 and "svg" in r.headers["Content-Type"]
+    m = c.get("/manifest.webmanifest")
+    assert m.status_code == 200
+    body = m.get_json()
+    assert body["theme_color"] == "#12091F"
+    assert body["icons"][0]["src"] == "/icon.svg"

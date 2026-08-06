@@ -337,6 +337,25 @@ def create_app(store: StateStore, scheduler: Scheduler,
             log.exception(kv(event="market_failed"))
             return jsonify({"error": "market info unavailable"}), 503
 
+    # ---- ikon + manifest (sablon bunlari cagiriyordu ama 404'tu) ----
+    _ICON_SVG = ("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='f' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#1B0F30'/><stop offset='1' stop-color='#0B0616'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(#f)'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='7' fill='none' stroke='#B18AFF' stroke-width='1.4' opacity='.85'/><g stroke='#B18AFF' stroke-width='.6' opacity='.18'><path d='M3 11h26M3 16h26M3 21h26'/></g><path d='M6 21.5l5.5-6.5 4 4.2 3-4 3.5 3.2 4-9.4' fill='none' stroke='#FF3DA6' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' opacity='.55' transform='translate(-1,.6)'/><path d='M6 21.5l5.5-6.5 4 4.2 3-4 3.5 3.2 4-9.4' fill='none' stroke='#35E7FF' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' opacity='.5' transform='translate(1,-.6)'/><path d='M6 21.5l5.5-6.5 4 4.2 3-4 3.5 3.2 4-9.4' fill='none' stroke='#5BE49B' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/><circle cx='26' cy='8.8' r='2.6' fill='#5BE49B'/><circle cx='26' cy='8.8' r='4.6' fill='none' stroke='#5BE49B' stroke-width='.9' opacity='.35'/></svg>")
+
+    @app.get("/icon.svg")
+    def icon_svg():
+        return app.response_class(_ICON_SVG, mimetype="image/svg+xml",
+                                  headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/manifest.webmanifest")
+    def web_manifest():
+        return jsonify({
+            "name": "MIDAS SINYAL", "short_name": "MIDAS",
+            "description": "ABD hisseleri swing sinyal botu - golge mod",
+            "start_url": "/dashboard", "display": "standalone",
+            "background_color": "#12091F", "theme_color": "#12091F",
+            "icons": [{"src": "/icon.svg", "sizes": "any",
+                       "type": "image/svg+xml", "purpose": "any maskable"}],
+        })
+
     @app.get("/audit")
     def audit_view():
         """OZ-DENETIM: degismezlerin canli sonucu. Bozulan varsa
