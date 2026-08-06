@@ -581,3 +581,63 @@ def test_candidates_visible_on_mobile_tab():
         env={"PATH": "/usr/bin:/bin", "NODE_PATH": "/tmp/node_modules",
              "DASH": str(Path("app/dashboard.html").resolve())})
     assert "VIS_OK" in out.stdout, out.stdout + out.stderr
+
+
+def test_candidate_rows_open_detailed_explanation():
+    """v4.15: aday tablosundaki HER satir tiklaninca 'nasil calisir +
+    parametreler + arti/eksi + bizim olctugumuz kanit' penceresi
+    acilmali. jsdom'da GERCEKTEN tiklanarak dogrulanir - kural sablonda
+    var diye calistigini varsaymiyoruz (v4.14 dersi)."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    import pytest
+    if not shutil.which("node"):
+        pytest.skip("node yok")
+    if subprocess.run(["node", "-e", "require('jsdom')"],
+                      capture_output=True, cwd="/tmp").returncode != 0:
+        pytest.skip("jsdom yok")
+
+    fix = Path(tempfile.mkdtemp())
+    chal = {"strategies": {k: {"open": 1, "decided": 2, "expired": 0,
+                               "win_rate": 0.5, "net_r": 0.4,
+                               "clusters": 2, "ci": None}
+                           for k in ("V0_CANLI", "V1_KISMI", "V2_GENIS",
+                                     "V3_ORTA")},
+            "faz1_target": 60}
+    slab = {"universe": 300, "lab_start": "2026-08-04", "strategies": {
+        k: {"label": k, "exit": "V0",
+            "kohort": {"tavansiz": {"n": 3, "net_r": 0.5},
+                       "tavanli": {"n": 2, "net_r": 0.3}},
+            "tarihsel": {"tavansiz": {"n": 100, "net_r": 5.0,
+                                      "expectancy": 0.05},
+                         "tavanli": {"n": 50, "net_r": 3.0},
+                         "tavanli_rastgele": {"n": 50, "net_r": 1.0}}}
+        for k in ("S1_MOMENTUM", "S2_DONCHIAN", "S3_VOL_BREAK",
+                  "S4_RSI2", "S5_MOM_WIDE")}}
+    (fix / "api_challengers.json").write_text(json.dumps(chal))
+    (fix / "api_strategy_lab.json").write_text(json.dumps(slab))
+    (fix / "api_performance.json").write_text(json.dumps(
+        {"decided_trades": 0, "win_rate": 0, "total_r_multiple": 0,
+         "open_signals": 0, "closed_by_outcome": {}, "by_direction": {},
+         "net": {}, "phases": {}}))
+    for name, body in (("api_signals_limit_500.json", []),
+                       ("api_status.json", {"meta": {}, "results": {}}),
+                       ("api_universe.json", {"filtered_count": 300}),
+                       ("api_news.json", {"items": []}),
+                       ("api_market.json", {"majors": []}),
+                       ("api_prices.json", {"prices": {}}),
+                       ("api_volatility.json", {"pending": True}),
+                       ("api_live.json", {"rows": [], "indices": []})):
+        (fix / name).write_text(json.dumps(body))
+
+    out = subprocess.run(
+        ["node", str(Path("tools/candidate_detail_check.js").resolve())],
+        capture_output=True, text=True, timeout=120, cwd="/tmp",
+        env={"PATH": "/usr/bin:/bin", "NODE_PATH": "/tmp/node_modules",
+             "DASH": str(Path("app/dashboard.html").resolve()),
+             "FIXDIR": str(fix) + "/"})
+    assert "ADAY_OK" in out.stdout, out.stdout + out.stderr

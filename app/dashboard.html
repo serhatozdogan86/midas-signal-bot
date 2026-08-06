@@ -234,6 +234,7 @@
      position:sticky;top:0;z-index:1}
   td{padding:5px 10px;border-bottom:1px solid var(--card2);white-space:nowrap}
   tbody tr{cursor:pointer}
+  tr.aday-satir .i{color:var(--blue-ink);font-size:10px;opacity:.8}
   /* v4.1.8: zebra eski sablonun KREM tonuydu - koyu
      zeminde gri leke gibi goruntu veriyordu. */
   tbody tr:nth-child(even) td{background:rgba(177,138,255,.055)}
@@ -1005,6 +1006,7 @@ async function j(url){
 }
 const OUT=s=>s.outcome||s.status;
 let PRICES={},PREV_PRICES={},PERF=null,LIVE=null;
+let LAST_CHAL=null,LAST_SLAB=null;   // aday detay penceresi icin
 let FUND={};   // sembol -> sirket verisi (/fundamentals)
 const fmtPx=v=>v==null?"—":Number(v).toLocaleString("en-US",
   {maximumFractionDigits:v>=100?2:v>=1?4:6});
@@ -1174,6 +1176,116 @@ function renderVolatility(v){
   }
   el.innerHTML=h;
 }
+
+/* ---------- v4.15: ADAY BILGI TABANI ----------
+   Tablodaki her satir tiklanabilir; acilan pencerede o adayin NASIL
+   calistigi, HANGI parametrelerle sinyal urettigi, kaynagi ve BIZIM
+   olctugumuz kanit yer alir. Sayilar tabloda, ANLAM burada. */
+const ADAY_BILGI={
+ V0_CANLI:{ad:"V0 · canlı çıkış",tur:"ÇIKIŞ",
+  nasil:"Motorun BUGÜN kullandığı çıkış kuralı. Pozisyon üç kapıdan biriyle kapanır: fiyat stop seviyesine düşerse zarar kesilir; TP1 hedefine ulaşırsa pozisyonun TAMAMI satılır; hiçbiri olmazsa 4 işlem günü sonunda kapatılır.",
+  param:["Stop: 1.2 × günlük ATR (yapısal stop daha yakınsa o kullanılır)","Hedef: TP1 ≈ 1.0 × ATR, tam çıkış","Time-stop: 4 işlem günü","Dolum: giriş bölgesi TAMAMEN katedilmeli, dolum kötü uçtan sayılır"],
+  arti:["Sık kazanır (isabet ~%55), gece riski az","Sermaye hızlı serbest kalır"],
+  eksi:["Kazanç 0.83R, kayıp 1R → matematik aleyhte; başabaş için ~%55 isabet gerekir","Büyük hareketlerin başında çıkarsın"],
+  kanit:"Backtest: 5 giriş ailesinin ALTISI da bu çıkışla negatif. Aynı girişler hedefsiz+uzun tutmayla pozitif."},
+ V1_KISMI:{ad:"V1 · kısmi kâr",tur:"ÇIKIŞ",
+  nasil:"TP1'e ulaşınca pozisyonun YARISI satılır, kalan yarı TP2 hedefine kadar taşınır. Stop aynı yerde kalır.",
+  param:["TP1'de %50 çıkış","Kalan %50 → TP2 (≈2 × ATR)","Kalan bacak için süre: 70 saatlik bar (~10 gün)","Maliyet: 3 işlem ücreti (giriş + 2 çıkış)"],
+  arti:["Kârı cebe koyarken trendde kalır","Psikolojik olarak taşıması kolay"],
+  eksi:["Ek işlem ücreti","TP1'e hiç değmeyen işlemlerde V0'dan farkı YOK"],
+  kanit:"Klasik dengeli yaklaşım; bizde henüz ayırt edici veri yok."},
+ V2_GENIS:{ad:"V2 · geniş stop",tur:"ÇIKIŞ",
+  nasil:"Sabit hedef YOK. Stop normalden ~%67 daha uzağa konur ve pozisyon 20 işlem gününe kadar taşınır. Amaç: gürültüye stop olmamak, büyük hareketi sonuna kadar sürmek.",
+  param:["Stop: canlı riskin 5/3 katı (≈2.0 × ATR)","Hedef: yok","Süre: 140 saatlik bar (~20 gün)","R paydası CANLI risk (V0 ile aynı ölçek)"],
+  arti:["Backtest'te en yüksek toplam getiri","Trend devam ederse kazanç çok büyür"],
+  eksi:["İsabet %55'ten ~%43'e düşer","Kayıplar daha derin","20 gün açık pozisyon = gece/bilanço riski"],
+  kanit:"Backtest (tavanlı, kaliteli seçim): +182R, beklenti +0.280R, maxDD 30."},
+ V3_ORTA:{ad:"V3 · hedefsiz, aynı stop",tur:"ÇIKIŞ",
+  nasil:"Stop AYNEN V0'daki gibi kalır, sadece sabit hedef kaldırılır ve süre ~10 güne uzatılır. Tek değişkeni izole eder: hedef.",
+  param:["Stop: canlı stop (1.0×, değişmez)","Hedef: yok","Süre: 70 saatlik bar (~10 gün)"],
+  arti:["Tarama bulgusunda en yüksek toplam R'yi veren hücre","Stop değişmediği için V0 ile birebir kıyaslanabilir"],
+  eksi:["İsabet düşer (~%41)","Aynı stopla daha uzun taşımak, gürültüye stop olma riskini artırır"],
+  kanit:"Tarama: aynı giriş/stop/süre ile hedefi kaldırmak +48.5R → +151.5R; süre 10 güne çıkınca +314.9R."},
+ S1_MOMENTUM:{ad:"S1 · kesitsel momentum (12-1)",tur:"GİRİŞ",
+  nasil:"Her pazartesi tüm evren son 12 ayın getirisine göre sıralanır (SON AY hariç tutulur) ve en güçlü %10'a girilir. 'Kazanan kazanmaya devam eder' fikri.",
+  param:["Sıralama: 252 günlük getiri, son 21 gün hariç","Eşik: evrenin üst %10'u","Yenileme: haftalık (pazartesi)","Çıkış: V0 profili (stop 1.2 ATR / TP1 1.0 ATR / 4 gün)"],
+  arti:["Ölçtüğümüz TEK istatistiksel olarak sağlam giriş edge'i","Düşüşü en düşük olanlardan"],
+  eksi:["Ayı piyasasında acı çeker (2022 negatifti)","Dönüş noktalarında sert vurulur ('momentum çöküşü')","İşlem başına beklenti ince"],
+  kanit:"Piyasa üstü fazla getiri: 5g +0.86% (t=3.30), 20g +2.64% (t=3.39), iki alt dönemde tutarlı.",
+  kaynak:"Jegadeesh-Titman (1993); AQR/Dimensional momentum fonlarının omurgası."},
+ S2_DONCHIAN:{ad:"S2 · Donchian kırılımı",tur:"GİRİŞ",
+  nasil:"Fiyat son 20 günün en yükseğini aşarsa alınır. Klasik trend takibi (Turtle System 1).",
+  param:["Kanal: 20 günlük en yüksek","Tetik: kapanış kanalın üstünde","Skor (tavan seçimi): kırılım mesafesi / ATR","Çıkış: V0 profili"],
+  arti:["Büyük trendleri baştan yakalar","Kavramsal olarak basit"],
+  eksi:["ÇOK fazla sinyal üretir, çoğu zayıf","4 günlük çıkışla evlenemiyor: trend takibi uzun tutmak ister"],
+  kanit:"Tavansız −787R; tavan + kaliteli seçimle +11.8R. Ham öngörü gücü t≈0.",
+  kaynak:"Richard Donchian / Turtle Traders; CTA'ların (Winton, Man AHL) omurgası."},
+ S3_VOL_BREAK:{ad:"S3 · hacimli kırılım",tur:"GİRİŞ",
+  nasil:"S2 ile aynı kırılım, ancak hacim 20 günlük ortalamanın EN AZ 2 KATI olmalı. 'Gerçek kırılımı sahtesinden ayır' fikri.",
+  param:["Kanal: 20 günlük en yüksek","Hacim şartı: ≥ 2.0 × 20 günlük ortalama","Skor: hacim katsayısı","Çıkış: V0 profili"],
+  arti:["Hacim filtresi sinyal sayısını ~10 kat azaltır, çok daha seçici","Düşüşü küçük"],
+  eksi:["İstatistiksel gücü sınırda","Az sinyal = yavaş kanıt birikimi"],
+  kanit:"20g fazla getiri +1.58% (t=1.98) — eşiğin hemen altında, iki yarıda tutarlı."},
+ S4_RSI2:{ad:"S4 · RSI(2) dönüş",tur:"GİRİŞ",
+  nasil:"Hisse 200 günlük ortalamasının ÜSTÜNDEyken 2 günlük RSI 10'un altına düşerse alınır. 'Yükseliş trendinde dip alımı'.",
+  param:["Trend filtresi: fiyat > 200 günlük MA","Tetik: RSI(2) < 10","Skor: RSI ne kadar düşükse o kadar iyi","Çıkış: V0 profili"],
+  arti:["Kısa vadede yüksek isabet","Prop firmalarının klasiği"],
+  eksi:["TEK negatif adayımız","Sinyaller panik günlerinde TOPLUCA patlar → tavan altında hangi 6'sını aldığın şansa kalır"],
+  kanit:"Tavansız +79R ama tavanlı RASTGELE seçimle −148R, kaliteli seçimle −25.5R. Kâğıt üzerindeki edge uygulanabilir değil.",
+  kaynak:"Larry Connors; kısa vadeli ortalamaya dönüş literatürü."},
+ S5_MOM_WIDE:{ad:"S5 · momentum + geniş çıkış",tur:"GİRİŞ+ÇIKIŞ",
+  nasil:"S1 ile TAMAMEN AYNI girişler; tek fark çıkış. Kanıtlanmış tek giriş edge'i ile kazananı kesmeyen çıkışı birleştirir.",
+  param:["Giriş: S1 ile birebir aynı (12-1 momentum, üst %10, haftalık)","Çıkış: V2 profili (stop 2.0 ATR, hedef yok, 20 gün)"],
+  arti:["Backtest'te açık ara en yüksek beklenti","Az işlem = düşük maliyet"],
+  eksi:["İsabet %43 — on işlemin altısında kaybedersin","20 günlük pozisyon bizim '1-3 gün' vade tanımımızın DIŞINDA","2021-2026 çoğunlukla boğaydı; geniş stop boğada parlar"],
+  kanit:"Backtest (tavanlı): +182R, beklenti +0.280R, isabet %43.3, maxDD 30 — S1'in ~7 katı."}
+};
+
+document.addEventListener("click",ev=>{
+  const tr=ev.target&&ev.target.closest?ev.target.closest("tr.aday-satir"):null;
+  if(!tr) return;
+  const key=tr.dataset.aday;
+  // canli sayilari veriden topla (tabloyu tekrar okumak yerine kaynaktan)
+  let stats={};
+  const c=LAST_CHAL&&LAST_CHAL.strategies&&LAST_CHAL.strategies[key];
+  if(c) stats={"açık":c.open,"sonuçlanan":c.decided,
+               "kazanç oranı":c.win_rate==null?"—":(c.win_rate*100).toFixed(0)+"%",
+               "net R":(c.net_r>0?"+":"")+num(c.net_r,2)};
+  const t=LAST_SLAB&&LAST_SLAB.strategies&&LAST_SLAB.strategies[key];
+  if(t){
+    const ko=t.kohort&&t.kohort.tavansiz, th=t.tarihsel&&t.tarihsel.tavanli;
+    stats={"kohort işlem":ko?ko.n:0,
+           "kohort net R":ko?((ko.net_r>0?"+":"")+num(ko.net_r,2)):"—",
+           "tarihsel (backtest)":th?(th.n+" işlem · "+(th.net_r>0?"+":"")+num(th.net_r,1)+"R"):"—"};
+  }
+  adayDetay(key,stats);
+});
+
+function adayDetay(key,stats){
+  const k=ADAY_BILGI[key]; if(!k) return;
+  const satir=(a,b)=>`<div class="kvgrid"><span class="k">${a}</span><span class="v">${b}</span></div>`;
+  let h=`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <span class="badge b-LONG">${k.tur}</span>
+    <span style="color:var(--muted);font-size:11px">gölge ölçüm · gerçek işlem yok</span></div>`;
+  if(stats&&Object.keys(stats).length){
+    h+='<div class="note"><b>Canlı kohort</b><br>'+
+      Object.entries(stats).map(([a,b])=>`${a}: <b>${b}</b>`).join(" · ")+'</div>';
+  }
+  h+=`<div class="note"><b>Nasıl çalışır</b><br>${k.nasil}</div>`;
+  h+=`<div class="note"><b>Parametreler</b><ul style="margin:4px 0 0 16px">`+
+     k.param.map(x=>`<li>${x}</li>`).join("")+`</ul></div>`;
+  h+=`<div class="note" style="border-left:3px solid var(--green)"><b>Artıları</b><ul style="margin:4px 0 0 16px">`+
+     k.arti.map(x=>`<li>${x}</li>`).join("")+`</ul></div>`;
+  h+=`<div class="note" style="border-left:3px solid var(--red)"><b>Eksileri</b><ul style="margin:4px 0 0 16px">`+
+     k.eksi.map(x=>`<li>${x}</li>`).join("")+`</ul></div>`;
+  if(k.kanit) h+=`<div class="note"><b>Bizim ölçtüğümüz</b><br>${k.kanit}</div>`;
+  if(k.kaynak) h+=`<div class="note" style="color:var(--muted)"><b>Kaynak</b><br>${k.kaynak}</div>`;
+  h+=`<div class="note" style="color:var(--muted);font-size:11px">
+    Tarihsel sayılar BACKTEST'tir, canlı kanıt değildir. Karar yalnızca
+    kohort dolduğunda (60 işlem / 25 küme) verilir.</div>`;
+  openModal(k.ad,h);
+}
+
 function renderStrategyLab(sl){
   const el=document.getElementById("slabBody"); if(!el) return;
   if(!sl||sl.pending||!sl.strategies){
@@ -1188,8 +1300,9 @@ function renderStrategyLab(sl){
   let toplam=0;
   for(const [k,v] of Object.entries(sl.strategies)){
     toplam+=(v.kohort&&v.kohort.tavansiz?v.kohort.tavansiz.n:0);
-    h+=`<tr><td>${v.label||k}</td>${cell(v.kohort&&v.kohort.tavansiz)}`+
-       `${cell(v.kohort&&v.kohort.tavanli)}</tr>`;
+    h+=`<tr class="aday-satir" data-aday="${k}" title="detay için tıkla">`+
+       `<td>${v.label||k} <span class="i">ⓘ</span></td>`+
+       `${cell(v.kohort&&v.kohort.tavansiz)}${cell(v.kohort&&v.kohort.tavanli)}</tr>`;
   }
   h+="</tbody></table>";
   if(!toplam) h+='<div class="empty" style="margin-top:6px">kohort verisi birikiyor — '+
@@ -1220,7 +1333,8 @@ function renderChallengers(ch){
     const wr=s.win_rate==null?"—":(s.win_rate*100).toFixed(0)+"%";
     const ci=s.ci?`[${sgn(s.ci[0])}, ${sgn(s.ci[1])}]`:"—";
     const ciCls=s.ci&&s.ci[0]>0?"pos":(s.ci&&s.ci[1]<0?"neg":"");
-    h+=`<tr><td>${CHAL_ADI[k]}</td><td class="num">${s.open}</td>`+
+    h+=`<tr class="aday-satir" data-aday="${k}" title="detay için tıkla">`+
+       `<td>${CHAL_ADI[k]} <span class="i">ⓘ</span></td><td class="num">${s.open}</td>`+
        `<td class="num">${s.decided}${s.expired?` <span class="muted">(+${s.expired}e)</span>`:""}</td>`+
        `<td class="num">${wr}</td>`+
        `<td class="num ${s.net_r>0?"pos":s.net_r<0?"neg":""}">${sgn(s.net_r)}</td>`+
@@ -2136,6 +2250,7 @@ async function refresh(){
   renderKpis(perf,status,uni,SIGNALS);
   renderMeasure(perf);
   renderChallengers(chal);
+  LAST_CHAL=chal; LAST_SLAB=slab;
   renderStrategyLab(slab);
   renderVolatility(vol);
   renderCurve(SIGNALS);
