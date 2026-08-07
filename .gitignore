@@ -10,3 +10,4 @@ __pycache__/
 # Calisma zamani verisi
 data/bot.db
 data/universe_cache.json
+ops/oracle/midas.env

@@ -1,0 +1,24 @@
+# midas-signal-bot systemd birimi (Oracle VM)
+# Kurulum: docs/oracle-tasima-plani.md Faz 1
+#   sudo cp ops/oracle/midas-signal-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now midas-signal-bot
+[Unit]
+Description=Midas ABD hisse sinyal botu
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/midas-signal-bot
+# Ortam dosyasi: secrets iceriyor -> chmod 600, git'e GIRMEZ
+EnvironmentFile=/opt/midas-signal-bot/ops/oracle/midas.env
+ExecStart=/opt/midas-signal-bot/.venv/bin/python -m app.main
+Restart=always
+RestartSec=10
+# bybit botla ayni VM: OOM durumunda once bu servis kisilsin, VM dusmesin
+MemoryHigh=600M
+MemoryMax=750M
+
+[Install]
+WantedBy=multi-user.target
