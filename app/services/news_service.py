@@ -51,9 +51,14 @@ class NewsService:
             added = self.refresh(symbols, today)
         except Exception:
             log.exception(kv(event="news_refresh_error"))
-            added = 0
+            added = None                     # gercek ariza
         elapsed = time.time() - started
-        if elapsed > self._slow_sec or added == 0:
+        # v4.22: added==0 ARIZA DEGILDIR - sakin bir turda tum basliklar
+        # dedup'lidir. Eski kosul her sessiz turda backoff'u katlayip
+        # WARNING basiyordu (7 Agu loglari: pespese news_backoff) - "alarm
+        # gurultusu alarmi oldurur" dersinin ihlali. Backoff yalniz yavas
+        # tur veya exception'da.
+        if elapsed > self._slow_sec or added is None:
             prev = self._backoff
             self._backoff = min(max(self._backoff * 2, 300.0), 3600.0)
             if prev != self._backoff:

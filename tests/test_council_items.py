@@ -197,7 +197,10 @@ def test_golive_status_progress(tmp_path):
     # beklenti NET'tir; 2 Agu'dan itibaren maliyet cift yonlu kayma iceriyor
     assert g["criteria"]["expectancy_r"]["basis"] == "net"
     assert abs(g["criteria"]["expectancy_r"]["now"] - 0.763) < 0.01
-    assert g["criteria"]["max_dd_r"]["now"] == 1.0     # +1.5 -> +0.5 dususu
+    # v4.22: DD artik NET egriden (beklentiyle ayni muhasebe). Brut dusus
+    # 1.0R; net egri her islemden maliyet dustugu icin biraz daha derin.
+    dd = g["criteria"]["max_dd_r"]["now"]
+    assert 1.0 < dd < 1.3
     assert g["criteria"]["clusters"]["now"] == 3        # uc ayri kume
     assert g["met"] is True
     assert "Go-live kriteri" in sched.build_eod_extras()

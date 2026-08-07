@@ -23,6 +23,12 @@ _WINDOW_BACK_DAYS = 4     # yeni acilanan bilanco da blackout'a girer
 _WINDOW_FWD_DAYS = 14
 _CACHE_TTL_SEC = 6 * 3600
 _RETRY_SEC = 600          # veri yokken 10 dk'da bir tekrar dene
+# v4.22: "veri var" != "veri guncel" (v3.17 ilkesinin takvime uygulanmasi).
+# Takvim bir kez yuklendikten sonra Finnhub uzun sure cokerse eski _dates
+# sessizce guncel gibi kullaniliyordu ve denetim ready=True gorup YESIL
+# kaliyordu. Son basarili yuklemeden bu kadar sure gectiyse takvim BAYAT
+# sayilir -> fail-closed (2.2) devreye girer, sinyal uretilmez.
+_STALE_SEC = 24 * 3600
 
 
 class EarningsService:
@@ -49,12 +55,20 @@ class EarningsService:
         self._fb_failed: set[str] = set()      # hata alanlar (bilmiyoruz)
         self._fb_day: date | None = None
 
+    def _fresh_ready(self) -> bool:
+        """Takvim yuklu VE bayat degil (kilit altinda cagrilmali)."""
+        return self._ready and (time.time() - self._last_ok) < _STALE_SEC
+
     def refresh(self, today: date, force: bool = False) -> None:
         with self._lock:
             age = time.time() - self._fetched_at
             if not force:
-                # veri YOKSA TTL'i bekleme: kisa araliklarla tekrar dene
-                limit = _RETRY_SEC if not self._ready else _CACHE_TTL_SEC
+                # veri YOKSA/BAYATSA/son deneme BASARISIZSA TTL'i bekleme:
+                # kisa araliklarla tekrar dene (v4.22: eskiden ready=True
+                # iken basarisiz yenileme 6 saatlik TTL'e mahkum kaliyordu).
+                limit = (_CACHE_TTL_SEC
+                         if self._fresh_ready() and self._fail_streak == 0
+                         else _RETRY_SEC)
                 if age < limit:
                     return
         d_from = (today - timedelta(days=_WINDOW_BACK_DAYS)).isoformat()
@@ -88,7 +102,9 @@ class EarningsService:
     def prefetch(self, symbols: list[str], today: date) -> None:
         """Finnhub takvimi yoksa aday semboller icin yedek kaynagi calistir.
         Gunde bir kez sembol basina; hata alanlar tekrar denenmez (o gun)."""
-        if self._ready or self._fallback is None or not symbols:
+        with self._lock:
+            fresh = self._fresh_ready()
+        if fresh or self._fallback is None or not symbols:
             return
         with self._lock:
             if self._fb_day != today:            # gun donunce onbellek sifirlanir
@@ -110,9 +126,10 @@ class EarningsService:
                        ok=ok, failed=len(need) - ok))
 
     def status(self) -> dict:
-        """Teshis: takvim yuklendi mi, kac sembol, ne zaman (v3.16)."""
+        """Teshis: takvim yuklendi mi, kac sembol, ne zaman (v3.16).
+        v4.22: ready artik TAZELIK icerir - bayat takvim ready=False."""
         with self._lock:
-            return {"ready": self._ready, "symbols": len(self._dates),
+            return {"ready": self._fresh_ready(), "symbols": len(self._dates),
                     "fallback_ok": len(self._fb_dates),
                     "fallback_failed": len(self._fb_failed),
                     "fail_streak": self._fail_streak,
@@ -133,7 +150,8 @@ class EarningsService:
             dates = list(self._dates.get(sym, []))
             fb = self._fb_dates.get(sym)
             fb_failed = sym in self._fb_failed
-        if not self._ready:
+            fresh = self._fresh_ready()
+        if not fresh:
             if fb is not None:                 # yedek kaynaktan geldi
                 dates = list(fb)
                 if not dates:

@@ -54,7 +54,11 @@ class FundamentalsService:
             with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(need))) as ex:
                 results = list(ex.map(self._fetch_one, need))
             for sym, data in zip(need, results):
-                self._cache[sym] = (now, data)
+                # v4.22: basarisiz fetch 24 saat negatif-cache'lenmesin -
+                # Finnhub 10 dk cokse kartlar tum gun '-' kaliyordu.
+                # None sonuc 15 dk sonra yeniden denenecek sekilde yazilir.
+                stamp = now if data is not None else (now - self._ttl + 900)
+                self._cache[sym] = (stamp, data)
             failed = sum(1 for d in results if d is None)
             if failed:
                 # kismi de olsa WARNING - gist nabzinda gorunur olsun.
