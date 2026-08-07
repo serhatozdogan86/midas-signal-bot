@@ -16,6 +16,33 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-06 (v4.18): HACIM/PULLBACK HIPOTEZ KOHORTU (blocked=5) - kilit
+  IHLALI YOK: strategies/ degismedi (engine_sha 4f29f1f5adf1 oncesi=sonrasi,
+  git stash kaniti), canli motor/filtreler/V0 defteri AYNEN.
+  BULGU (6 Agu decision-arsiv otopsisi, son 2000 karar): pullback setup'i
+  8 kez bulundu, 8'inde de VOLUME kesti (cogu kil payi: 1.16-1.26x < 1.30x);
+  breakout_retest 165 bulgu / 25 SIGNAL. Defter fiilen TEK-SETUP kaldi
+  (sonuclanan 17 islemin 16'si breakout). Mekanizma yapisal: geri cekilme
+  tanim geregi dusuk hacimli bir evredir; tetik mumunda 1.3x sarti
+  pullback'i fiilen imkansizlastirirken breakout'a dogal gecit verir.
+  KURULUM (app/services/hypo_lab.py): VOLUME'da elenen pullback adayi
+  icin motorun SAF fonksiyonlariyla (detect_setup + build_trade_plan +
+  ayni RR bandi + ayni maliyet filtresi) varsayimsal plan kurulur ve
+  blocked=5 sinifiyla izlenir. Hacim DISINDAKI tum kapilar aynen
+  uygulanir ki kohort canli defterden YALNIZ hacim kosuluyla ayrissin.
+  Gercek hacim orani block_reason'a yazilir (esik alt-kumeleri analizde
+  kesilebilir). Ayarlanabilir: HYPO_VOLUME_PULLBACK (varsayilan acik).
+  KARANTINA: tum karne/tavan sorgulari blocked=0 (testle kilitli:
+  test_hypo_lab). Yan duzeltme: setup_mix() blocked satirlari sayiyordu
+  (mevcut kucuk bug) - panel canli defteri yansitsin diye blocked=0
+  filtresi eklendi; hipotez blocked_summary.by_class["5"]'te okunur.
+  KARAR KURALI (simdiden yazildi, sonradan oynanmaz): blocked=5 kohortu
+  20 SONUCLANMIS hipoteze ulastiginda net-R beklentisi (ayni maliyet
+  modeli) hesaplanir. Hipotez ancak su UC sart birlikte saglanirsa bir
+  SONRAKI kilit penceresinde motor degisikligi onerisine donusur:
+  (1) net beklenti > 0, (2) isaret iki yari-donemde ayni, (3) canli
+  breakout kohortunun net beklentisinden dusuk degil. Aksi halde hipotez
+  YANLISLANMIS sayilir ve hacim filtresi aklanir - bu da kayda gecer.
 - 2026-08-03 (v3.19): CIKIS LABORATUVARI + MOMENTUM ETIKETI - kilit
   IHLALI YOK: canli motor, filtreler ve V0 defteri AYNEN; varyantlar
   ayni sinyallerin sanal yeniden oynatimi, momentum yalniz etiket.

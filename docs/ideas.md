@@ -1,6 +1,14 @@
 # Fikir Rafi (kilit doneminde dokunulmaz)
 Format: tarih | fikir | tetikleyen gozlem
 - 2026-07-30 | Pullback kolu neden sessiz - esik dengesi incelemesi | ilk 14 sinyalin tamami BO
+  DURUM (2026-08-06, v4.18): KOK NEDEN BULUNDU - decision arsivinde pullback
+  8/8 VOLUME'da elendi (1.3x tetik-mumu sarti geri cekilmenin dogasiyla
+  celisiyor). Olcum basladi: blocked=5 hipotez kohortu (hypo_lab) hacim
+  sarti olmadan pullback'in gercek ileri-performansini izliyor. Muhtemel
+  motor degisikligi (setup-tipine gore ayrisan hacim kosulu: breakout
+  tetik mumunda genisleme, pullback'te cekilme sirasinda DARALMA + donus
+  mumunda genisleme) bir SONRAKI kilit penceresinde, kohort verisi ve
+  config-lock.md'deki onceden yazilmis karar kuraliyla degerlendirilecek.
 - 2026-07-30 | NOT_FILLED kohort analizi (kacanlar daha mi iyi?) | konsey/veri bilimci
 - 2026-07-30 | Sektor ETF eslemesi -> cluster_id'ye sektor boyutu | konsey/risk
 - 2026-08-02 | SEANS DISI TARAMA (pre/after-market sinyal uretimi) | kullanici sorusu

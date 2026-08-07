@@ -211,6 +211,9 @@ class Settings(BaseSettings):
     SHADOW_TRACKING: bool = True
     FILL_WINDOW_BARS: int = 14             # girise gelmesi beklenen sure (~2 seans, 1h bar)
     MAX_TRACK_BARS: int = 28               # dolduysa izleme suresi (~4 seans = time-stop)
+    # v3.21 hipotez laboratuvari: VOLUME'a takilan pullback'lerin blocked=5
+    # gozlem kohortu (app/services/hypo_lab.py). Karara/tavana karismaz.
+    HYPO_VOLUME_PULLBACK: bool = True
 
     @property
     def regime_symbols(self) -> list[str]:
