@@ -46,6 +46,33 @@ def test_benchmark_spy_same_period(tmp_path):
     assert b["spy_return_pct"] > 0
 
 
+def test_benchmark_windows_only_signal_period(tmp_path):
+    """v4.19 regresyon kaniti: sinyal ONCESI ralli benchmark'a sizamaz.
+
+    Kurgu: SPY ilk 30 barda 100->150 kosar, son 10 bar 150'de yatay.
+    Sinyal yatay bolgede dogar. Eski kod (RangeIndex yuzunden pencereyi
+    kesemeyip TUM seriyi alan dal) ~+%50 raporlardi; dogrusu ~%0.
+    Bu test eski kodda KIRILIR (kirilabildigi kanitli).
+    """
+    import numpy as np
+    from datetime import datetime, timedelta, timezone
+
+    tracker = _tracker(tmp_path)
+    created = ((datetime.now(timezone.utc) - timedelta(days=8))
+               .strftime("%Y-%m-%dT00:00:00Z"))
+    _sig(tracker._db, "AAPL", created=created)
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory")
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      InMemoryStateStore(), FakeNotifier(), tracker)
+    closes = np.concatenate([np.linspace(100, 150, 30), np.full(10, 150.0)])
+    spy = fx.make_series(closes, symbol="SPY", interval="1d")
+    sched._daily_cache = {"SPY": spy}
+    sched._daily_cache_date = sched._calendar.now_et().date()
+    b = sched.benchmark_info()
+    assert b is not None and b["since"] == created[:10]
+    assert abs(b["spy_return_pct"]) < 2.0   # eski kod: ~+50
+
+
 def test_archive_symbols_retention(tmp_path):
     tracker = _tracker(tmp_path)
     now = datetime.now(timezone.utc)

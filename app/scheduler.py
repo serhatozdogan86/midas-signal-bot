@@ -949,14 +949,21 @@ class Scheduler:
                 return None
             df = self._daily_cache[_BENCH].to_dataframe()
             start_date = first[:10]
-            if hasattr(df.index, "strftime"):
-                window = df[df.index.strftime("%Y-%m-%d") >= start_date]
-            else:                       # sentetik veri (testler): tum seri
-                window = df
+            # v4.19 BUG FIX: to_dataframe() tarih indeksi URETMEZ (RangeIndex;
+            # zaman 'ts' kolonudur). Eski kod hasattr(df.index,'strftime') ile
+            # dallaniyordu - kosul uretimde de HER ZAMAN False kaldigi icin
+            # "testler icin" yazilan else dali calisti ve pencere TUM cache
+            # oldu: 8 gunluk golge donemi SPY'in ~1 yillik getirisiyle
+            # ('since 29 Tem' etiketli +%50.92) kiyaslandi. Filtre artik ts
+            # kolonu uzerinden; kesilemiyorsa sayi UYDURMAK yerine None
+            # (anayasa 2.1: bayat/yanlis veri canli gibi gosterilmez).
+            start_ms = int(datetime.strptime(start_date, "%Y-%m-%d")
+                           .replace(tzinfo=timezone.utc).timestamp() * 1000)
+            window = df[df["ts"] >= start_ms]
             if len(window) < 1:
                 return None
             first_close = float(window["close"].iloc[0])
-            last_close = float(df["close"].iloc[-1])
+            last_close = float(window["close"].iloc[-1])
             return {"since": start_date,
                     "spy_return_pct": round((last_close / first_close - 1) * 100, 2)}
         except Exception:
