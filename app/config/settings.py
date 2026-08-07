@@ -214,6 +214,10 @@ class Settings(BaseSettings):
     # v3.21 hipotez laboratuvari: VOLUME'a takilan pullback'lerin blocked=5
     # gozlem kohortu (app/services/hypo_lab.py). Karara/tavana karismaz.
     HYPO_VOLUME_PULLBACK: bool = True
+    # v4.19 ayna katmani (app/services/alpaca_mirror.py): dolum varsayimini
+    # Alpaca kagit hesabiyla bagimsiz dogrulama. SALT OLCUM, karara girmez.
+    # Adim 2 (emir dongusu) kurulup dogrulanana kadar KAPALI kalir.
+    ALPACA_MIRROR_ENABLED: bool = False
 
     @property
     def regime_symbols(self) -> list[str]:

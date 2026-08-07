@@ -16,6 +16,32 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-07 (v4.19): ALPACA AYNA KATMANI ADIM 1 (iskelet) - kilit IHLALI
+  YOK: strategies/ degismedi, motor davranisi ayni; salt olcum katmani
+  (v3.19 exit_lab emsali).
+  AMAC: defterin tum R muhasebesi simule dolum varsayimlarina dayanir
+  (bolgenin tam katedilmesi, 5bp kayma, gap'te acilis fiyati). 60 islemlik
+  kohorttan verilecek kararlar (go-live, V0/V1/V2/V3, short) oncesinde bu
+  varsayimlar Alpaca KAGIT hesabiyla bagimsiz dogrulanacak. Sinir da
+  kayitli: Alpaca paper da bir simulasyondur (NBBO dolumu) - mutlak gercek
+  degil, bagimsiz IKINCI GORUS olarak okunur.
+  IZOLASYON SOZLESMESI (tests/test_alpaca_mirror.py ile kilitli; ihlal
+  denemesinin testi KIRDIGI gosterildi): karar modulleri (strategies/*,
+  signal_tracker) aynayi import edemez (AST); ayna verisi YALNIZ kendi
+  tablosunda (mirror_fills) yasar, signals semasina alan eklenmez; veri
+  akisi tek yonlu (signals salt-okunur -> mirror -> rapor); self_audit
+  13. degismezi ("ayna izolasyonu", critical) sema ayrikligini canlida
+  izler; ciktilar yalniz "AYNA - karara girmez" etiketiyle raporlanir;
+  sapma bulgusu otomatik ayar DEGIL, config-lock surecine girdidir.
+  ADIM 1 kapsami: depo + niyet kaydi, EMIR YOK (ALPACA_MIRROR_ENABLED
+  varsayilan False). Adim 2: sahte istemciyle emir dongusu + scheduler
+  kancasi. Adim 3: canli paper hesap, 2 hafta alarmsiz izleme (yanlis
+  alarm dersi). Adim 4: sapma esikleri OLCUMDEN ONCE yazilir (research-log
+  yontemi), EOD raporuna AYNA bolumu. Acik sorular: paper hesap API
+  anahtari (Render env, 2.7), short'larin da aynalanmasi (oneri: evet),
+  emir bekleme penceresi (14 bar birebir mi, 2 islem gunu mu).
+  AYNI GUN (v4.19a): pre-push hook - 2.5/2.6 kurallari mekaniklesti
+  (motor disi altyapi, kohorta etkisi yok).
 - 2026-08-06 (v4.18): HACIM/PULLBACK HIPOTEZ KOHORTU (blocked=5) - kilit
   IHLALI YOK: strategies/ degismedi (engine_sha 4f29f1f5adf1 oncesi=sonrasi,
   git stash kaniti), canli motor/filtreler/V0 defteri AYNEN.

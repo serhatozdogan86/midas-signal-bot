@@ -129,17 +129,18 @@ app/
     signal_tracker.py   gölge defter (dolum/çıkış/R muhasebesi)
     exit_lab.py         KATMAN 1: aynı sinyal, 4 farklı çıkış (V0-V3)
     strategy_lab.py     KATMAN 2: 5 aday giriş stratejisi (S1-S5)
-    self_audit.py       öz-denetim (12 değişmez)
+    self_audit.py       öz-denetim (13 değişmez)
     earnings_service.py bilanço takvimi (Finnhub + yfinance yedek)
     universe.py         Midas scrape + likidite filtresi
     gist_backup.py      GitHub Gist yedekleme/geri yükleme
+    alpaca_mirror.py    AYNA adım 1 (salt ölçüm; dolum doğrulama, karara girmez)
   integrations/         finnhub, alpaca, yfinance, telegram, gist
 docs/
   config-lock.md        KİLİT + tüm karar gerekçeleri (tarihli)
   research-log.md       hipotez kuyruğu + kapanmış sorular
 research/               backtest düzeneği (harness, strategies, signif)
 tools/                  jsdom tabanlı pano doğrulayıcıları
-tests/                  321 test
+tests/                  davranış testleri (sayı için `pytest --co -q`)
 ```
 
 ### Karar hattı (ilk fail'de kısa devre)
@@ -180,7 +181,7 @@ tıklanabilirlik `tools/*.js` içindeki jsdom doğrulayıcılarıyla ÖLÇÜLÜR
 Deploy sonrası daima kontrol et:
 ```bash
 curl -s https://midas-signal-bot.onrender.com/dx | head          # nabız
-curl -s https://midas-signal-bot.onrender.com/audit              # 12 değişmez
+curl -s https://midas-signal-bot.onrender.com/audit              # öz-denetim değişmezleri
 ```
 `/audit` bozuk gösteriyorsa önce onu çöz.
 
@@ -248,5 +249,7 @@ Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
 2. `mom_pct` / `atr_rank` üst-alt dilim analizi (n≥40)
 3. Short tarafının kapatılıp kapatılmayacağı (veri negatif eğilimli)
 4. Finnhub timeout'larının da WARNING'e indirilmesi (5xx yapıldı)
-5. Alpaca kağıt hesap "ayna" katmanı — dolum varsayımını bağımsız doğrulama
+5. Alpaca kağıt hesap "ayna" katmanı — adım 1 (iskelet + izolasyon
+   kilitleri) kuruldu (v4.19); sırada adım 2: sahte istemciyle emir
+   döngüsü, sonra canlı paper + önceden yazılmış sapma eşikleri
 6. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)

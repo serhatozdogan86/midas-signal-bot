@@ -164,6 +164,22 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
         except Exception as e:
             add("defter kontrolleri", "DEFTER", False, f"okunamadi: {e!r}")
 
+    # 13. degismez (v4.19): AYNA IZOLASYONU. Alpaca ayna katmani salt
+    # olcumdur; ayna verisi yalniz kendi tablosunda (mirror_fills) yasar.
+    # signals semasina mirror/alpaca alani girerse tek yonlu veri akisi
+    # delinmis, ayna P&L'i defter muhasebesine sizabilir demektir
+    # (tasarim sozlesmesi: app/services/alpaca_mirror.py docstring).
+    try:
+        cols = [r["name"] for r in db.query("PRAGMA table_info(signals)")]
+        leak = [c for c in cols
+                if "mirror" in c.lower() or "alpaca" in c.lower()]
+        add("ayna izolasyonu", "DEFTER", not leak,
+            f"signals icinde ayna alani: {leak}" if leak else "sema ayrik",
+            "Ayna izolasyon sozlesmesi ihlal - alpaca_mirror docstring'e "
+            "bak, sutunu kaldir ve sizinti yolunu kapat", "critical")
+    except Exception as e:
+        add("ayna izolasyonu", "DEFTER", False, f"okunamadi: {e!r}")
+
     # ---------------- KOHORT ----------------
     if engine_sha:
         try:
