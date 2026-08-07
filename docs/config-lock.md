@@ -16,6 +16,27 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-07 (v4.21): BLOCKED KOHORT KALICILIK DUZELTMESI - kilit IHLALI
+  YOK (yedekleme katmani; motor/karne/V0 defteri AYNEN, engine_sha sabit).
+  VAKA: gist yedegi 0_signals.json'i recent_signals()'tan uretiyordu ve o
+  sorgu blocked=0 filtreli (karne icin dogru) - restore da AYNI dosyadan
+  yukluyordu. Sonuc: v3.9'dan beri HER restart tum blocked kohortlarini
+  (2=tavan, 3=kill-switch, 4=acilis penceresi, 5=hipotez) sessizce
+  siliyordu; korumalarin "kacirdigimiz R" (hypo_r) olcumu hic birikemedi.
+  blocked_summary'nin dusuk sayilari bu yuzden - veri az degil, SILINIYORDU.
+  Ayrica import_signals blocked/block_reason/cluster_id kolonlarini zaten
+  yazmiyordu (ikinci katman ayni hastalik).
+  DUZELTME: blocked satirlar AYRI dosyada (0_signals_blocked.json)
+  yedeklenir (recent_signals_blocked); restore import_signals_blocked ile
+  geri yukler - dedup anahtari blocked SINIFINI da icerir (ayni sembol/
+  yon/an hem gercek hem varsayimsal satir tasiyabilir). Eski yedeklerle
+  geriye uyumlu: dosya yoksa sessizce atlanir. Donus turu regresyon
+  testli (tests/test_blocked_persistence.py; test ONCE yazildi, eski
+  kodda kirildigi goruldu).
+  OLCUM NOTU: 7 Agu oncesi blocked verisi kurtarilamaz (yedege hic
+  girmedi). Hipotez kohortu (v4.18 karar kurali: 20 sonuclanmis hipotez)
+  ve sinif bazli hypo_r sayaclari bugunden itibaren GERCEKTEN birikir;
+  onceki blocked_summary okumalari eksik veriyle yorumlanmis sayilmali.
 - 2026-08-07 (v4.19): ALPACA AYNA KATMANI ADIM 1 (iskelet) - kilit IHLALI
   YOK: strategies/ degismedi, motor davranisi ayni; salt olcum katmani
   (v3.19 exit_lab emsali).

@@ -529,6 +529,20 @@ class SignalTracker:
                     r["invalidation"] = payload["invalidation"]
         return rows
 
+    def recent_signals_blocked(self, limit: int = 500) -> list[dict]:
+        """Blocked kohort satirlari - gist yedegi icin (v4.21, 7 Agu vakasi).
+        recent_signals() blocked=0 filtreler (karne icin DOGRU) ama yedek de
+        ayni dosyayi kullaninca her restart blocked kohortlarini (tavan/
+        kill-switch/acilis/hipotez) sessizce siliyordu; 'kacirdigimiz R'
+        olcumu v3.9'dan beri hic birikememisti. Ham satir dondurur
+        (cost_r/contract susu yok - bu bir rapor degil yedek)."""
+        return self._db.query(
+            "SELECT symbol,direction,created_utc,entry_candle_ts,entry_min,"
+            "entry_max,stop_loss,tp1,tp2,rr,time_stop_date,status,outcome,"
+            "fill_price,exit_price,r_multiple,closed_utc,confidence,setup_type,"
+            "blocked,block_reason,cluster_id,engine_sha,fill_ts,entry_reason "
+            "FROM signals WHERE blocked!=0 ORDER BY id DESC LIMIT ?", (limit,))
+
     def recent_decisions(self, limit: int = 2000) -> list[dict]:
         return self._db.query(
             "SELECT ts_utc,symbol,decision,direction,market_regime,trend_bias,"
@@ -686,5 +700,45 @@ class SignalTracker:
                  r.get("outcome"), r.get("fill_price"), r.get("exit_price"),
                  r.get("r_multiple"), r.get("closed_utc"),
                  r.get("confidence"), r.get("setup_type")))
+            imported += 1
+        return imported
+
+    def import_signals_blocked(self, rows: list[dict]) -> int:
+        """Blocked kohort satirlarini yedekten geri yukler (v4.21).
+        AYRI yol cunku: (1) import_signals'in uclu dedup anahtari
+        (symbol+direction+created_utc) blocked sinifini bilmez - ayni
+        sembol/yon/an hem gercek hem varsayimsal satir tasiyabilir;
+        anahtara blocked SINIFI eklenir. (2) blocked/block_reason/
+        cluster_id/engine_sha kolonlari da tasinmali - 'kacirdigimiz R'
+        analizi sinif ve kume kimligi olmadan yapilamaz."""
+        imported = 0
+        for r in rows:
+            blk = r.get("blocked") or 0
+            if not blk:
+                continue                    # gercek satir bu yoldan girmez
+            exists = self._db.query_one(
+                "SELECT id FROM signals WHERE symbol=? AND direction=? "
+                "AND created_utc=? AND blocked=?",
+                (r.get("symbol"), r.get("direction"), r.get("created_utc"), blk))
+            if exists:
+                continue
+            self._db.execute(
+                "INSERT INTO signals(symbol,direction,created_utc,"
+                "entry_candle_ts,entry_min,entry_max,stop_loss,tp1,tp2,rr,"
+                "time_stop_date,status,outcome,fill_price,exit_price,"
+                "r_multiple,closed_utc,confidence,setup_type,blocked,"
+                "block_reason,cluster_id,engine_sha,fill_ts,entry_reason) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (r.get("symbol"), r.get("direction"), r.get("created_utc"),
+                 r.get("entry_candle_ts"), r.get("entry_min"),
+                 r.get("entry_max"), r.get("stop_loss"), r.get("tp1"),
+                 r.get("tp2"), r.get("rr"), r.get("time_stop_date"),
+                 r.get("status", "PENDING"), r.get("outcome"),
+                 r.get("fill_price"), r.get("exit_price"),
+                 r.get("r_multiple"), r.get("closed_utc"),
+                 r.get("confidence"), r.get("setup_type"), blk,
+                 r.get("block_reason"), r.get("cluster_id"),
+                 r.get("engine_sha"), r.get("fill_ts"),
+                 r.get("entry_reason")))
             imported += 1
         return imported

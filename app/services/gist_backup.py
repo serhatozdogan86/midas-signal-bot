@@ -10,8 +10,8 @@ Dongu:
    sifirlanmis) gist'ten mum arsivi + sinyal kayitlari geri yuklenir
    -> golge takip kaldigi yerden surer.
 2. PERIYODIK SYNC: Her GIST_SYNC_INTERVAL_SEC'te (default 1 saat) guncel
-   0_performance.json, 0_signals.json, 0_decisions.json, 0_meta.json ve
-   candles_*.csv gist'e yazilir. Gist her yazimda revizyon tutar ->
+   0_performance.json, 0_signals.json, 0_signals_blocked.json,
+   0_decisions.json, 0_meta.json ve candles_*.csv gist'e yazilir. Gist her yazimda revizyon tutar ->
    istatistik gecmisi otomatik arsivlenir.
 
 Gist, MARKER aciklamasiyla otomatik bulunur/olusturulur; GIST_ID env ile
@@ -131,6 +131,12 @@ class GistBackup:
         files = {
             "0_performance.json": json.dumps(self._tracker.stats(), indent=2),
             "0_signals.json": json.dumps(self._tracker.recent_signals(500), indent=2),
+            # v4.21: blocked kohortlari AYRI dosyada. recent_signals blocked=0
+            # filtreli (karne icin dogru) ama yedek/restore ayni dosyayi
+            # paylasinca her restart blocked satirlarini siliyordu (v3.9'dan
+            # beri) - koruma/hipotez olcumleri hic birikemedi (7 Agu vakasi).
+            "0_signals_blocked.json": json.dumps(
+                self._tracker.recent_signals_blocked(500), indent=2),
             "0_decisions.json": json.dumps(self._tracker.recent_decisions(2000), indent=2),
             "0_meta.json": json.dumps({"synced_utc": now, **self._meta()}, indent=2),
             "README.md": (f"# midas-signal-bot data\nAuto-synced: {now}\n\n"
@@ -245,6 +251,17 @@ class GistBackup:
                 signals_total = self._tracker.import_signals(json.loads(sig_file))
             except (json.JSONDecodeError, TypeError):
                 log.warning(kv(event="gist_restore_signals_parse_error"))
+        # v4.21: blocked kohortlari da geri yukle. Dosya yoksa eski yedek
+        # demektir - sessizce atlanir (geriye uyum; kohort yok, hata degil).
+        blocked_total = 0
+        blk_file = files.get("0_signals_blocked.json")
+        if blk_file:
+            try:
+                blocked_total = self._tracker.import_signals_blocked(
+                    json.loads(blk_file))
+            except (json.JSONDecodeError, TypeError):
+                log.warning(kv(event="gist_restore_blocked_parse_error"))
         log.info(kv(event="gist_restore_ok", gist_id=self._gist_id,
-                    candles=candles_total, signals=signals_total))
+                    candles=candles_total, signals=signals_total,
+                    blocked=blocked_total))
         return True
