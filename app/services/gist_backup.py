@@ -130,14 +130,21 @@ class GistBackup:
         # gelsin diye (GitHub Gist API icerik butcesini alfabetik sirayla harcar).
         files = {
             "0_performance.json": json.dumps(self._tracker.stats(), indent=2),
-            "0_signals.json": json.dumps(self._tracker.recent_signals(500), indent=2),
+            # v4.22: yedek artik HAM dokum (export_signals) - recent_signals
+            # bir rapordu, cluster_id/engine_sha/contract'i tasimiyordu ve
+            # her restore go-live kume sayacini bozuyordu. Buyuk JSON'lar
+            # indent'siz: payload ~%60 kuculur (30 sn PATCH timeout riski).
+            "0_signals.json": json.dumps(self._tracker.export_signals(500),
+                                         separators=(",", ":")),
             # v4.21: blocked kohortlari AYRI dosyada. recent_signals blocked=0
             # filtreli (karne icin dogru) ama yedek/restore ayni dosyayi
             # paylasinca her restart blocked satirlarini siliyordu (v3.9'dan
             # beri) - koruma/hipotez olcumleri hic birikemedi (7 Agu vakasi).
             "0_signals_blocked.json": json.dumps(
-                self._tracker.recent_signals_blocked(500), indent=2),
-            "0_decisions.json": json.dumps(self._tracker.recent_decisions(2000), indent=2),
+                self._tracker.recent_signals_blocked(500),
+                separators=(",", ":")),
+            "0_decisions.json": json.dumps(self._tracker.recent_decisions(2000),
+                                           separators=(",", ":")),
             "0_meta.json": json.dumps({"synced_utc": now, **self._meta()}, indent=2),
             "README.md": (f"# midas-signal-bot data\nAuto-synced: {now}\n\n"
                           "Shadow-tracking stats and backtest dataset for US stocks "
@@ -192,10 +199,17 @@ class GistBackup:
     def maybe_sync(self) -> None:
         """Scheduler dongusunden cagrilir; araligi dolmadiysa hicbir sey yapmaz."""
         if time.time() - self._last_sync >= self._interval:
+            ok = False
             try:
-                self.sync()
+                ok = self.sync()
             except Exception:
                 log.exception(kv(event="gist_sync_error"))
+            if not ok:
+                # v4.22: basarisiz sync'te geri cekilme. Eskiden _last_sync
+                # guncellenmedigi icin HER tick'te MB'larca payload yeniden
+                # kurulup PATCH'leniyordu (GitHub yavasken CPU/ag firtinasi).
+                # 5 dk sonra tekrar dene.
+                self._last_sync = time.time() - self._interval + 300
 
     def heartbeat(self, payload: dict) -> bool:
         """Hafif nabiz: tek dosyalik guncelleme (0_heartbeat.json).
@@ -261,6 +275,20 @@ class GistBackup:
                     json.loads(blk_file))
             except (json.JSONDecodeError, TypeError):
                 log.warning(kv(event="gist_restore_blocked_parse_error"))
+        # v4.22: yedegin zaman damgasi da restore edilir. __init__ damgayi
+        # SIFIRLANMIS DB'den okudugu icin restart sonrasi None kaliyordu ve
+        # ilk basarili sync'e kadar oz-denetim "yedek zamani bilinmiyor"
+        # KRITIK kirmizisi veriyordu (7 Agu). 0_meta.json'daki synced_utc
+        # gercekten "son basarili yedek ani"dir - dogru bilgi.
+        meta_file = files.get("0_meta.json")
+        if meta_file:
+            try:
+                synced = json.loads(meta_file).get("synced_utc")
+                if synced:
+                    self._last_sync_utc = synced
+                    self._write_meta_sync(synced)
+            except (json.JSONDecodeError, TypeError):
+                pass
         log.info(kv(event="gist_restore_ok", gist_id=self._gist_id,
                     candles=candles_total, signals=signals_total,
                     blocked=blocked_total))

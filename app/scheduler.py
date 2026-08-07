@@ -70,6 +70,7 @@ class Scheduler:
         self._news = news              # None -> haber akisi kapali
         self._exit_lab = None          # main.py kurulumda baglar (v3.19)
         self._started_at = time.time()   # dead-man isinma muafiyeti (v4.13)
+        self._scan_gate = threading.Lock()  # v4.22: tek tarama ayni anda
         self._tg_muted = 0            # susturulan mesaj sayisi (v4.9)
         self._tg_fail = 0             # gonderilemeyen uyari sayisi
         self._tg_last_ok = 0.0        # son basarili uyari zamani
@@ -158,7 +159,6 @@ class Scheduler:
 
         watch_dt = open_dt - timedelta(minutes=self._settings.PREMARKET_LEAD_MIN)
         self._maybe_weekly(now_et)
-        self._maybe_compare_data(today)
         # Not (30 Tem): hazirlik sarti kaldirildi - restart sonrasi nobet
         # gecikmesin. Nobetin girdisi gist'ten donen pozisyonlar + quote;
         # izleme listesi adaylari o an bos olabilir, kritik olan pozisyonlar.
@@ -197,12 +197,18 @@ class Scheduler:
         # (kendi kilidi var; hazirligi beklemeden gorunur olsun diye
         # tick'ten de tetiklenir - tick bloklanmaz).
         self._kick_strategy_lab()
-        # --- en son: kozmetik veri (haber akisi) ---
+        # --- en son: kozmetik veri (haber akisi + veri karsilastirma) ---
         if self._news is not None:
             try:
                 self._news.maybe_refresh(self._news_symbols(), today)
             except Exception:
                 log.exception(kv(event="news_refresh_error"))
+        # v4.22: gozlem amacli cift-kaynak karsilastirmasi tick'in BASINDAN
+        # SONUNA tasindi. Restart sonrasi ilk tick'te tetikleniyor ve 25
+        # sembol x iki kaynak indirmesiyle gap nobeti/hazirligi onlarca
+        # saniye bloklıyordu (75 sn haber dersinin aynisi: kozmetik is
+        # kritik akisin onunde olmaz).
+        self._maybe_compare_data(today)
 
     # ------------------------------------------------------- 15:45 TR hazirlik
     def run_prep(self, today: date) -> None:
@@ -307,6 +313,19 @@ class Scheduler:
         return self._daily_cache
 
     def run_coarse_scan(self, send_telegram: bool = True) -> list[Decision]:
+        # v4.22: /scan ucu Flask thread'inden ayni fonksiyonu kosabiliyor;
+        # tick taramasiyla cakisirsa paylasilan durum (_daily_cache,
+        # watchlist, defter dedup'u) yarisir ve ayni sinyal iki kez
+        # izlenebilirdi. Tek tarama ayni anda: kilit alinamazsa bos don.
+        if not self._scan_gate.acquire(blocking=False):
+            log.warning(kv(event="coarse_scan_busy"))
+            return []
+        try:
+            return self._run_coarse_scan_locked(send_telegram)
+        finally:
+            self._scan_gate.release()
+
+    def _run_coarse_scan_locked(self, send_telegram: bool = True) -> list[Decision]:
         """Iki gecisli kaba tarama (Yahoo rate limitine gore tasarlandi):
         1. gecis: SADECE gunluk veri (gunde 1 kez indirilir/cache) ile
            rejim + trend + bilanco filtreleri -> aday listesi
@@ -414,7 +433,8 @@ class Scheduler:
                             self._tracker.maybe_track(
                                 d, hourly[symbol],
                                 mom_pct=mom_pct_map.get(symbol),
-                                atr_pct=_ap[0], atr_rank=_ap[1])
+                                atr_pct=_ap[0], atr_rank=_ap[1],
+                                earnings_ready=self._earnings_ready())
                         else:
                             self._tracker.track_blocked(
                                 d, hourly[symbol], block[0], block[1])
@@ -427,7 +447,16 @@ class Scheduler:
                             hypo = hypo_lab.build_volume_hypo(
                                 d, daily[symbol], hourly[symbol],
                                 self._regime, self._params, bench_df)
-                            if hypo is not None:
+                            # v4.22: hipotez adayi da _entry_block'tan gecer.
+                            # Eskiden kill-switch/acilis-penceresi/tavan
+                            # yalniz GERCEK sinyallere uygulaniyordu; kotu
+                            # endeks gununde dogan pullback hipotezi izlemeye
+                            # girerken esdegeri canli sinyal engellenirdi -
+                            # "yalniz hacim farki" iddiasi bozulur, kohort
+                            # kiyasi (v4.18 karar kurali 3. sart) asimetrik
+                            # orneklemle yapilirdi.
+                            if hypo is not None and \
+                                    self._entry_block(hypo[0]) is None:
                                 h, why = hypo
                                 h.time_stop_date = (
                                     self._calendar.add_trading_days(
@@ -841,6 +870,16 @@ class Scheduler:
         spy = (pulse.get("SPY") or {}).get("pct")
         qqq = (pulse.get("QQQ") or {}).get("pct")
         return spy, qqq
+
+    def _earnings_ready(self) -> bool | None:
+        """Sinyal dogum ani icin bilanco takvimi tazelik damgasi (v4.22).
+        None = bilinmiyor (damga yazilmaz); denetim yargisiz birakir."""
+        if self._earnings is None:
+            return None
+        try:
+            return bool(self._earnings.status().get("ready"))
+        except Exception:
+            return None
 
     def _entry_block(self, d: Decision) -> tuple[str, int] | None:
         """YENI giris icin TEKIL karar noktasi (v3.9): (sebep, blocked
@@ -1323,7 +1362,8 @@ class Scheduler:
             if self._tracker is not None:
                 self._tracker.record_candles(hourly)
                 self._tracker.record_decision(d)
-                self._tracker.maybe_track(d, hourly)
+                self._tracker.maybe_track(
+                    d, hourly, earnings_ready=self._earnings_ready())
                 self._tracker.evaluate_open(symbol)
             self._store.save_result(symbol, d.contract_dict())
             self._dispatch(d)

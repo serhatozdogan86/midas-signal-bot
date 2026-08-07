@@ -129,6 +129,18 @@ class SignalTracker:
                 self._db.execute(f"ALTER TABLE signals ADD COLUMN {ddl}")
             except Exception:
                 pass  # kolon zaten var
+        # v4.22: dedup'un DB-seviyesi SON SAVUNMASI. maybe_track'in
+        # SELECT->INSERT dizisi atomik degil; /scan ucu tick ile ayni anda
+        # kosarsa (artik _scan_gate ile de engelli) ayni sembol+yonde iki
+        # acik gercek kayit acilabilirdi. Kismi unique indeks bunu DB'de
+        # imkansizlastirir (mevcut veri ihlalliyse olusmaz - zarar yok).
+        try:
+            self._db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_signals_open_unique "
+                "ON signals(symbol, direction) "
+                "WHERE status!='CLOSED' AND blocked=0")
+        except Exception:
+            pass
 
     # ------------------------------------------------------ veri birikimi
     def record_candles(self, series: KlineSeries) -> None:
@@ -152,7 +164,8 @@ class SignalTracker:
     def maybe_track(self, d: Decision, mtf: KlineSeries,
                     mom_pct: float | None = None,
                     atr_pct: float | None = None,
-                    atr_rank: float | None = None) -> bool:
+                    atr_rank: float | None = None,
+                    earnings_ready: bool | None = None) -> bool:
         """SIGNAL'i izlemeye al. Ayni symbol+direction icin acik GERCEK
         kayit varsa alma.
 
@@ -171,6 +184,15 @@ class SignalTracker:
             (d.symbol, d.direction.value))
         if existing:
             return False
+        # v4.22 DENETIM DAMGASI: bilanco takviminin sinyal DOGARKEN hazir
+        # olup olmadigi contract'a yazilir. Oz-denetimin "bilanco korumasi"
+        # kontrolu eskiden "SU AN ready mi + bugun sinyal var mi" diye
+        # bakiyordu; gun-ici restart sonrasi yanlis KRITIK alarm, gun sonu
+        # toparlanmada ise gercek ihlali gizleme uretiyordu. Dogum ani
+        # damgasi iki hatayi da kapatir.
+        contract = d.contract_dict()
+        if earnings_ready is not None:
+            contract["earnings_ready"] = bool(earnings_ready)
         self._db.execute(
             "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
             "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,"
@@ -180,7 +202,7 @@ class SignalTracker:
             (d.symbol, d.direction.value, d.timestamp_utc, mtf.candles[-1].ts,
              d.entry_zone.min, d.entry_zone.max, d.stop_loss,
              d.targets.tp1, d.targets.tp2, d.rr, d.time_stop_date,
-             json.dumps(d.contract_dict()),
+             json.dumps(contract),
              d.confidence.value, d.setup_type.value,
              _cluster_id(d), _ENGINE_SHA, _entry_reason(d),
              _smc(d, mtf), mom_pct, atr_pct, atr_rank))
@@ -376,8 +398,19 @@ class SignalTracker:
         is_long = sig["direction"] == Direction.LONG.value
         fill_price = sig["fill_price"]
         filled_at_idx: int | None = None
+        # v4.22 TIME-STOP CAPASI: dolum onceki turda/restart oncesinde
+        # kaydedildiyse filled_at_idx bellekte YOKTU ve bars_held sinyal
+        # DOGUMUNDAN sayiliyordu -> time-stop 14 bara kadar erken ve
+        # degerlendirme turu sayisina bagli (non-determinist). fill_ts
+        # v3.14'ten beri DB'de duruyordu ama hic okunmuyordu.
+        if fill_price is not None and sig.get("fill_ts"):
+            for j, cc in enumerate(candles):
+                if cc["ts"] >= sig["fill_ts"]:
+                    filled_at_idx = j
+                    break
 
         for i, c in enumerate(candles):
+            just_filled = False
             # --- 1) fill kontrolu ---
             if fill_price is None:
                 # 2 Agu duzeltmesi (konsey 5/5: "%100 dolum iyimserligi"):
@@ -406,40 +439,83 @@ class SignalTracker:
                 elif i + 1 >= self._fill_window:
                     self._close(sig["id"], "NOT_FILLED", None, 0.0)
                     return
-                continue
+                else:
+                    continue
+                # v4.22 DOLUM BARI: eski kod burada 'continue' ediyordu -
+                # bolgeyi katedip AYNI barda stop'u da kesen mum zarar
+                # YAZMIYORDU (iyimser hata; derin katetme tam da riskli
+                # dolumdur). Artik dolum barinda da sonuc kontrolune
+                # dusulur; just_filled bayragi asagida kotumser kurallari
+                # secer (gap dallari kapali - acilis dolumdan ONCEYDI).
+                just_filled = True
 
             # --- 2) sonuc kontrolu (gap muhasebeli) ---
             risk = ((fill_price - sig["stop_loss"]) if is_long
                     else (sig["stop_loss"] - fill_price))
             if risk <= 0:
+                # gap ile bolge+stop OTESINDE acilis: dolum=acilis oldugundan
+                # fiili P&L ~0; plan riski tanimsiz -> AMBIGUOUS (0R) kalir.
                 self._close(sig["id"], "AMBIGUOUS", fill_price, 0.0)
                 return
             hit_stop = (c["low"] <= sig["stop_loss"] if is_long
                         else c["high"] >= sig["stop_loss"])
             hit_tp = (c["high"] >= sig["tp1"] if is_long
                       else c["low"] <= sig["tp1"])
-            if hit_stop and hit_tp:
-                self._close(sig["id"], "AMBIGUOUS", fill_price, 0.0)
-                return
-            if hit_stop:
-                # Gap-through-stop: acilis stop'un otesindeyse cikis = acilis
-                exit_price = sig["stop_loss"]
-                if is_long and c["open"] < sig["stop_loss"]:
-                    exit_price = c["open"]
-                elif not is_long and c["open"] > sig["stop_loss"]:
-                    exit_price = c["open"]
-                pnl = (exit_price - fill_price) if is_long else (fill_price - exit_price)
+            gap_stop = (not just_filled
+                        and (c["open"] < sig["stop_loss"] if is_long
+                             else c["open"] > sig["stop_loss"]))
+            gap_tp = (not just_filled
+                      and (c["open"] > sig["tp1"] if is_long
+                           else c["open"] < sig["tp1"]))
+            if just_filled:
+                # Dolum barinda TP'nin dolumdan once mi kesildigi bilinemez:
+                # stop+TP -> AMBIGUOUS; yalniz stop -> LOSS (bolge stop
+                # yonunde katedildi, sira belli); yalniz TP -> iyimser WIN
+                # YAZILMAZ, pozisyon acik kalir (kotumser muhasebe ilkesi).
+                if hit_stop and hit_tp:
+                    self._close(sig["id"], "AMBIGUOUS", fill_price, 0.0)
+                    return
+                if hit_stop:
+                    exit_price = sig["stop_loss"]
+                    pnl = ((exit_price - fill_price) if is_long
+                           else (fill_price - exit_price))
+                    self._close(sig["id"], "LOSS", exit_price,
+                                round(pnl / risk, 2))
+                    return
+            elif gap_stop:
+                # v4.22 GAP SIRASI: acilis stop OTESINDEYSE sira BILINIR
+                # (once acilis geldi, pozisyon orada kapandi) - bar icinde
+                # TP de kesilse sonuc LOSS@acilis'tir. Eski kod stop+TP'yi
+                # gap'ten ONCE kontrol edip AMBIGUOUS(0R) yaziyor, en kotu
+                # gap zararlarini defterden dusuruyordu (yazili kural:
+                # "gap'te ACILIS fiyatindan cikis").
+                exit_price = c["open"]
+                pnl = ((exit_price - fill_price) if is_long
+                       else (fill_price - exit_price))
                 self._close(sig["id"], "LOSS", exit_price, round(pnl / risk, 2))
                 return
-            if hit_tp:
-                # Gap-through-TP: acilis hedefin otesindeyse cikis = acilis (lehte)
-                exit_price = sig["tp1"]
-                if is_long and c["open"] > sig["tp1"]:
-                    exit_price = c["open"]
-                elif not is_long and c["open"] < sig["tp1"]:
-                    exit_price = c["open"]
-                reward = (exit_price - fill_price) if is_long else (fill_price - exit_price)
-                self._close(sig["id"], "WIN", exit_price, round(reward / risk, 2))
+            elif gap_tp:
+                # simetrik: acilis hedef otesindeyse WIN@acilis (lehte gap).
+                exit_price = c["open"]
+                reward = ((exit_price - fill_price) if is_long
+                          else (fill_price - exit_price))
+                self._close(sig["id"], "WIN", exit_price,
+                            round(reward / risk, 2))
+                return
+            elif hit_stop and hit_tp:
+                self._close(sig["id"], "AMBIGUOUS", fill_price, 0.0)
+                return
+            elif hit_stop:
+                pnl = ((sig["stop_loss"] - fill_price) if is_long
+                       else (fill_price - sig["stop_loss"]))
+                self._close(sig["id"], "LOSS", sig["stop_loss"],
+                            round(pnl / risk, 2))
+                return
+            elif hit_tp:
+                reward = ((sig["tp1"] - fill_price) if is_long
+                          else (fill_price - sig["tp1"]))
+                self._close(sig["id"], "WIN", sig["tp1"],
+                            round(reward / risk, 2))
                 return
             bars_held = i - (filled_at_idx if filled_at_idx is not None else 0)
             if bars_held >= self._max_track:
@@ -529,6 +605,22 @@ class SignalTracker:
                     r["invalidation"] = payload["invalidation"]
         return rows
 
+    def export_signals(self, limit: int = 500) -> list[dict]:
+        """Gercek (blocked=0) satirlarin HAM dokumu - gist yedegi icin
+        (v4.22). recent_signals() bir RAPORDUR: cluster_id/engine_sha
+        secilmiyor, contract_json parcalanip atiliyor. Yedek o dosyadan
+        beslenince her restart kume kimligini siliyordu -> cluster_stats
+        tum tarihi TEK NULL kumede topluyor, go-live'in '25 kume / tek
+        kume <=%25' kriterleri ve mom_pct/atr dilim analizi bozuluyordu
+        (v4.21'in gercek-satir ayagi)."""
+        return self._db.query(
+            "SELECT symbol,direction,created_utc,entry_candle_ts,entry_min,"
+            "entry_max,stop_loss,tp1,tp2,rr,time_stop_date,status,outcome,"
+            "fill_price,exit_price,r_multiple,closed_utc,confidence,"
+            "setup_type,cluster_id,engine_sha,fill_ts,entry_reason,smc_tags,"
+            "mom_pct,atr_pct,atr_rank,contract_json "
+            "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?", (limit,))
+
     def recent_signals_blocked(self, limit: int = 500) -> list[dict]:
         """Blocked kohort satirlari - gist yedegi icin (v4.21, 7 Agu vakasi).
         recent_signals() blocked=0 filtreler (karne icin DOGRU) ama yedek de
@@ -572,8 +664,15 @@ class SignalTracker:
         return int(rows[0]["n"]) if rows else 0
 
     def max_drawdown_r(self, since_utc: str | None = None) -> float:
-        """Kapanis sirasiyla kumulatif R egrisinin en derin dususu (R)."""
-        q = ("SELECT r_multiple FROM signals WHERE status='CLOSED' AND blocked=0 "
+        """Kapanis sirasiyla kumulatif NET-R egrisinin en derin dususu (R).
+
+        v4.22: egri BRUT r_multiple'dan hesaplaniyordu; go-live'in diger
+        bacagi (beklenti) NET iken DD brut kaliyordu. Net egri her islemde
+        maliyet kadar asagida -> net DD daima daha derin; 15-20 islemlik
+        seride fark 1-2.5R. Brut 7.5R gosterirken net >8R olabilir ve
+        go-live yanlis GECER / 8R freni gec tetiklenirdi."""
+        q = ("SELECT r_multiple,fill_price,entry_min,entry_max,stop_loss "
+             "FROM signals WHERE status='CLOSED' AND blocked=0 "
              "AND r_multiple IS NOT NULL AND outcome NOT IN "
              "('NOT_FILLED','AMBIGUOUS')")
         args: tuple = ()
@@ -583,7 +682,7 @@ class SignalTracker:
         rows = self._db.query(q + " ORDER BY closed_utc", args)
         cum = peak = dd = 0.0
         for r in rows:
-            cum += r["r_multiple"]
+            cum += r["r_multiple"] - (self.cost_r(r) or 0.0)
             peak = max(peak, cum)
             dd = max(dd, peak - cum)
         return round(dd, 2)
@@ -687,19 +786,25 @@ class SignalTracker:
                 (r.get("symbol"), r.get("direction"), r.get("created_utc")))
             if exists:
                 continue
+            # v4.22: cluster_id/engine_sha/fill_ts/etiketler/contract da
+            # geri yuklenir (eski yedeklerde alan yoksa None - geriye uyum).
             self._db.execute(
                 "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
                 "entry_min,entry_max,stop_loss,tp1,tp2,rr,time_stop_date,status,"
                 "outcome,fill_price,exit_price,r_multiple,closed_utc,"
-                "confidence,setup_type) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "confidence,setup_type,cluster_id,engine_sha,fill_ts,"
+                "entry_reason,smc_tags,mom_pct,atr_pct,atr_rank,contract_json) "
+                "VALUES(" + ",".join("?" * 28) + ")",
                 (r.get("symbol"), r.get("direction"), r.get("created_utc"),
                  r.get("entry_candle_ts"), r.get("entry_min"), r.get("entry_max"),
                  r.get("stop_loss"), r.get("tp1"), r.get("tp2"), r.get("rr"),
                  r.get("time_stop_date"), r.get("status", "PENDING"),
                  r.get("outcome"), r.get("fill_price"), r.get("exit_price"),
                  r.get("r_multiple"), r.get("closed_utc"),
-                 r.get("confidence"), r.get("setup_type")))
+                 r.get("confidence"), r.get("setup_type"),
+                 r.get("cluster_id"), r.get("engine_sha"), r.get("fill_ts"),
+                 r.get("entry_reason"), r.get("smc_tags"), r.get("mom_pct"),
+                 r.get("atr_pct"), r.get("atr_rank"), r.get("contract_json")))
             imported += 1
         return imported
 

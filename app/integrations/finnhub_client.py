@@ -80,7 +80,16 @@ class FinnhubClient:
                 return None
             self._reset_breaker()
             return resp.json()
-        except (requests.RequestException, ValueError) as exc:
+        except requests.RequestException as exc:
+            # v4.22 (acik kuyruk #4): timeout/baglanti kesintisi de saglayici
+            # arizasidir - 5xx gibi devre kesiciyi acar (3 Agu kesintisinin
+            # asil modu timeout'tu; breaker acilmayinca her cagri 10+15 sn
+            # bekleyip taramayi kilitliyordu) ve WARNING'e iner (yedek var).
+            self._trip(path)
+            log.warning(kv(event="finnhub_provider_down", path=path,
+                           error=str(exc)[:200], fails=self._fail_count))
+            return None
+        except ValueError as exc:
             log.error(kv(event="finnhub_error", path=path, error=str(exc)[:200]))
             return None
 

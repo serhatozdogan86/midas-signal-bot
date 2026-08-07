@@ -138,7 +138,12 @@ def main() -> None:
                           calendar, store, notifier, tracker, gist_backup,
                           commentary, news)
     from app.services.exit_lab import ExitLab
-    scheduler._exit_lab = ExitLab(tracker._db, market_data, tracker)
+    # v4.22: dolum penceresi CANLI defterle birebir ayni olmak zorunda
+    # (docstring sozlesmesi). Varsayilan 12 ile kurulunca 13-14. barda
+    # dolan sinyaller V0'da FILLED, varyantlarda NOT_FILLED oluyordu ->
+    # cikis varyanti karari farkli orneklemle verilirdi.
+    scheduler._exit_lab = ExitLab(tracker._db, market_data, tracker,
+                                  fill_window=settings.FILL_WINDOW_BARS)
     scheduler.data_comparison = data_comparison
     app = create_app(store, scheduler, universe, tracker, gist_backup,
                      commentary, news)

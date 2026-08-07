@@ -78,14 +78,29 @@ def test_missing_earnings_calendar_is_critical(tmp_path):
 
 
 def test_signal_born_while_calendar_down_is_caught(tmp_path):
-    """3 Agu vakasinin ta kendisi: takvim yokken sinyal dogmus."""
+    """3 Agu vakasinin ta kendisi: takvim KAPALIYKEN sinyal dogmus.
+    v4.22: kontrol artik dogum ani damgasina bakar (earnings_ready=false);
+    'su an ready mi' semantigi gun-ici restart'ta yanlis alarm veriyordu."""
     db = _db(tmp_path)
     _add_signal(db, created_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                                              time.gmtime()))
+                                              time.gmtime()),
+                contract_json='{"earnings_ready": false}')
     rep = run_audit(db=db, universe=_Uni(0), earnings=_Earn(False),
                     gist=_Gist(1))
     c = _check(rep, "bilanco korumasi")
     assert not c.ok and c.severity == "critical"
+
+
+def test_calendar_down_alone_is_not_a_violation(tmp_path):
+    """v4.22 yanlis-pozitif regresyonu (7 Agu): takvim hazirken dogmus
+    sinyal + sonradan restart/kesinti -> ihlal DEGILDIR."""
+    db = _db(tmp_path)
+    _add_signal(db, created_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                              time.gmtime()),
+                contract_json='{"earnings_ready": true}')
+    rep = run_audit(db=db, universe=_Uni(0), earnings=_Earn(False),
+                    gist=_Gist(1))
+    assert _check(rep, "bilanco korumasi").ok
 
 
 def test_filled_without_fill_price_is_caught(tmp_path):
@@ -98,10 +113,22 @@ def test_filled_without_fill_price_is_caught(tmp_path):
 
 
 def test_duplicate_open_signal_is_caught(tmp_path):
+    # v4.22: kismi UNIQUE indeks mukerrer acik kaydi DB'de artik
+    # engelliyor; denetim kontrolu ESKI (indekssiz) DB'lerden gelen
+    # mirasi yakalamaya devam eder. Testte indeks dusurulerek eski
+    # DB taklit edilir + indeksin kendisi de dogrulanir.
+    import sqlite3
+    import pytest
     db = _db(tmp_path)
+    SignalTracker(db, "1h")                     # migrasyon (indeks kurulur)
     _add_signal(db)
-    _add_signal(db)
-    tr = SignalTracker(db, "1h")
+    with pytest.raises(sqlite3.IntegrityError):
+        _add_signal(db)                         # yeni savunma: DB reddeder
+    db.execute("DROP INDEX idx_signals_open_unique")
+    _add_signal(db)                             # eski DB durumu
+    tr = SignalTracker.__new__(SignalTracker)
+    tr._db = db
+    tr._mtf = "1h"
     rep = run_audit(db=db, tracker=tr, universe=_Uni(0), earnings=_Earn(True),
                     gist=_Gist(1))
     assert not _check(rep, "mukerrer acik sinyal").ok

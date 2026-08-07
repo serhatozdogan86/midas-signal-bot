@@ -16,6 +16,62 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-07 (v4.22): DERIN DENETIM DUZELTMELERI - bes bagimsiz denetci
+  (motor/defter/orkestra/servis/finans) + el dogrulamasi. strategies/
+  DEGISMEDI (engine_sha sabit); motor bulgularinin listesi ASAGIDA ayri
+  karar bekliyor. Buradakiler olcum/altyapi katmani kritik duzeltmeleri.
+  GOLGE MUHASEBE (kilitteki YAZILI kurallarin uygulanmasi; eski satirlar
+  yeniden islenmez, duzeltme ileriye donuk):
+  (1) GAP SIRASI: acilis stop/hedef OTESINDEYSE sira bilinir; eski kod
+  stop+TP ayni barda diye AMBIGUOUS(0R) yazip EN KOTU gap zararlarini
+  (ve simetrik gap kazanclarini) defterden dusuruyordu. Artik yazili
+  kural uygulanir: cikis ACILISTAN (tracker + exit_lab birebir).
+  (2) DOLUM BARI: bolgeyi katedip AYNI barda stop kesen mum zarar
+  yazmiyordu ('continue' atliyordu). Artik dolum barinda stop -> LOSS,
+  stop+TP -> AMBIGUOUS, yalniz TP -> pozisyon ACIK kalir (iyimser WIN
+  yazilmaz; kotumser muhasebe ilkesi).
+  (3) TIME-STOP CAPASI: coklu-tur degerlendirmede sayac dolum yerine
+  DOGUMDAN basliyordu (fill_ts okunmuyordu) -> 14 bara kadar erken ve
+  non-determinist EXPIRED. Artik fill_ts'ten kurulur; exit_lab ile ayni.
+  (4) NET-DD: maks dusus egrisi brut R'dan hesaplaniyordu; go-live
+  beklentisi NET iken DD brut kalinca 8R esigi iyimser kaciyordu ->
+  DD artik net egriden.
+  (5) EXIT LAB PENCERESI: uretimde fill_window=12 kurulmus, canli 14 -
+  13-14. barda dolan sinyaller varyantlarda NOT_FILLED sayilip kiyas
+  farkli orneklemde yapiliyordu. main.py artik FILL_WINDOW_BARS gecirir.
+  (6) V1 KISMI-AMBIGUOUS: gerceklesmis TP1 bacagi maliyetsiz ve
+  toplam disi kaliyordu; artik _finish ile maliyetli muhasebelestirilir.
+  KALICILIK/OLCUM:
+  (7) GERCEK SATIR YEDEGI HAM DOKUME GECTI (export_signals): cluster_id/
+  engine_sha/mom_pct/atr/contract_json restore'da kayboluyordu -> her
+  restart go-live 25-kume sayacini COKERTIYORDU (tum tarih tek NULL kume),
+  kume tavanini gevsetiyordu, dilim analizleri birikemiyordu. import da
+  ayni alanlari geri yukler (eski yedeklerle geriye uyumlu).
+  (8) HIPOTEZ SIMETRISI: blocked=5 adayi artik _entry_block'tan gecer
+  (kill-switch/acilis/tavan) - 'yalniz hacim farki' iddiasi korunur.
+  (9) BILANCO TAZELIGI (fail-closed genislemesi, 2.2): takvim son
+  basarili yuklemeden 24 saat sonra BAYAT sayilir -> ready=False, motor
+  sinyal uretmez; basarisiz yenileme artik TTL yerine 10 dk'da bir
+  yeniden denenir. TAKAS: >24s Finnhub kesintisinde sinyal uretilmez -
+  bilinçli guvenli taraf.
+  (10) DENETIM DAMGASI: 'bilanco korumasi' artik sinyal DOGARKEN takvim
+  hazir miydi damgasina bakar (contract_json.earnings_ready); 'su an
+  ready mi' semantigi gun-ici restart'ta sahte KRITIK alarm (7 Agu),
+  gun sonu toparlanmada gercek ihlali gizleme uretiyordu.
+  ALTYAPI: gist restore artik yedegin zaman damgasini da tasir; sync
+  basarisizliginda 5 dk geri cekilme (tick basina MB'lik PATCH firtinasi
+  bitti); buyuk JSON'lar indent'siz (~%60 kucuk); Finnhub timeout'lari
+  da devre kesiciyi acar + WARNING (acik kuyruk #4 kapandi); haber
+  added==0 artik ariza sayilmaz (alarm gurultusu); fundamentals None
+  sonucu 24 saat degil 15 dk negatif-cache; /scan ile tick taramasi
+  ayni anda kosamaz (_scan_gate) + acik-gercek-kayit tekligi DB'de
+  kismi UNIQUE indeksle garanti.
+  KOHORT NOTU: sayac SIFIRLANMADI - strateji degismedi, olcum aleti
+  duzeltildi. 7 Agu oncesi sonuclanan ~18 islem ESKI muhasebe
+  kurallariyla olculmustur (gap-AMBIGUOUS ve erken time-stop sapmalari
+  iceriyor olabilir); go-live degerlendirmesinde bu heterojenlik
+  hatirlanmali. Testler: 5 yeni dosya-testi + 14 regresyon (once
+  kirmizi yazildi), toplam 356.
 - 2026-08-07 (v4.21): BLOCKED KOHORT KALICILIK DUZELTMESI - kilit IHLALI
   YOK (yedekleme katmani; motor/karne/V0 defteri AYNEN, engine_sha sabit).
   VAKA: gist yedegi 0_signals.json'i recent_signals()'tan uretiyordu ve o

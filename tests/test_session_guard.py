@@ -410,12 +410,22 @@ def _news(fh):
     return n
 
 
-def test_news_backoff_grows_when_refresh_yields_nothing():
+def test_news_backoff_grows_on_failure_not_on_quiet_run():
+    """v4.22: added==0 ARIZA DEGIL (sakin turda tum basliklar dedup'li);
+    backoff yalniz yavas tur/exception'da buyur. Eski kural her sessiz
+    turda WARNING basip tazeligi 60 dk'ya dusuruyordu (7 Agu loglari)."""
     from datetime import date
     fh = _SlowFH()
     n = _news(fh)
     n.maybe_refresh(["AAPL"], date.today())
-    assert n._backoff >= 300.0            # devre kesildi
+    assert n._backoff == 0.0              # bos ama hizli tur = saglikli
+
+    def _boom(symbols, today):
+        raise RuntimeError("finnhub down")
+    n.refresh = _boom
+    n._last = 0.0
+    n.maybe_refresh(["AAPL"], date.today())
+    assert n._backoff >= 300.0            # gercek ariza devreyi keser
     calls = fh.calls
     n.maybe_refresh(["AAPL"], date.today())
     assert fh.calls == calls              # bekleme suresinde tekrar denemez
@@ -424,6 +434,10 @@ def test_news_backoff_grows_when_refresh_yields_nothing():
 def test_news_backoff_caps_at_one_hour():
     from datetime import date
     n = _news(_SlowFH())
+
+    def _boom(symbols, today):
+        raise RuntimeError("finnhub down")
+    n.refresh = _boom
     for _ in range(12):
         n._last = 0.0
         n.maybe_refresh(["AAPL"], date.today())

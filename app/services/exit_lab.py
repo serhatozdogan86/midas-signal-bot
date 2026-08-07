@@ -101,6 +101,7 @@ def replay(sig: dict, candles: list[dict], variant: str,
     r_acc = 0.0
 
     for i, c in enumerate(candles):
+        just_filled = False
         if fill is None:
             touched = (c["low"] <= entry_min) if is_long else (c["high"] >= entry_max)
             if touched:
@@ -110,9 +111,13 @@ def replay(sig: dict, candles: list[dict], variant: str,
                 elif not is_long and c["open"] > entry_max:
                     fill = c["open"]
                 fill_i = i
+                # v4.22: dolum barinda cikis kontrolu atlanmaz (canli
+                # tracker ile BIREBIR; test_v0_mirrors_live guvencesi).
+                just_filled = True
             elif i + 1 >= fill_window:
                 return LabResult("CLOSED", "NOT_FILLED", r_gross=0.0, r_net=0.0)
-            continue
+            else:
+                continue
 
         risk = (fill - stop) if is_long else (stop - fill)
         if cfg["mode"] == "wide":
@@ -130,11 +135,41 @@ def replay(sig: dict, candles: list[dict], variant: str,
         tp_now = tp1 if (tp1 is not None and remaining == 1.0) else tp2
         hit_tp = (tp_now is not None and
                   ((c["high"] >= tp_now) if is_long else (c["low"] <= tp_now)))
-        if hit_stop and hit_tp:
+        # v4.22 GAP SIRASI (canli tracker ile birebir): acilis stop/hedef
+        # OTESINDEYSE sira bilinir -> AMBIGUOUS degil, acilistan cikis.
+        gap_stop = (not just_filled
+                    and ((c["open"] < stop) if is_long else (c["open"] > stop)))
+        gap_tp = (not just_filled and tp_now is not None
+                  and ((c["open"] > tp_now) if is_long else (c["open"] < tp_now)))
+        if just_filled:
+            # dolum barinda: gap dallari kapali (acilis dolumdan onceydi);
+            # stop+TP -> AMBIGUOUS, yalniz stop -> zarar, yalniz TP ->
+            # iyimser WIN yazilmaz, pozisyon acik kalir (tracker ile ayni).
+            if hit_stop and hit_tp:
+                return LabResult("CLOSED", "AMBIGUOUS", fill_price=fill,
+                                 r_gross=round(r_acc, 3),
+                                 r_net=round(r_acc, 3),
+                                 closed_ts=c["ts"], legs=legs)
+            if hit_stop:
+                pnl = ((stop - fill) if is_long else (fill - stop)) / risk
+                r_acc += pnl * remaining
+                legs.append({"px": stop, "frac": remaining, "why": "STOP",
+                             "ts": c["ts"]})
+                return _finish(sig, fill, stop, r_acc, legs, shares, c["ts"],
+                               "LOSS" if r_acc < 0 else "WIN")
+            hit_tp = False        # dolum barindaki TP'ye itibar edilmez
+        if (not just_filled) and hit_stop and hit_tp \
+                and not gap_stop and not gap_tp:
+            # v4.22: kismi bacak GERCEKLESMISSE (V1'de TP1 alinmis) maliyetli
+            # muhasebe _finish ile yapilir; sonuc yine AMBIGUOUS etiketlidir
+            # ama gerceklesen bacagin R'i ve maliyetleri artik kaybolmaz.
+            if legs:
+                return _finish(sig, fill, fill, r_acc, legs, shares, c["ts"],
+                               "AMBIGUOUS")
             return LabResult("CLOSED", "AMBIGUOUS", fill_price=fill,
                              r_gross=round(r_acc, 3), r_net=round(r_acc, 3),
                              closed_ts=c["ts"], legs=legs)
-        if hit_stop:
+        if gap_stop or (hit_stop and not gap_tp):
             px = stop
             if is_long and c["open"] < stop:
                 px = c["open"]

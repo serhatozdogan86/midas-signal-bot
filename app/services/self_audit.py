@@ -121,15 +121,21 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
 
     # ---------------- KARAR ----------------
     # Bilanco filtresi kapaliyken sinyal dogmus mu? (3 Agu vakasi)
+    # v4.22: kontrol "SU AN ready mi" degil "sinyal DOGARKEN ready miydi"
+    # sorusuna bakar (dogum ani damgasi, tracker.maybe_track). Eski hal
+    # gun-ici restart'ta yanlis KRITIK alarm (7 Agu, 3 sinyal + restart),
+    # kesinti gun sonuna kadar toparlanirsa gercek ihlali GIZLEME
+    # uretiyordu. Damgasiz eski satirlar yargisiz birakilir.
     try:
-        rows = db.query(
+        bad = db.query(
             "SELECT COUNT(*) AS n FROM signals WHERE blocked=0 "
-            "AND created_utc >= ?", (_today_iso(),))
-        today_n = rows[0]["n"] if rows else 0
+            "AND contract_json LIKE '%\"earnings_ready\": false%'")
+        n_bad = bad[0]["n"] if bad else 0
         ready = earnings.status().get("ready") if earnings else True
-        add("bilanco korumasi", "KARAR", ready or today_n == 0,
-            f"bugun {today_n} sinyal, takvim ready={ready}",
-            "Takvim yokken sinyal dogduysa fail-closed calismiyor - "
+        add("bilanco korumasi", "KARAR", n_bad == 0,
+            f"takvim-kapaliyken-dogan sinyal: {n_bad} (takvim su an "
+            f"ready={ready})",
+            "Takvim yokken sinyal dogmus - fail-closed calismiyor, "
             "signal_engine EARNINGS blogunu incele", "critical")
     except Exception as e:
         add("bilanco korumasi", "KARAR", False, f"okunamadi: {e!r}")
