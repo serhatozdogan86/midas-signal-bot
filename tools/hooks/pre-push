@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# pre-push: CLAUDE.md 2.5 (deploy penceresi) + 2.6 (yalnizca yesilse push)
+# kurallarinin MEKANIK uygulanmasi.
+#
+# NEDEN (7 Agu karari): iki kural da yalniz disipline dayaniyordu; gecmiste
+# iki kez kirik kod push'landi (2.6 notu) ve seans-ici deploy riski ancak
+# hatirlamaya bagliydi. Repo dersi: "kural var" != "calisiyor" - bu dosya
+# kurali davranisa cevirir. Davranis tests/test_prepush_hook.py ile OLCULUR.
+#
+# KURULUM (klon basina bir kez):  git config core.hooksPath tools/hooks
+# ACIL GECIS (yalniz kritik duzeltme, 2.5 istisnasi): KRITIK_FIX=1 git push ...
+# SINIRLAR: --no-verify ile atlanabilir; yalniz kurulu klonu korur; NYSE
+# tatillerinde gereksiz engeller (saat kontrolu tatil bilmez - piyasa zaten
+# kapali oldugundan zararsiz, KRITIK_FIX=1 ile gecilir).
+set -u
+
+# --- 2.5: NYSE seansi acikken main'e push engeli.
+# ET uzerinden hesaplanir (TR sabit UTC+3, ABD DST kullanir; sabit TR saati
+# ezberi Kasim'da yanlislanir - CLAUDE.md 2.5).
+push_main=0
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+    [ "$remote_ref" = "refs/heads/main" ] && push_main=1
+done
+if [ "$push_main" = 1 ]; then
+    dow=$(TZ=America/New_York date +%u)            # 1=Pzt ... 7=Paz
+    hm=$((10#$(TZ=America/New_York date +%H%M)))   # 10#: "0930" octal sanilmasin
+    if [ "$dow" -le 5 ] && [ "$hm" -ge 930 ] && [ "$hm" -lt 1600 ]; then
+        if [ "${KRITIK_FIX:-0}" != "1" ]; then
+            echo "ENGEL (2.5): NYSE seansi acik - main push = canli deploy."
+            echo "Kritik guvenlik duzeltmesiyse: KRITIK_FIX=1 git push ..."
+            exit 1
+        fi
+        echo "UYARI (2.5): seans ici main push, KRITIK_FIX=1 ile gecildi."
+    fi
+fi
+
+# --- 2.6: testler - cikis kodu yutulmadan (&& zinciri yasagi), her push'ta.
+if ! python3 -m pytest -q >/tmp/prepush_pytest.log 2>&1; then
+    echo "ENGEL (2.6): pytest kirmizi:"
+    tail -20 /tmp/prepush_pytest.log
+    exit 1
+fi
+if ! python3 -m pyflakes app/ >/tmp/prepush_pyflakes.log 2>&1; then
+    echo "ENGEL (2.6): pyflakes:"
+    cat /tmp/prepush_pyflakes.log
+    exit 1
+fi
+exit 0

@@ -93,6 +93,17 @@ if python3 -m pytest -q > /tmp/t.log 2>&1; then git push ...; else cat /tmp/t.lo
 `&&` zinciri pytest'in çıkış kodunu yutar — iki kez kırık kod push'landı.
 Ayrıca her turda `python3 -m pyflakes app/`.
 
+**Mekanik uygulama (v4.19):** 2.5 + 2.6 kuralları `tools/hooks/pre-push`
+ile zorlanır. Kurulum (klon başına bir kez):
+```bash
+git config core.hooksPath tools/hooks
+```
+Acil geçiş (yalnız kritik düzeltme): `KRITIK_FIX=1 git push ...`
+Sınırları bil: `--no-verify` ile atlanabilir ve yalnız kurulu klonu
+korur — emniyet kemeridir, kilit değil (davranışı
+`tests/test_prepush_hook.py` ölçer). Nihai güvence için Render
+auto-deploy'un CI yeşiline bağlanması ayrı iş olarak kuyrukta.
+
 ### 2.7 Sırlar
 Token/anahtar sohbete veya koda yazılmaz. Render ortam değişkenlerinde
 durur. Deploy hook `/home/claude/.render_hook` (yerel, gizli).
