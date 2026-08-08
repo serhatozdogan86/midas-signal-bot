@@ -92,6 +92,13 @@ def create_app(store: StateStore, scheduler: Scheduler,
                 diag["exit_lab"] = scheduler._exit_lab.summary()
         except Exception:
             diag["exit_lab"] = {"error": "exit_lab_failed"}
+        # v4.24 AYNA (salt olcum, etiketi diag() icinde sabit)
+        try:
+            mirror = getattr(scheduler, "_mirror", None)
+            if mirror is not None:
+                diag["mirror"] = mirror.diag()
+        except Exception:
+            diag["mirror"] = {"error": "mirror_failed"}
         diag["news"] = news.info() if news is not None else None
         try:
             diag["session"] = scheduler.session_info()
@@ -592,7 +599,33 @@ def create_app(store: StateStore, scheduler: Scheduler,
         marji). Sinyal motoruna karismaz - dashboard karti icin bilgi amacli."""
         syms = [s.strip().upper() for s in
                 (request.args.get("symbols") or "").split(",") if s.strip()][:20]
+        known = _known_symbols()          # v4.24: kota korumasi (bkz. /quotes)
+        if known:
+            syms = [s for s in syms if s in known]
         return jsonify(_fund_svc.get_many(syms))
+
+    def _known_symbols() -> set:
+        """v4.24 beyaz liste: evren + acik/izlenen sinyaller + cuzdan +
+        endeksler. /quotes ve /fundamentals kimliksiz uclardir; keyfi
+        sembol kabul etmek disaridan Finnhub kotasini tuketebilir ve
+        index_pulse bos kalinca kill-switch (belgeli fail-open istisnasi
+        geregi) SESSIZCE korlesirdi - botun tek freni dis istekle
+        koreltilebilirdi. Liste bos donerse (restart ani) filtre uygulanmaz
+        (panoyu kirmamak icin bilinçli yumusak taraf)."""
+        allowed: set = set()
+        try:
+            allowed |= set(getattr(universe, "_filtered", []) or [])
+            allowed |= set(getattr(scheduler, "wallet", {}) or {})
+            if tracker is not None:
+                allowed |= {r["symbol"] for r in tracker._db.query(
+                    "SELECT DISTINCT symbol FROM signals WHERE status!='CLOSED'")}
+            if allowed:
+                # endeksler yalniz gercek liste varken eklenir; yoksa kume
+                # bos kalir ve filtre devre disi (yumusak taraf bozulmasin)
+                allowed |= {"SPY", "QQQ"}
+        except Exception:
+            pass
+        return allowed
 
     @app.get("/quotes")
     def quotes():
@@ -600,8 +633,14 @@ def create_app(store: StateStore, scheduler: Scheduler,
         md = getattr(scheduler, "_md", None)
         syms = [s.strip().upper() for s in
                 (request.args.get("symbols") or "").split(",") if s.strip()][:20]
+        known = _known_symbols()
+        if known:
+            syms = [s for s in syms if s in known]
         out = {}
         now = time.time()
+        # v4.24: onbellek sinirsiz buyuyordu (keyfi sembol + budamasiz dict)
+        if len(_qcache) > 1000:
+            _qcache.clear()
         for s in syms:
             ts, val = _qcache.get(s, (0, None))
             if now - ts > 60 and md is not None:

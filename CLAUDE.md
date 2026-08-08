@@ -101,8 +101,10 @@ git config core.hooksPath tools/hooks
 Acil geçiş (yalnız kritik düzeltme): `KRITIK_FIX=1 git push ...`
 Sınırları bil: `--no-verify` ile atlanabilir ve yalnız kurulu klonu
 korur — emniyet kemeridir, kilit değil (davranışı
-`tests/test_prepush_hook.py` ölçer). Nihai güvence için Render
-auto-deploy'un CI yeşiline bağlanması ayrı iş olarak kuyrukta.
+`tests/test_prepush_hook.py` ölçer). Nihai güvence
+`.github/workflows/deploy.yml`'de hazır (CI yeşili → Render hook);
+devreye girmesi için `RENDER_DEPLOY_HOOK` secret'ı + Render'da
+Auto-Deploy OFF gerekir (ikisi de Serhat'ın panellerinde).
 
 ### 2.7 Sırlar
 Token/anahtar sohbete veya koda yazılmaz. Render ortam değişkenlerinde
@@ -249,7 +251,8 @@ Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
 2. `mom_pct` / `atr_rank` üst-alt dilim analizi (n≥40)
 3. Short tarafının kapatılıp kapatılmayacağı (veri negatif eğilimli)
 4. Finnhub timeout'larının da WARNING'e indirilmesi (5xx yapıldı)
-5. Alpaca kağıt hesap "ayna" katmanı — adım 1 (iskelet + izolasyon
-   kilitleri) kuruldu (v4.19); sırada adım 2: sahte istemciyle emir
-   döngüsü, sonra canlı paper + önceden yazılmış sapma eşikleri
+5. Alpaca kağıt hesap "ayna" katmanı — adım 1+2 tamam (iskelet,
+   izolasyon kilitleri, emir döngüsü sahte istemciyle; v4.19/v4.24).
+   Sırada adım 3: emir yetkili paper API anahtarı Render env'e →
+   canlı istemci + 2 hafta alarmsız izleme → sapma eşikleri ÖNCEDEN
 6. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)

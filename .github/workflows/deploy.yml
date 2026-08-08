@@ -1,0 +1,36 @@
+# CI-GATED DEPLOY (v4.24) - anayasa 2.6'nin klondan bagimsiz nihai hali.
+#
+# Bugun: main'e push -> Render ANINDA deploy alir; testlerin yesil olmasi
+# deployun on sarti DEGIL (pre-push hook yalniz kurulu klonu korur).
+# Bu workflow: tests.yml main'de YESIL bittikten sonra Render deploy
+# hook'unu tetikler.
+#
+# DEVREYE ALMA (Serhat, iki adim - ikisi de yapilmadan davranis degismez):
+#   1. GitHub repo Settings > Secrets and variables > Actions >
+#      RENDER_DEPLOY_HOOK = Render panosundaki deploy hook URL'i
+#      (sir koda/sohbete yazilmaz - anayasa 2.7).
+#   2. Render panosu > Settings > Auto-Deploy: OFF
+#      (kapatilmazsa cift deploy olur: biri push'ta, biri CI sonrasi).
+# Secret tanimlanana kadar bu is atlanir ve mevcut duzen aynen surer.
+name: deploy
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+jobs:
+  render:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render deploy (yalniz CI yesilse)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK secret tanimsiz - atlandi (Render auto-deploy duzeni surer)."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" >/dev/null
+          echo "OK: CI yesil -> Render deploy tetiklendi."

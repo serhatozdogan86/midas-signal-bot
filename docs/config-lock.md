@@ -16,6 +16,31 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-08 (v4.24): AYNA ADIM 2 + KOTA KORUMASI + CI-GATED DEPLOY
+  ISKELETI - motor/kohort etkisiz (strategies/ degismedi, engine_sha
+  sabit, KILIT-2 kohortu kesintisiz).
+  AYNA ADIM 2 (Serhat onayi; secimler onerildigi gibi): emir yasam
+  dongusu istemci ARAYUZU uzerinden - limit+bracket gonderim (LONG
+  entry_max / SHORT entry_min = tracker'in worst-fill tarafi; qty
+  100$ risk referansi), dolum/cikis TRANSKRIPSIYONU (ayna simulasyon
+  yapmaz - broker ne dediyse onu yazar), 14 kapanmis-bar pencere iptali
+  (canli FILL_WINDOW_BARS birebir), 28 bar time-stop kapamasi.
+  SHORT'lar da aynalanir (kapatma karari gelirse bagimsiz veri).
+  Istemci adim 2'de SAHTE (testlerde, 8 test); uretimde client=None +
+  ALPACA_MIRROR_ENABLED=false -> dongu tamamen ATIL. Izolasyon
+  sozlesmesi aynen (13. degismez + import kilidi yesil). Adim 3:
+  canli paper istemcisi (emir yetkili anahtar Render env'e eklendiginde)
+  + 2 hafta alarmsiz izleme + sapma esikleri OLCUMDEN ONCE.
+  KOTA KORUMASI (/quotes, /fundamentals): kimliksiz uclara sembol beyaz
+  listesi (evren + acik sinyaller + cuzdan + endeks) + onbellek tavani.
+  Gerekce: keyfi sembol dongusuyle disaridan Finnhub kotasi tuketilirse
+  index_pulse bos kalir ve kill-switch (belgeli fail-open istisnasi
+  geregi) SESSIZCE korlesirdi - botun tek freni dis istekle
+  koreltilebilirdi. Liste bos donerse (restart ani) filtre uygulanmaz.
+  CI-GATED DEPLOY (.github/workflows/deploy.yml): tests.yml main'de
+  yesil bitince Render hook'unu tetikler. RENDER_DEPLOY_HOOK secret'i
+  tanimlanana kadar ATIL; devreye almak icin Serhat'in iki adimi var
+  (GitHub secret + Render auto-deploy OFF, ayrinti workflow basliginda).
 - 2026-08-08 (v4.23): KILIT-2 ILANI - MOTOR DUZELTME PAKETI. Kilit
   kuralinin uc sarti tamamlandi: (1) gerekce olculdu (7 Agu bes-denetci
   raporu + el dogrulamasi, asagida), (2) Serhat ONAYI alindi, (3) yeni

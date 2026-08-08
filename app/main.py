@@ -144,6 +144,14 @@ def main() -> None:
     # cikis varyanti karari farkli orneklemle verilirdi.
     scheduler._exit_lab = ExitLab(tracker._db, market_data, tracker,
                                   fill_window=settings.FILL_WINDOW_BARS)
+    # v4.24 AYNA adim 2: kablolama hazir, bayrak KAPALI (varsayilan) ve
+    # istemci None -> tamamen atil. Adim 3'te canli paper istemcisi
+    # baglanip ALPACA_MIRROR_ENABLED=true yapilinca dongu canlanir.
+    from app.services.alpaca_mirror import AlpacaMirror
+    scheduler._mirror = AlpacaMirror(
+        tracker._db, enabled=settings.ALPACA_MIRROR_ENABLED,
+        fill_window=settings.FILL_WINDOW_BARS,
+        max_track=settings.MAX_TRACK_BARS)
     scheduler.data_comparison = data_comparison
     app = create_app(store, scheduler, universe, tracker, gist_backup,
                      commentary, news)

@@ -69,6 +69,7 @@ class Scheduler:
         self._commentary = commentary  # None -> otomatik degerlendirme kapali
         self._news = news              # None -> haber akisi kapali
         self._exit_lab = None          # main.py kurulumda baglar (v3.19)
+        self._mirror = None            # main.py kurulumda baglar (v4.24 AYNA)
         self._started_at = time.time()   # dead-man isinma muafiyeti (v4.13)
         self._scan_gate = threading.Lock()  # v4.22: tek tarama ayni anda
         self._tg_muted = 0            # susturulan mesaj sayisi (v4.9)
@@ -209,6 +210,17 @@ class Scheduler:
         # saniye bloklıyordu (75 sn haber dersinin aynisi: kozmetik is
         # kritik akisin onunde olmaz).
         self._maybe_compare_data(today)
+        # v4.24 AYNA adim 2: yalniz bayrak acik + istemci bagliyken calisir
+        # (bugun ikisi de kapali -> atil). Salt olcum: hata tick'i dusurmez.
+        if (self._mirror is not None and self._mirror.enabled
+                and self._tracker is not None):
+            try:
+                open_rows = self._tracker._db.query(
+                    "SELECT * FROM signals WHERE blocked=0 AND status!='CLOSED'")
+                self._mirror.sync_signals(open_rows)
+                self._mirror.poll()
+            except Exception:
+                log.exception(kv(event="mirror_tick_error"))
 
     # ------------------------------------------------------- 15:45 TR hazirlik
     def run_prep(self, today: date) -> None:
