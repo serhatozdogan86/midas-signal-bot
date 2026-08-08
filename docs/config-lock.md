@@ -16,6 +16,39 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-08 (v4.23): KILIT-2 ILANI - MOTOR DUZELTME PAKETI. Kilit
+  kuralinin uc sarti tamamlandi: (1) gerekce olculdu (7 Agu bes-denetci
+  raporu + el dogrulamasi, asagida), (2) Serhat ONAYI alindi, (3) yeni
+  kilit + yeni kohort bu notla baslar (CONFIG_LOCK_UTC=2026-08-08T00:00Z,
+  engine_sha bu commit'le degisir; kilit-1 kohortu 2026-08-01..08, ~18
+  sonuclanan islem, AYRI degerlendirilir ve go-live sayacina SAYILMAZ).
+  DUZELTILEN KANITLI MEKANIZMA HATALARI:
+  (1) RETEST/ACCEPTANCE (structure_analyzer): dilimler kirilim mumunun
+  kendisini tariyordu -> kirilim mumu seviyeyi asagidan gectigi icin
+  low'u neredeyse her zaman tolerans altinda = retest kosulu BOSTU;
+  acceptance de kirilim kapanisini sayip 2 yerine fiilen 1'di.
+  "Breakout+retest" retestsiz kovalama girisiydi - kilit-1 defterinin
+  16/17 islemi bu setap ve -12R. Dilimler artik break_i+1'den baslar.
+  Kirilabilirlik stash ile kanitli (eski kod testte kirmizi).
+  (2) GUNLUK CLOSED_ONLY (scheduler._get_daily_cached): seans ici
+  (re)start'ta bugunun olusmakta olan gunluk bari trend/pivot/ATR/rejim/
+  RS hesabina girip gun boyu cache'te kaliyordu (v3.19 repaint
+  duzeltmesinin eksik ayagi). Gunluk cache artik closed_only.
+  (3) REJIM MIN_BARS (regime_detector): SMA200 egimi 221 bar ister;
+  esik 210'du -> 210-220 barlik seride NaN egim "unknown" yerine
+  "neutral" donuyordu (NaN uzerinden fail-open). Esik 221 + isfinite
+  guvencesi; veri yetersizse UNKNOWN (sinyal yok).
+  (4) HACIM CAPASI (volume_analyzer): ortalama hacim hep bugunun
+  SMA20'sindan (iloc[-2]) aliniyordu; tarihi breakout tetigi olay
+  SONRASI hacme bolunuyordu. Ortalama artik olay oncesi pencereden.
+  YAN DUZELTME (self_audit, motor disi): "motor surumu" degismezi
+  bilincli yeni kilitte eski kohortun ACIK sinyallerini suclamaz;
+  yalniz kilit sonrasi dogan farkli sha ihlaldir.
+  BEKLENEN ETKI: breakout sinyal sayisi DUSER (gercek retest sarti),
+  pullback kolu hipotez kohortuyla olculmeye devam eder. Kilit-2
+  esikleri kilit-1 ile AYNI (go-live besli VE; degisiklik yok).
+  ERTELENENLER (bir sonraki pencereye): pivot esitligi birlestirme,
+  RSI(3) loss==0 ucu, 1h bayatlik kapisi (S3; docs/ideas.md).
 - 2026-08-07 (v4.22): DERIN DENETIM DUZELTMELERI - bes bagimsiz denetci
   (motor/defter/orkestra/servis/finans) + el dogrulamasi. strategies/
   DEGISMEDI (engine_sha sabit); motor bulgularinin listesi ASAGIDA ayri

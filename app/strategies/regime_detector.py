@@ -5,14 +5,22 @@ Saf fonksiyon; endeks DataFrame'leri disaridan verilir.
 """
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 from pydantic import BaseModel
 
 from app.models.decision import MarketRegime
 from app.strategies.indicators import sma
 
-_MIN_BARS = 210
 _SLOPE_BARS = 21  # SMA200 egimi ~1 ay onceyle kiyaslanir
+# v4.23: SMA200'un _SLOPE_BARS onceki degeri 200+21 bar ister. Eski esik
+# 210'du; 210-220 barlik (kesik yfinance yaniti) seride prev=NaN oluyor,
+# NaN karsilastirmalari False dondugu icin fonksiyon "unknown" yerine
+# "neutral" donuyordu - yani veri yetersizken sinyal YOK olacagina
+# sikilasmis esikle sinyal VAR (NaN uzerinden fail-open). Simdi esik
+# hesabin gercek ihtiyaci; ek olarak asagida isfinite guvencesi var.
+_MIN_BARS = 200 + _SLOPE_BARS
 
 
 class RegimeResult(BaseModel):
@@ -38,6 +46,8 @@ def classify_index(df: pd.DataFrame | None) -> str:
     s200 = sma(df["close"], 200)
     last = float(s200.iloc[-1])
     prev = float(s200.iloc[-1 - _SLOPE_BARS])
+    if not (math.isfinite(last) and math.isfinite(prev)):
+        return "unknown"        # v4.23: NaN egim = bilinmiyor, neutral degil
     rising, falling = last > prev, last < prev
     closes = df["close"].iloc[-_CONFIRM_BARS:].astype(float)
     band_hi = last * (1 + _HYST_PCT / 100)

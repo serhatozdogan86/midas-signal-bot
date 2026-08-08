@@ -309,7 +309,14 @@ class Scheduler:
             self._daily_cache_date = today
         missing = [s for s in fetch_list if s not in self._daily_cache]
         if missing:
-            self._daily_cache.update(self._md.get_daily_bulk(missing))
+            # v4.23: gunluk seriler de closed_only() - seans ici (re)start'ta
+            # bugunun OLUSMAKTA OLAN bari trend/pivot/ATR/rejim/RS hesabina
+            # giriyor ve gun boyu cache'te kaliyordu (repaint'in gunluk
+            # hali; v3.19'daki 1h duzeltmesinin eksik kalan ayagi). Tek
+            # kaynak noktasi: tum tuketiciler bu cache'i okur.
+            fetched = self._md.get_daily_bulk(missing)
+            self._daily_cache.update(
+                {s: k.closed_only() for s, k in fetched.items()})
         return self._daily_cache
 
     def run_coarse_scan(self, send_telegram: bool = True) -> list[Decision]:
