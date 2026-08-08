@@ -173,9 +173,18 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
     # ---------------- KOHORT ----------------
     if engine_sha:
         try:
-            shas = db.query(
-                "SELECT DISTINCT engine_sha FROM signals WHERE blocked=0 "
-                "AND status IN ('PENDING','FILLED') AND engine_sha IS NOT NULL")
+            # v4.23: bilincli yeni kilitte eski kohortun ACIK sinyalleri
+            # (eski sha) ihlal degildir; yalniz kilit ANINDAN SONRA dogan
+            # farkli sha kohort kirlenmesidir. Kilit ani yoksa eski
+            # davranis (tum acik sinyallar) korunur.
+            lock = getattr(settings, "CONFIG_LOCK_UTC", None) if settings else None
+            q = ("SELECT DISTINCT engine_sha FROM signals WHERE blocked=0 "
+                 "AND status IN ('PENDING','FILLED') AND engine_sha IS NOT NULL")
+            qargs: tuple = ()
+            if lock:
+                q += " AND created_utc>=?"
+                qargs = (lock,)
+            shas = db.query(q, qargs)
             others = [r["engine_sha"] for r in shas
                       if r["engine_sha"] != engine_sha]
             add("motor surumu", "KOHORT", not others,

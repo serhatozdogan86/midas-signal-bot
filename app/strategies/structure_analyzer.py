@@ -129,16 +129,23 @@ def detect_breakout_retest(hourly: pd.DataFrame, direction: Direction,
         if break_i < n - _MAX_BREAK_AGE:
             continue
 
-        after = closes[break_i:n]
+        # v4.23 (7 Agu denetimi, Serhat onayli kilit acilisi): dilimler
+        # kirilim mumunun KENDISINI degil SONRASINI tarar (break_i + 1).
+        # Eski hal: (a) acceptance kirilim kapanisini sayip _MIN_ACCEPTANCE=2
+        # yi fiilen 1'e indiriyordu; (b) kirilim mumu seviyeyi asagidan
+        # gectigi icin low'u neredeyse her zaman tolerans altindaydi ->
+        # retest kosulu BOS kosuldu ve "breakout+retest" retestsiz kovalama
+        # girisine donusmustu (kilit-1 defterinin 16/17 islemi, -12R).
+        after = closes[break_i + 1:n]
         accepted = (after > level) if direction is Direction.LONG else (after < level)
         if int(accepted.sum()) < _MIN_ACCEPTANCE:
             continue
 
         if direction is Direction.LONG:
-            touched = (lows[break_i:n] <= level * (1 + _RETEST_TOL)).any()
+            touched = (lows[break_i + 1:n] <= level * (1 + _RETEST_TOL)).any()
             still_ok = closes[-1] > level
         else:
-            touched = (highs[break_i:n] >= level * (1 - _RETEST_TOL)).any()
+            touched = (highs[break_i + 1:n] >= level * (1 - _RETEST_TOL)).any()
             still_ok = closes[-1] < level
         if not touched or not still_ok:
             continue

@@ -123,7 +123,11 @@ class Settings(BaseSettings):
     REF_ACCOUNT_USD: float = 10000.0
     REF_RISK_PCT: float = 1.0
 
-    CONFIG_LOCK_UTC: str = "2026-08-01T06:30:00Z"  # P1 kilidi  # kilit ani (docs/config-lock.md)
+    # v4.23 KILIT-2: motor duzeltme paketi (retest/acceptance, gunluk
+    # closed_only, rejim MIN_BARS, hacim capasi) Serhat onayiyla girdi;
+    # go-live sayaci bu andan yeniden baslar (docs/config-lock.md).
+    # Kilit-1 kohortu (2026-08-01..08) ayri degerlendirilir.
+    CONFIG_LOCK_UTC: str = "2026-08-08T00:00:00Z"
     # 2 Agu konsey revizyonu: 5/5 "40 yetersiz" dedi. Kumelenme yuzunden
     # 40 islem etkin olarak ~15-20 bagimsiz gozleme denk geliyordu.
     GOLIVE_MIN_DECIDED: int = 60
