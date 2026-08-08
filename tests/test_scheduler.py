@@ -344,3 +344,28 @@ def test_gap_watch_runs_before_prep_in_window(monkeypatch):
     sched.tick(datetime(2026, 7, 30, 9, 10,
                         tzinfo=ZoneInfo("America/New_York")))
     assert order[0] == "gap" and "prep" in order
+
+
+def test_gist_sync_fires_on_weekend_too(monkeypatch):
+    """v4.24 regresyon kaniti: tam yedek hafta sonu/tatilde de alinir.
+
+    v4.22'nin tick siralamasi maybe_sync'i hafta sonu erken cikisinin
+    arkasina dusurmustu: heartbeat atmaya devam ederken (maskeleme)
+    Cumartesi 04:00 UTC'den itibaren tam yedek durmustu. Kural v4.11:
+    Render diski gecici -> yedek seanstan bagimsiz saatte bir alinmali.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    sched, _ = _scheduler()
+    syncs = []
+
+    class FakeGist:
+        def heartbeat(self, payload):
+            return True
+
+        def maybe_sync(self):
+            syncs.append(1)
+    sched._gist = FakeGist()
+    sched.tick(datetime(2026, 7, 25, 12, 0, tzinfo=ZoneInfo("America/New_York")))  # cumartesi
+    assert syncs, "hafta sonu tick'i maybe_sync cagirmali (v4.11 kurali)"

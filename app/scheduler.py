@@ -151,6 +151,18 @@ class Scheduler:
                 self._gist.heartbeat(self.build_heartbeat())
             except Exception:
                 log.exception(kv(event="heartbeat_error"))
+        # v4.11 kurali + v4.24 duzeltmesi: YEDEK seans disinda da alinsin.
+        # v4.22'nin tick yeniden siralamasi bu blogu hafta sonu erken
+        # cikisinin (asagida: session is None -> return) ARKASINA
+        # dusurmustu - Cumartesi 04:00 UTC'den (ET gece yarisi) itibaren
+        # hicbir tam yedek alinmadi (heartbeat return'den once oldugu
+        # icin taze kalip arizayi maskeledi). Blok artik erken cikisin
+        # ONUNDE: hafta sonu/tatil dahil saatte bir yedek garanti.
+        if self._gist is not None:
+            try:
+                self._gist.maybe_sync()
+            except Exception:
+                log.exception(kv(event="gist_sync_error"))
         session = self._calendar.session_times(today)
         if session is None:
             return  # hafta sonu / tatil: uyu
@@ -182,18 +194,6 @@ class Scheduler:
                 self._last_fine = time.time()
         if now_et >= eod_dt and self._eod_date != today and self._prep_date == today:
             self.run_eod(today)
-        # v4.11: YEDEK seans disinda da alinsin. Eskiden maybe_sync
-        # yalniz kaba tarama sonunda cagriliyordu; seans kapaliyken
-        # (gece, hafta sonu, tatil) saatlerce hicbir yedek alinmiyordu.
-        # Render'da dosya sistemi kalici degil - restart olursa defter
-        # SON YEDEGE geri doner. maybe_sync kendi araligini (1 saat)
-        # koruyor, yani bu cagri ucuz.
-        if self._gist is not None:
-            try:
-                self._gist.maybe_sync()
-            except Exception:
-                log.exception(kv(event="gist_sync_error"))
-
         # aday strateji laboratuvari: gunde bir kez, ARKA PLANDA baslar
         # (kendi kilidi var; hazirligi beklemeden gorunur olsun diye
         # tick'ten de tetiklenir - tick bloklanmaz).
