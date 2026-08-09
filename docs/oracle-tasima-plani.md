@@ -74,8 +74,12 @@ Cift calisma YASAK (ayni gist'e iki yazar = bozulma); once durdur, sonra ac.
 
 ## Kesim sonrasi (ilk hafta)
 
-- Gunluk yerel yedek (Gist artik felaket yedegi roluine iner):
-  `crontab -e` -> `10 3 * * * cp /opt/midas-signal-bot/data/bot.db /opt/midas-signal-bot/data/backup/bot-$(date +\%a).db`
+- Gunluk yerel yedek (Gist artik felaket yedegi roluine iner) - v4.26c
+  DUZELTME: bu VM'de cron KURULU DEGIL (9 Agu Faz 1 bulgusu); systemd
+  timer kullanilir (diag-snapshot toplayicisiyla ayni desen). Kesim
+  gununde yerel Claude oturumu kurar: midas-backup.service (bot.db'yi
+  data/backup/bot-<gun>.db'ye kopyalar) + midas-backup.timer
+  (OnCalendar=*-*-* 03:10 UTC, Persistent=true).
 - Render servisini 1 hafta suspend beklet, sonra sil.
 - Deploy artik: `ops/oracle/deploy.sh` (seans kilidi + test kapisi gomulu).
 - 1 hafta sonra gozden gecir: RAM kullanimi (MemoryHigh 600M yeterli mi),
