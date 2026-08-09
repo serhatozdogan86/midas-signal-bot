@@ -19,6 +19,13 @@ gerçek para YOK.
 Sahibi: Serhat. Çalışma dili **Türkçe** (kod ve değişken adları İngilizce,
 yorumlar ve iletişim Türkçe).
 
+**Serhat yazılımcı DEĞİL** (9 Ağu isteği): ona bir şey yaptıracaksan
+adımları basit dille, tek tek, jargonsuz anlat — "curl at" değil "şu
+mesajı yapıştır" de. Komut koşturmayı mümkünse ondan isteme; ya kendin
+koş ya da yereldeki Claude oturumuna yaptır, Serhat'a yalnız kopyala-
+yapıştır mesajlar ve evet/hayır kararları bırak. Teknik terim
+kullanacaksan bir kez, yanında günlük karşılığıyla kullan.
+
 ---
 
 ## 2. Pazarlıksız kurallar (bunları ihlal etmek = işi bozmak)
