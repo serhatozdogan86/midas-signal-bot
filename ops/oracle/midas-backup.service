@@ -1,0 +1,9 @@
+# midas gunluk yerel DB yedegi (v4.26d) - timer tetikler, tek atimlik.
+# Kurulum: docs/oracle-tasima-plani.md "Kesim sonrasi" bolumu.
+[Unit]
+Description=Midas bot gunluk SQLite yedegi
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/opt/midas-signal-bot/ops/oracle/midas-backup.sh

@@ -1,0 +1,11 @@
+# midas gunluk yedek zamanlayicisi (v4.26d). VM saati UTC.
+# Persistent=true: VM o saatte kapaliysa acilista telafi kosar.
+[Unit]
+Description=Midas gunluk yedek zamanlayicisi (03:10 UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
