@@ -18,12 +18,15 @@ if [ ! -f "$SRC" ]; then
     exit 0
 fi
 OUT="$DEST/bot-$(date +%a).db"
-/opt/midas-signal-bot/.venv/bin/python - "$OUT" <<'PY'
+# v4.26e: kaynak yol da argv ile - tek dogruluk kaynagi $SRC. Eskiden
+# python blogu yolu ayrica sabit yaziyordu; biri degisse koruma baska
+# dosyaya bakip yedek baska dosyadan alinirdi (10 Agu, yerel oturum).
+/opt/midas-signal-bot/.venv/bin/python - "$SRC" "$OUT" <<'PY'
 import sqlite3
 import sys
 
-src = sqlite3.connect("/opt/midas-signal-bot/data/bot.db")
-dst = sqlite3.connect(sys.argv[1])
+src = sqlite3.connect(sys.argv[1])
+dst = sqlite3.connect(sys.argv[2])
 with dst:
     src.backup(dst)          # atomik; canli DB'de yazma varken de guvenli
 dst.close()
