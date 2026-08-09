@@ -35,7 +35,10 @@ cp ops/oracle/midas.env.example ops/oracle/midas.env && chmod 600 ops/oracle/mid
 sudo cp ops/oracle/midas-signal-bot.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now midas-signal-bot
 curl -s http://127.0.0.1:8100/healthz
-sudo ufw allow 8100/tcp                          # dashboard'a disaridan bakmak icin
+# PANO ERISIMI (v4.26 duzeltmesi): bu VM'de ufw YOK (guvenlik duvari
+# iptables). 8100'u internete ACMA - pano icin SSH tuneli kullan
+# (yerel makinede):  ssh -i <anahtar> -L 8100:localhost:8100 ubuntu@VM_IP
+# sonra tarayicida http://localhost:8100
 ```
 
 Her aksam (seans sonrasi) karsilastir - Render/diag vs VM/diag:

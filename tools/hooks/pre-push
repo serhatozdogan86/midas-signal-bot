@@ -35,12 +35,17 @@ if [ "$push_main" = 1 ]; then
 fi
 
 # --- 2.6: testler - cikis kodu yutulmadan (&& zinciri yasagi), her push'ta.
-if ! python3 -m pytest -q >/tmp/prepush_pytest.log 2>&1; then
+# v4.26: repo kokunde .venv varsa onu kullan - VM kurulumunda (venv'li)
+# sistem python3'unde pytest yok; hook yanlis "kirmizi" verip her push'u
+# engelliyordu (9 Agu Faz 1 bulgusu). git hook'u repo kokunde calistirir.
+PY="python3"
+[ -x ".venv/bin/python" ] && PY=".venv/bin/python"
+if ! "$PY" -m pytest -q >/tmp/prepush_pytest.log 2>&1; then
     echo "ENGEL (2.6): pytest kirmizi:"
     tail -20 /tmp/prepush_pytest.log
     exit 1
 fi
-if ! python3 -m pyflakes app/ >/tmp/prepush_pyflakes.log 2>&1; then
+if ! "$PY" -m pyflakes app/ >/tmp/prepush_pyflakes.log 2>&1; then
     echo "ENGEL (2.6): pyflakes:"
     cat /tmp/prepush_pyflakes.log
     exit 1

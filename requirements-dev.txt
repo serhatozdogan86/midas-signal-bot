@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest==8.3.2
+# v4.26: hook ve 2.6 kurali pyflakes kosar; VM kurulumunda eksikti
+pyflakes==3.2.0

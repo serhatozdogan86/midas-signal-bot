@@ -51,8 +51,12 @@ def _run(tmp_path, ref="refs/heads/feature", dow=3, hm="1200",
     if kritik is not None:
         env["KRITIK_FIX"] = kritik
     line = f"refs/heads/x abc {ref} def\n"
+    # v4.26: cwd=tmp_path - hook artik repo kokundeki .venv'i tercih ediyor;
+    # test, .venv'siz bir dizinden kosarak PATH stub'inin (python3)
+    # kullanildigini garanti eder (gercek pytest'i ozyinelemeli cagirmasin).
     return subprocess.run(["bash", str(HOOK), "origin", "url"],
-                          input=line, text=True, capture_output=True, env=env)
+                          input=line, text=True, capture_output=True, env=env,
+                          cwd=tmp_path)
 
 
 def test_seans_icinde_main_push_engellenir(tmp_path):
