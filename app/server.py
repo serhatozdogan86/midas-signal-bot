@@ -38,12 +38,35 @@ def create_app(store: StateStore, scheduler: Scheduler,
         resp.headers["Cache-Control"] = "no-store, max-age=0"
         return resp
 
+    # v4.27 SURUM GORUNURLUGU: Faz 1 paralel dogrulamasi "iki taraf ayni
+    # kodu mu kosuyor" sorusunu OLCEMIYORDU (10 Agu raporu - kriter 4 farki
+    # kod suphesiyle kapatilamadi). engine_sha strateji kodunun parmak izi
+    # (kohort damgasiyla ayni deger), commit calisan agacin kimligi
+    # (Render'da env'den, VM'de git'ten). Bir kez hesaplanir.
+    from app.services import signal_tracker as _st
+
+    def _git_commit() -> str | None:
+        c = os.getenv("RENDER_GIT_COMMIT")
+        if c:
+            return c[:12]
+        try:
+            import subprocess
+            return subprocess.check_output(
+                ["git", "rev-parse", "--short=12", "HEAD"],
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                text=True, timeout=3).strip()
+        except Exception:
+            return None
+
+    _VERSION = {"engine_sha": _st._ENGINE_SHA, "commit": _git_commit()}
+
     def _build_diag() -> dict:
         """Uzaktan tani sozlesmesi: botun sagligiyla ilgili her sey tek JSON'da.
         Hem /diag ucundan hem dashboard HTML'ine gomulu olarak sunulur ki
         Render log konsoluna girmeden tek URL'den durum okunabilsin."""
         ring = get_ring_buffer()
         diag = {
+            "version": _VERSION,
             "now_utc": __import__("datetime").datetime.now(
                 __import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "uptime_sec": ring.uptime_sec(),

@@ -676,3 +676,17 @@ def test_icon_and_manifest_served(tmp_path):
     body = m.get_json()
     assert body["theme_color"] == "#12091F"
     assert body["icons"][0]["src"] == "/icon.svg"
+
+
+def test_diag_surum_alani_tasir(tmp_path):
+    """v4.27: /diag surum tasir - Faz 1 'iki taraf ayni kod mu' sorusu
+    olculebilir olsun (10 Agu raporunun engeli). engine_sha kohort
+    damgasiyla ayni parmak izi olmali."""
+    from app.services.signal_tracker import _ENGINE_SHA
+    c = _client(tmp_path)
+    d = c.get("/diag").get_json()
+    v = d.get("version") or {}
+    assert v.get("engine_sha") == _ENGINE_SHA
+    assert len(v["engine_sha"]) == 12
+    # commit: git calisan ortamda dolu olmali (bu repo bir git klonu)
+    assert v.get("commit")
