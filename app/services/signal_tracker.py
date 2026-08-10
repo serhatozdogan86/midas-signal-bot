@@ -808,6 +808,33 @@ class SignalTracker:
             imported += 1
         return imported
 
+    def import_decisions(self, rows: list[dict]) -> int:
+        """Karar arsivini yedekten geri yukler (v4.28, 10 Agu vakasi).
+        Kararlar restore edilmiyordu; her deploy arsivi sifirliyor ve
+        sonraki sync BOS arsivi gist'e yazip GECMISI DE SILIYORDU
+        (21:08'de 468 KB -> 4 sn sonra bos). Hipotez laboratuvarinin
+        'son 2000 karar' otopsileri ve faz analizleri bu arsive dayanir.
+        Dedup: (ts_utc, symbol) - tarama basina sembol basina tek karar."""
+        imported = 0
+        for r in rows:
+            if not r.get("ts_utc") or not r.get("symbol"):
+                continue
+            exists = self._db.query_one(
+                "SELECT id FROM decisions WHERE ts_utc=? AND symbol=?",
+                (r.get("ts_utc"), r.get("symbol")))
+            if exists:
+                continue
+            self._db.execute(
+                "INSERT INTO decisions(ts_utc,symbol,decision,direction,"
+                "market_regime,trend_bias,setup_type,reject_reason) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (r.get("ts_utc"), r.get("symbol"), r.get("decision"),
+                 r.get("direction"), r.get("market_regime"),
+                 r.get("trend_bias"), r.get("setup_type"),
+                 r.get("reject_reason")))
+            imported += 1
+        return imported
+
     def import_signals_blocked(self, rows: list[dict]) -> int:
         """Blocked kohort satirlarini yedekten geri yukler (v4.21).
         AYRI yol cunku: (1) import_signals'in uclu dedup anahtari

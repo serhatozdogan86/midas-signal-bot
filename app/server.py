@@ -304,7 +304,16 @@ def create_app(store: StateStore, scheduler: Scheduler,
     def backup_info():
         if gist_backup is None:
             return jsonify({"error": "gist sync disabled (GITHUB_TOKEN not set)"}), 404
-        return jsonify(gist_backup.info())
+        info = gist_backup.info()
+        # v4.28 GUVENLIK (10 Agu Faz 1 bulgusu): gist "secret"tir ama
+        # URL'yi bilen HERKES okur - kimligi kimliksiz bir uctan vermek
+        # sinyal gecmisini fiilen herkese acmakti. Kimlik yalniz admin'e;
+        # pano/denetim icin gereken tazelik alanlari aciktir.
+        if not _admin_ok():
+            info.pop("gist_id", None)
+            info.pop("gist_url", None)
+            info["gist_id_redacted"] = True
+        return jsonify(info)
 
     @app.post("/backup/now")
     def backup_now():

@@ -275,6 +275,18 @@ class GistBackup:
                     json.loads(blk_file))
             except (json.JSONDecodeError, TypeError):
                 log.warning(kv(event="gist_restore_blocked_parse_error"))
+        # v4.28: karar arsivi de geri yuklenir. Restore edilmeyince her
+        # deploy arsivi sifirliyor ve ilk sync BOS arsivi gist'e yazip
+        # gecmisi de siliyordu (10 Agu 21:08 vakasi). Eski yedeklerde
+        # dosya yoksa sessizce atlanir.
+        decisions_total = 0
+        dec_file = files.get("0_decisions.json")
+        if dec_file:
+            try:
+                decisions_total = self._tracker.import_decisions(
+                    json.loads(dec_file))
+            except (json.JSONDecodeError, TypeError):
+                log.warning(kv(event="gist_restore_decisions_parse_error"))
         # v4.22: yedegin zaman damgasi da restore edilir. __init__ damgayi
         # SIFIRLANMIS DB'den okudugu icin restart sonrasi None kaliyordu ve
         # ilk basarili sync'e kadar oz-denetim "yedek zamani bilinmiyor"
@@ -291,5 +303,5 @@ class GistBackup:
                 pass
         log.info(kv(event="gist_restore_ok", gist_id=self._gist_id,
                     candles=candles_total, signals=signals_total,
-                    blocked=blocked_total))
+                    blocked=blocked_total, decisions=decisions_total))
         return True

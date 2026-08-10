@@ -128,3 +128,32 @@ def test_eski_yedek_blocked_dosyasiz_geriye_uyumlu(tmp_path):
     assert bk2.restore_if_empty() is True
     assert tr2.blocked_summary()["total"] == 0
     assert db2.query_one("SELECT COUNT(*) n FROM signals")["n"] == 1
+
+
+def test_karar_arsivi_restore_edilir(tmp_path):
+    """v4.28 (10 Agu vakasi): kararlar yedekten donmeyince her deploy
+    arsivi sifirliyor ve ilk sync BOS arsivi gist'e yazip GECMISI DE
+    siliyordu (21:08'de 468 KB -> [] oldu). Donus turu + idempotentlik."""
+    db1 = Database(str(tmp_path / "a.db"))
+    tr1 = SignalTracker(db1, "1h")
+    for i in range(3):
+        db1.execute(
+            "INSERT INTO decisions(ts_utc,symbol,decision,direction,"
+            "market_regime,trend_bias,setup_type,reject_reason) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (f"2026-08-10T1{i}:00:00Z", f"S{i}", "SIGNAL" if i == 0
+             else "NO_TRADE", "LONG", "BULL", "BULLISH",
+             "breakout_retest", None if i == 0 else "RR dusuk"))
+    files = GistBackup(_Client(), tr1, pinned_gist_id="gist123").build_files()
+    assert "0_decisions.json" in files
+
+    db2 = Database(str(tmp_path / "b.db"))
+    tr2 = SignalTracker(db2, "1h")
+    bk2 = GistBackup(_FetchClient(files), tr2, pinned_gist_id="gist123")
+    assert bk2.restore_if_empty() is True
+    rows = db2.query("SELECT * FROM decisions ORDER BY ts_utc")
+    assert len(rows) == 3
+    assert rows[0]["decision"] == "SIGNAL" and rows[0]["symbol"] == "S0"
+    assert rows[2]["reject_reason"] == "RR dusuk"
+    # idempotent: ikinci import cift kayit acmaz
+    assert tr2.import_decisions(json.loads(files["0_decisions.json"])) == 0

@@ -690,3 +690,34 @@ def test_diag_surum_alani_tasir(tmp_path):
     assert len(v["engine_sha"]) == 12
     # commit: git calisan ortamda dolu olmali (bu repo bir git klonu)
     assert v.get("commit")
+
+
+def test_backup_info_gist_kimligini_admin_disina_vermez(tmp_path):
+    """v4.28 guvenlik (10 Agu bulgusu): gist 'secret'tir ama URL'yi bilen
+    herkes okur - /backup/info kimligi kimliksiz veriyordu. Kimlik yalniz
+    admin'e; tazelik alanlari acik kalir (pano/denetim bozulmaz)."""
+    from app.services.gist_backup import GistBackup
+    from app.services.signal_tracker import SignalTracker
+    from app.services.database import Database
+
+    class _C:
+        def gist_url(self, gid):
+            return f"https://gist.github.com/{gid}"
+
+    db = Database(str(tmp_path / "g.db"))
+    gb = GistBackup(_C(), SignalTracker(db, "1h"), pinned_gist_id="gizli123")
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                        ADMIN_TOKEN="sifre")
+    store = InMemoryStateStore()
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      store, _NoopNotifier(), None, gb)
+    app = create_app(store, sched, universe=None, tracker=None,
+                     gist_backup=gb)
+    c = app.test_client()
+    anon = c.get("/backup/info").get_json()
+    assert "gist_id" not in anon and "gist_url" not in anon
+    assert anon.get("gist_id_redacted") is True
+    assert "last_sync_utc" in anon                    # tazelik acik
+    adm = c.get("/backup/info",
+                headers={"X-Admin-Token": "sifre"}).get_json()
+    assert adm.get("gist_id") == "gizli123"
