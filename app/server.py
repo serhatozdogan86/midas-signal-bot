@@ -92,7 +92,19 @@ def create_app(store: StateStore, scheduler: Scheduler,
                                    "dataset")}
             except Exception:
                 diag["shadow"] = None
-        diag["gist"] = gist_backup.info() if gist_backup is not None else None
+        # v4.29: gist kimligi burada da maskelenir - v4.28 yalniz
+        # /backup/info'yu kapatmisti, ayni bilgi /diag'dan (ve panoya
+        # gomulu kopyadan) sizmaya devam ediyordu (11 Agu bulgusu:
+        # "kilit takildi, cam acik kaldi"). Tazelik alanlari acik.
+        if gist_backup is not None:
+            gi = gist_backup.info()
+            if not _admin_ok():
+                gi.pop("gist_id", None)
+                gi.pop("gist_url", None)
+                gi["gist_id_redacted"] = True
+            diag["gist"] = gi
+        else:
+            diag["gist"] = None
         diag["market_note"] = scheduler.last_market_note
         diag["gap_watch"] = scheduler.last_gap_watch
         diag["fine_scan"] = getattr(scheduler, "last_fine_info", {})

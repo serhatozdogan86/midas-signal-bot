@@ -721,3 +721,33 @@ def test_backup_info_gist_kimligini_admin_disina_vermez(tmp_path):
     adm = c.get("/backup/info",
                 headers={"X-Admin-Token": "sifre"}).get_json()
     assert adm.get("gist_id") == "gizli123"
+
+
+def test_diag_gist_kimligini_admin_disina_vermez(tmp_path):
+    """v4.29: v4.28 yalniz /backup/info'yu kapatmisti; ayni kimlik /diag
+    ve panoya gomulu kopyadan sizmaya devam ediyordu (11 Agu)."""
+    from app.services.gist_backup import GistBackup
+    from app.services.signal_tracker import SignalTracker
+    from app.services.database import Database
+
+    class _C:
+        def gist_url(self, gid):
+            return f"https://gist.github.com/{gid}"
+
+    db = Database(str(tmp_path / "g.db"))
+    gb = GistBackup(_C(), SignalTracker(db, "1h"), pinned_gist_id="gizli123")
+    settings = Settings(TELEGRAM_ENABLED=False, STATE_BACKEND="memory",
+                        ADMIN_TOKEN="sifre")
+    store = InMemoryStateStore()
+    sched = Scheduler(settings, None, None, None, MarketCalendar(),
+                      store, _NoopNotifier(), None, gb)
+    app = create_app(store, sched, universe=None, tracker=None,
+                     gist_backup=gb)
+    c = app.test_client()
+    g = (c.get("/diag").get_json() or {}).get("gist") or {}
+    assert "gist_id" not in g and "gist_url" not in g
+    assert g.get("gist_id_redacted") is True
+    assert "last_sync_utc" in g
+    g2 = (c.get("/diag", headers={"X-Admin-Token": "sifre"}).get_json()
+          or {}).get("gist") or {}
+    assert g2.get("gist_id") == "gizli123"
