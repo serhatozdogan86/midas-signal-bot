@@ -198,6 +198,19 @@ curl -s https://midas-signal-bot.onrender.com/audit              # öz-denetim d
 Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
 çıkış laboratuvarını ve varsa yeni sinyalleri özetle. Log paste'i bekleme.
 
+### 4.5 Yerel oturum izin düzeni (11 Ağu kararı)
+Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
+- **Salt-okunur** komutlara (dosya listeleme/okuma, `git log/status/diff`,
+  ssh üzerinden yalnız BAKAN komutlar: `free/df/ps/cat/systemctl status`
+  vb.) kalıcı izin ver (`/permissions`) — her seferinde sorma.
+- **Yazan/değiştiren** her şey (kurulum, silme, `systemctl
+  start/stop/enable`, env düzenleme, `git push`, emir/config değişikliği)
+  onaya tabi KALIR. `ssh *` gibi geniş kalıplara kalıcı izin verilmez
+  (içinden yazan komut da geçer).
+- `--dangerously-skip-permissions` kullanılmaz. Gerekçe: onay anları bu
+  hafta üç gerçek hatayı yakaladı (VERIFY env gösterimi, iptables kararı,
+  gist kimliği); frenler ucuz, kazalar pahalı.
+
 ---
 
 ## 5. Şu anki durum (6 Ağustos 2026)
