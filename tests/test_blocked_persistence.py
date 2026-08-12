@@ -157,3 +157,23 @@ def test_karar_arsivi_restore_edilir(tmp_path):
     assert rows[2]["reject_reason"] == "RR dusuk"
     # idempotent: ikinci import cift kayit acmaz
     assert tr2.import_decisions(json.loads(files["0_decisions.json"])) == 0
+
+
+def test_karar_penceresi_tarihe_gore_secilir(tmp_path):
+    """v4.31 (12 Agu kesim gecesi vakasi): arsiv gist revizyonlarindan
+    YENIDEN-ESKIYE ice aktarilinca buyuk id = eski tarih oldu; pencere
+    'ORDER BY id DESC' ile en YENI yerine en ESKI dilimi yedekliyordu.
+    Kurgu ayni: 3 kayit ters kronolojik sirayla eklenir; pencere (limit=2)
+    en yeni iki gunu vermeli. Eski kodda bu test KIRMIZI yanar (en eski
+    iki gun doner) - once kirildigi goruldu, sonra duzeltildi."""
+    db = Database(str(tmp_path / "w.db"))
+    tr = SignalTracker(db, "1h")
+    for day in (12, 11, 10):                 # en yeni ONCE eklenir (kesimdeki gibi)
+        db.execute(
+            "INSERT INTO decisions(ts_utc,symbol,decision,direction,"
+            "market_regime,trend_bias,setup_type,reject_reason) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (f"2026-08-{day:02d}T14:00:00Z", f"D{day}", "NO_TRADE",
+             "LONG", "BULL", "BULLISH", "breakout_retest", "RR dusuk"))
+    window = tr.recent_decisions(limit=2)
+    assert [r["ts_utc"][:10] for r in window] == ["2026-08-12", "2026-08-11"]

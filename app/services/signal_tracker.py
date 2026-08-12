@@ -702,9 +702,18 @@ class SignalTracker:
             "FROM signals WHERE blocked!=0 ORDER BY id DESC LIMIT ?", (limit,))
 
     def recent_decisions(self, limit: int = 2000) -> list[dict]:
+        """Son kararlar - gist yedeginin 2000'lik kayan penceresi buradan.
+
+        v4.31 (12 Agu kesim gecesi): siralama id yerine ts_utc. Kesimde
+        arsiv gist revizyonlarindan YENIDEN-ESKIYE ice aktarilinca en
+        buyuk id'ler en eski tarihlere denk geldi ve yedek penceresi en
+        YENI yerine en ESKI dilimi tasimaya basladi (yerel oturum bulgusu).
+        Tarih siralamasi ekleme sirasina bagisik; id yalniz esitlik
+        kirici (ayni saniyedeki kararlar icin kararli sira)."""
         return self._db.query(
             "SELECT ts_utc,symbol,decision,direction,market_regime,trend_bias,"
-            "setup_type,reject_reason FROM decisions ORDER BY id DESC LIMIT ?",
+            "setup_type,reject_reason FROM decisions "
+            "ORDER BY ts_utc DESC, id DESC LIMIT ?",
             (limit,))
 
     def export_candles(self, symbol: str, interval: str) -> list[dict]:

@@ -1,9 +1,17 @@
 # Oracle VM Tasima Plani (Render -> Oracle)
 
+> **DURUM (12 Agu 2026): FAZ 2 KESIMI TAMAMLANDI.** Kanonik sistem artik
+> VM; Render askida (Faz 3 geri donus kapisi olarak durur). Kesim
+> tutanagi ve dersleri: config-lock.md v4.31 notu. Bu dosya artik tarihce
+> + Faz 3/4 tarifi olarak gecerli.
+
 > Amac: veri kaliciligi (gercek disk, Gist restore dansinin bitmesi) +
 > Render kota/RAM tavanindan kurtulmak. Motora dokunulmaz: bu bir ALTYAPI
 > tasimasi, engine_sha ve kilit kohortu aynen devam eder (anayasa 2.3).
 > Icra: Claude Code (VM'e SSH oradan). Kesim MUTLAKA seans disi (2.5).
+> DERS (kesim gecesi, kaliciligi icin): bir sonraki her tasimada ILK adim
+> hedef makinenin kodunu main ile ESITLEMEK; dogrulama kiyaslari motor
+> (engine_sha) + ALTYAPI (commit) sürümünü BIRLIKTE karsilastirmali.
 
 ## Faz 0 - Envanter (10 dk, GO/NO-GO kapisi)
 

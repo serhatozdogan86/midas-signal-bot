@@ -9,8 +9,12 @@
 ## 1. Bu proje nedir
 
 Midas'ta listelenen ABD hisseleri için kısa vadeli swing (1–3 gün, time-stop
-4 gün) **sinyal** üreten bir karar destek botu. Python/Flask, tek servis,
-Render'da koşuyor: https://midas-signal-bot.onrender.com
+4 gün) **sinyal** üreten bir karar destek botu. Python/Flask, tek servis.
+**12 Ağu 2026 Faz 2 kesiminden beri Oracle VM'de koşuyor** (systemd:
+`midas-signal-bot.service`). Uçlar/pano internete AÇIK DEĞİL; erişim
+Serhat'ın makinesinden SSH tüneliyle `http://localhost:8100`. Eski ev
+Render **askıda** (SUSPEND) — geri dönüş planı oracle-tasima-plani.md
+Faz 3; **çift yazar yasak**: Render'ı resume etmeden VM durdurulmalı.
 
 **Bot emir göndermez.** Tüm işlemler Midas uygulamasından elle girilir.
 Şu an **gölge mod**: sinyaller üretiliyor, kâğıt üzerinde takip ediliyor,
@@ -83,10 +87,14 @@ laboratuvarı — hepsi **salt ölçüm**. `signal_engine` ve diğer karar
 modülleri bunları import etmez; testlerle kilitli. Bozma.
 
 ### 2.5 Deploy penceresi
-`main`'e push = Render'da **otomatik deploy** = servis yeniden başlar.
-Pencere ABD seansına göre tanımlıdır: **NYSE 09:30–16:00 ET** açıkken
-`main`'e push YOK (kritik güvenlik düzeltmesi hariç, o da açıkça
-söylenerek). İş dalda birikir, seans sonrası birleştirilir.
+**Kesim sonrası (12 Ağu) dağıtım modeli:** `main`'e push artık tek başına
+deploy DEĞİLDİR (Render askıda). Dağıtım VM'de elle yapılır:
+`git pull` + servis restart (`ops/oracle/deploy.sh`) — ve servis restart'ı
+canlı botu yeniden başlattığı için pencere kuralı artık **VM dağıtımına**
+uygulanır. Pencere ABD seansına göre tanımlıdır: **NYSE 09:30–16:00 ET**
+açıkken VM'de deploy/restart YOK (kritik güvenlik düzeltmesi hariç, o da
+açıkça söylenerek). `main`'e push seans içinde de serbesttir (hiçbir şeyi
+yeniden başlatmaz) ama VM'ye çekilmesi seans sonrasına bırakılır.
 
 **TR saatine güvenme, ET'ye bak:** Türkiye yaz saati kullanmaz, ABD
 kullanır. Yaz döneminde seans TR 16:30–23:00, kış döneminde (Kasım–Mart)
@@ -95,11 +103,12 @@ Kontrol: `TZ=America/New_York date` (tatiller için `market_calendar`).
 
 **Geri dönüş (rollback) tarifi** — kötü deploy anında doğaçlama yapma:
 1. Birincil yol: `git revert <kotu-commit>` → pytest yeşilse `main`'e
-   push (seans içindeyse bu "kritik düzeltme" istisnasıdır, açıkça yaz).
-   `git push --force` ile tarih silme YOK; revert izlenebilirlik bırakır.
-2. Alternatif: Render panosundan önceki başarılı deploy'a "Rollback"
-   (varsa) — ama `main` hâlâ bozuk kodu gösterir; revert'i yine yap,
-   yoksa bir sonraki push bozuk kodu geri getirir.
+   push → VM'de `git pull` + restart (seans içindeyse bu "kritik
+   düzeltme" istisnasıdır, açıkça yaz). `git push --force` ile tarih
+   silme YOK; revert izlenebilirlik bırakır.
+2. Alternatif (VM'de acil): servis durdurulur, `git checkout
+   <onceki-iyi-commit>` + restart — ama `main` hâlâ bozuk kodu gösterir;
+   revert'i yine yap, yoksa bir sonraki pull bozuk kodu geri getirir.
 3. Deploy sonrası 4.3'teki canlı doğrulamayı MUTLAKA koş.
 
 ### 2.6 Yalnızca yeşilse push
@@ -117,14 +126,16 @@ git config core.hooksPath tools/hooks
 Acil geçiş (yalnız kritik düzeltme): `KRITIK_FIX=1 git push ...`
 Sınırları bil: `--no-verify` ile atlanabilir ve yalnız kurulu klonu
 korur — emniyet kemeridir, kilit değil (davranışı
-`tests/test_prepush_hook.py` ölçer). Nihai güvence
-`.github/workflows/deploy.yml`'de hazır (CI yeşili → Render hook);
-devreye girmesi için `RENDER_DEPLOY_HOOK` secret'ı + Render'da
-Auto-Deploy OFF gerekir (ikisi de Serhat'ın panellerinde).
+`tests/test_prepush_hook.py` ölçer). Not (12 Ağu kesimi): Render'a
+CI-gated deploy iskeleti (`deploy.yml` + `RENDER_DEPLOY_HOOK`) kesimle
+anlamsızlaştı; CI-yeşili şartının VM dağıtımına uyarlanması açık
+kuyrukta (§8) — o gelene dek güvence pre-push hook + el disiplinidir.
 
 ### 2.7 Sırlar
-Token/anahtar sohbete veya koda yazılmaz. Render ortam değişkenlerinde
-durur. Deploy hook `/home/claude/.render_hook` (yerel, gizli).
+Token/anahtar sohbete veya koda yazılmaz. Kesim sonrası sırların evi
+VM'deki `ops/oracle/midas.env` (git'e girmez); Render env'i askıdaki
+kopyada yedek olarak durur. Aktarım gerekirse "Notepad dosyası + yerel
+oturum işler + dosya silinir" yöntemi (12 Ağu kesimi böyle yapıldı).
 
 ---
 
@@ -198,16 +209,20 @@ node --check /tmp/dj.js
 tıklanabilirlik `tools/*.js` içindeki jsdom doğrulayıcılarıyla ÖLÇÜLÜR.
 
 ### 4.3 Canlı doğrulama
-Deploy sonrası daima kontrol et:
+Deploy sonrası daima kontrol et (kesim sonrası uçlar yalnız VM'de;
+yerel oturumdan, SSH tüneli/`vm-read.sh` üzerinden):
 ```bash
-curl -s https://midas-signal-bot.onrender.com/dx | head          # nabız
-curl -s https://midas-signal-bot.onrender.com/audit              # öz-denetim değişmezleri
+curl -s http://localhost:8100/dx | head          # nabız
+curl -s http://localhost:8100/audit              # öz-denetim değişmezleri
 ```
-`/audit` bozuk gösteriyorsa önce onu çöz.
+`/audit` bozuk gösteriyorsa önce onu çöz. Bulut oturumları VM'e
+erişemez — canlı doğrulamayı yerel oturuma yaptırıp çıktıyı ister.
 
 ### 4.4 "Durum?" ritüeli
-Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek, gölge defteri,
-çıkış laboratuvarını ve varsa yeni sinyalleri özetle. Log paste'i bekleme.
+Serhat "Durum?" dediğinde: `/audit` + `/dx` + `/diag` çek (VM'den, 4.3
+yolu), gölge defteri, çıkış laboratuvarını ve varsa yeni sinyalleri
+özetle. Log paste'i bekleme; bulut oturumuysan gereken çıktıyı yerel
+oturumdan iste.
 
 ### 4.5 Yerel oturum izin düzeni (11 Ağu kararı)
 Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
@@ -224,19 +239,22 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 
 ---
 
-## 5. Şu anki durum (6 Ağustos 2026)
+## 5. Şu anki durum (12 Ağustos 2026, kesim gecesi)
 
 > **Bu bölüm tarihli bir anlık görüntüdür, canlı veri DEĞİLDİR** (bkz.
 > 2.1). Güncel durum daima `/dx` + `/audit` + `/diag` uçlarından alınır
 > (4.4 ritüeli); buradaki sayılarla canlı uçlar çelişirse uçlar kazanır.
 
-- Gölge defter: ~7 açık, ~15 sonuçlanan, ≈ −11R (ağırlıklı kohort-0)
-- Kohort eşiği 60 işlemde; şu an ~15
+- **12 Ağu gecesi Faz 2 kesimi yapıldı**: kanonik sistem artık Oracle VM
+  (commit 873ac85 / v4.31); Render askıda. Defter kesimde birebir taşındı
+  (8 açık; WIN 4 / LOSS 18 / EXPIRED 4 / NOT_FILLED 4; −9.65R brüt).
+  Karar arşivi gist revizyonlarından 22.500 satır olarak geri toplandı.
+- Kohort: KİLİT-2 (8 Ağu'dan beri) 60 işlem eşiğinde birikiyor
 - Çıkış laboratuvarı: V0 (canlı) / V1 (kısmi kâr) / V2 (geniş stop) /
   V3 (hedefsiz aynı stop) paralel ölçülüyor
 - Strateji laboratuvarı: S1 momentum, S2 Donchian, S3 hacimli kırılım,
   S4 RSI(2), S5 momentum+geniş çıkış — tavanlı ve tavansız
-- Öz-denetim 12/12 temiz
+- Öz-denetim 13/13 temiz
 - Telegram: **uyarılar açık, sinyaller kapalı** (gölge mod disiplini)
 
 ### Ölçülmüş bulgular (tekrar tartışılmadan önce research-log.md'yi oku)
@@ -272,7 +290,8 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 - Yeni strateji fikrini doğrudan motora ekleme — önce `research/` içinde
   ölç, `docs/research-log.md`'ye yaz, karar kuralını **önceden** belirle.
 - Pano şablonunu yeniden yazma; tek dosya bilinçli tercih.
-- NYSE seansı açıkken (09:30–16:00 ET; bkz. 2.5) `main`'e push etme.
+- NYSE seansı açıkken (09:30–16:00 ET; bkz. 2.5) VM'de deploy/restart
+  yapma (`main`'e push serbest ama VM'ye seans içinde çekilmez).
 
 ---
 
@@ -284,6 +303,9 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 4. Finnhub timeout'larının da WARNING'e indirilmesi (5xx yapıldı)
 5. Alpaca kağıt hesap "ayna" katmanı — adım 1+2 tamam (iskelet,
    izolasyon kilitleri, emir döngüsü sahte istemciyle; v4.19/v4.24).
-   Sırada adım 3: emir yetkili paper API anahtarı Render env'e →
+   Sırada adım 3: emir yetkili paper API anahtarı VM env'ine →
    canlı istemci + 2 hafta alarmsız izleme → sapma eşikleri ÖNCEDEN
-6. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)
+   (eşik önerisi 12 Ağu toplantı notlarında, onay bekliyor)
+6. CI-yeşili şartının VM dağıtımına uyarlanması (deploy.sh yalnız
+   yeşil CI'da çeksin; Render iskeleti kesimle anlamsızlaştı)
+7. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)

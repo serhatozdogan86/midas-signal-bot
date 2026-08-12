@@ -16,6 +16,26 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-12 (v4.31 / FAZ 2 KESIMI): KANONIK SISTEM ARTIK ORACLE VM.
+  Render 20:47 UTC'de SUSPEND edildi (Serhat), VM ayni gece gercek moda
+  alindi; defter gist'ten BIREBIR dondu (capa: 8 acik, WIN4/LOSS18/
+  EXPIRED4/NOT_FILLED4, -9.65R brut). MOTOR ETKISIZ: engine_sha
+  95f77c06 degismedi, KILIT-2 kesintisiz.
+  KAZA + KURTARMA: VM'nin klonu Faz 1'den kalma v4.28-ONCESIYDI;
+  acilista karar arsivini restore edemedi ve ilk sync gist'teki
+  0_decisions.json'i ezdi (10 Agu vakasinin birebir tekrari). Kod
+  873ac85'e esitlendi; arsiv gist REVIZYONLARINDAN geri toplandi
+  (353 revizyon, 22.500 benzersiz karar - Render'in son halinden bile
+  zengin, cunku revizyonlar Render'in kendi deploy kayiplarini da
+  tutuyordu). Iki kalici ders: (1) tasima runbook'unun ILK adimi hedef
+  kodu main ile esitlemek; (2) surum kiyasi motor + ALTYAPI commit'i
+  birlikte (Faz 1 kriteri yalniz engine_sha bakti, bunu kacirdi).
+  v4.31 duzeltmesi: recent_decisions siralamasi id -> ts_utc (yedek
+  penceresi ekleme sirasina bagisik; kesim gecesi ters-sirali import
+  penceresi en eski dilimi yedekliyordu). Islevsel degisiklikler:
+  deploy modeli artik "main push + VM'de elle pull/restart" (pencere
+  kurali VM restart'ina uygulanir, CLAUDE.md 2.5); "Durum?" uclari
+  SSH tuneliyle http://localhost:8100.
 - 2026-08-12 (v4.30): GO-LIVE KAPISINA ISTATISTIK SARTI (Serhat onayi,
   "evet" 12 Agu). Kaynak: iki-bot karsilastirma raporu Bulgu 7 (bagimsiz
   dogrulandi: net-R sapmasi ~1.1 -> +0.15R esigi 60 islemde ~1 SE;
