@@ -50,6 +50,14 @@ yeni bir bileşen fail-open olacaksa aynı şekilde burada ve config-lock'ta
 gerekçesiyle listelenmek zorundadır.
 
 ### 2.3 Kilit kohortuna dokunma
+**İKİZ DEPO:** bu bot ile `bybit-signal-bot` aynı iskeletten doğdu. Kanıtlı
+mekanizma hatası, ölçüm/muhasebe düzeltmesi veya yeni ölçüm aleti çıktığında
+**ikizde karşılığı açıkça kontrol edilir** ve sonuç `docs/ikiz-depo-notu.md`'ye
+yazılır (bulunmasa bile). Kontrol "okudum, yok" ile kapanmaz; ikizde aynı
+davranışı tetikleyen test yazılır. Gerekçe: retest kusuru burada 8 Ağustos'ta
+düzeltilmişti, bybit'te 12 Ağustos'a kadar canlı kaldı — bakılacak bir yer
+olmadığı için. Açık maddeler (M1–M5) o dosyada.
+
 `docs/config-lock.md` motor parametrelerini kilitler. Kilit döneminde
 strateji/eşik/çıkış **değiştirilemez**. Değiştirmek gerekiyorsa:
 1. Gerekçeyi ölç ve yaz, 2. Serhat'tan onay al, 3. Yeni kilit + yeni
@@ -148,6 +156,8 @@ app/
 docs/
   config-lock.md        KİLİT + tüm karar gerekçeleri (tarihli)
   research-log.md       hipotez kuyruğu + kapanmış sorular
+  ikiz-depo-notu.md     bybit ile ortak kusurlar + açık maddeler (M1-M5); ikizi
+                        bybit-signal-bot/docs/ altında, aynı içerik
 research/               backtest düzeneği (harness, strategies, signif)
 tools/                  jsdom tabanlı pano doğrulayıcıları
 tests/                  davranış testleri (sayı için `pytest --co -q`)

@@ -58,3 +58,22 @@ Format: tarih | fikir | tetikleyen gozlem
   midas'ta karsiligi yok; oysa muhasebemizde tek surumde 4 hata duzeltildi
   (v4.22) - boyle bir denetci onlari deploy'dan ONCE yakalardi. SALT
   OLCUM, motora dokunmaz. SIRA: Faz 2 kesimi oturduktan sonra.
+- 2026-08-12 | Giris bolgesi genisligi RISKE oranlanmali (ATR'ye degil) | dis inceleme, defter olcumu
+  GOZLEM: dolum kurali tetigi bolgenin DIBINE (entry_min) bagliyor ama
+  fiyati TEPESINDEN (entry_max) yaziyor -> islem defterde dogdugu anda
+  bolge genisligi kadar zararda basliyor. 26 dolmus islemde ortalama
+  0.33R pesin zarar (WIN 0.15R / LOSS 0.28R / EXPIRED 1.06R). Net
+  beklenti -0.50R iken acigin ucte ikisi buradan.
+  Mevcut korumalar yakalamiyor: MAX_ENTRY_ZONE_ATR ve
+  WORST_FILL_TP1_R_MIN bolgeyi ATR'ye oranliyor, RISKE oranlamiyor.
+  Stop yapisal oldugunda risk 1.2 ATR'den kucuk olabiliyor ve bolge/risk
+  1.0'i asabiliyor (defterde GM 1.10, V 1.02).
+  CEKINCE: bu gercek strateji kusuru DA olabilir, olcum aracinin fazla
+  kotumser olmasi DA - kodla ayirt edilemez. Ayirt eden tek sey
+  alpaca_mirror (adim 2'de, kapali).
+  KARAR KURALI (simdiden yazildi): kilit-2 kohortu 40 sonuclanan isleme
+  ulastiginda, bolge/risk orani medyanin ustu ve alti karsilastirilir.
+  Ust dilim alt dilimden >= 0.20R kotuyse VE isaret iki yari-donemde
+  ayniysa bolge/risk tavani (oneri 0.25R) motora eklenir. Aksi halde
+  hipotez YANLISLANMIS sayilir ve kayda gecer.
+  Ayrinti: docs/ikiz-depo-notu.md maddesi M3.
