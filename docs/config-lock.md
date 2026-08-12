@@ -16,6 +16,21 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-12 (v4.30): GO-LIVE KAPISINA ISTATISTIK SARTI (Serhat onayi,
+  "evet" 12 Agu). Kaynak: iki-bot karsilastirma raporu Bulgu 7 (bagimsiz
+  dogrulandi: net-R sapmasi ~1.1 -> +0.15R esigi 60 islemde ~1 SE;
+  sanssiz sistemin gecis olasiligi %15-25). Yeni sart: kume-blok
+  bootstrap %95 CI ALT siniri > 0 (yontem ON-KAYITLI:
+  go-live-kriteri.md kosul 4; kod signal_tracker.cluster_bootstrap_ci;
+  rapor golive_status.criteria.ci_low_r; tohum sabit, memo'lu).
+  SINIFLAMA: karar KURALI degisikligi, motor DEGIL - strategies/
+  dokunulmadi, engine_sha sabit, sinyal uretimi/cikisi ayni. Kapiyi
+  yalnizca SIKILASTIRDIGI ve kohortta henuz cok az sonuclanan islem
+  oldugu icin KILIT-2 SAYACI SIFIRLANMADI (v3.8/v3.10 emsali). Ayni
+  raporun diger midas bulgulari: dolum kurali bilincli/belgeli
+  muhafazakar tercih (2 Agu notu) - DOKUNULMADI, hukmu Alpaca aynasi
+  verecek (adim 3 anahtar bekliyor); rejim maliyeti olcumu + bagimsiz
+  sonuc denetcisi ideas.md kuyruguna.
 - 2026-08-08 (v4.24): AYNA ADIM 2 + KOTA KORUMASI + CI-GATED DEPLOY
   ISKELETI - motor/kohort etkisiz (strategies/ degismedi, engine_sha
   sabit, KILIT-2 kohortu kesintisiz).

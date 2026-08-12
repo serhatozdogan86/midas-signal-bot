@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+import random
 from datetime import datetime, timedelta, timezone
 
 from app.logging_setup import kv
@@ -319,6 +321,70 @@ class SignalTracker:
         return {"clusters": len(counts), "decided": total,
                 "max_cluster_share": (round(max(counts) / total, 3)
                                       if total else None)}
+
+    def cluster_bootstrap_ci(self, since_utc: str | None = None,
+                             n_boot: int = 10000, alpha: float = 0.05,
+                             seed: int = 20260812) -> dict:
+        """Islem basina NET beklentinin kume-blok bootstrap guven araligi.
+
+        v4.30 (12 Agu 2026, iki-bot karsilastirma raporu Bulgu 7, Serhat
+        onayi): defterin islem basina net-R sapmasi ~1.1 iken +0.15R
+        go-live esigi 60 islemde ~1 standart hataya denk geliyordu -
+        HIC ustunlugu olmayan bir sistem kapiyi %15-25 ihtimalle
+        gecebilirdi. Yeni sart (CI alt siniri > 0) bu tesadufu keser.
+
+        Kume BLOK olarak orneklenir (ayni gun+yon sinyalleri bagimsiz
+        degildir - cluster_stats'taki konsey gerekcesinin aynisi): her
+        turda k kumeden k kume IADELI cekilir, istatistik = cekilen tum
+        islemlerin net-R ortalamasi. Tohum SABITTIR: ayni defter her
+        cagrida ayni araligi verir (go-live karari tekrarlanabilir olmali,
+        'sansli tohum' tartismasi acilmamali). Sonuc defter degismedikce
+        memo'dan doner (pano/diag her cagrida 10k tur kosturmasin -
+        'agir isi tick icinde kosturma' dersi)."""
+        q = ("SELECT id,cluster_id,entry_min,entry_max,fill_price,"
+             "stop_loss,r_multiple FROM signals WHERE status='CLOSED' "
+             "AND blocked=0 AND r_multiple IS NOT NULL "
+             "AND outcome IN ('WIN','LOSS','EXPIRED')")
+        args: tuple = ()
+        if since_utc:
+            q += " AND created_utc>=?"
+            args = (since_utc,)
+        groups: dict[str, list[float]] = {}
+        for r in self._db.query(q, args):
+            # cluster_id'siz eski satir kendi basina kume sayilir (tekil blok)
+            key = r["cluster_id"] or f"row-{r['id']}"
+            net = r["r_multiple"] - (self.cost_r(r) or 0.0)
+            groups.setdefault(key, []).append(net)
+        blocks = [(sum(v), len(v)) for v in groups.values()]
+        k = len(blocks)
+        n = sum(b[1] for b in blocks)
+        out = {"trades": n, "clusters": k, "ci_low": None, "ci_high": None,
+               "n_boot": n_boot, "alpha": alpha}
+        if k < 2:          # tek kumeyle aralik tanimsiz -> None (fail-closed)
+            return out
+        total_net = sum(b[0] for b in blocks)
+        memo_key = (since_utc, k, n, round(total_net, 6),
+                    n_boot, alpha, seed)
+        if getattr(self, "_ci_memo_key", None) == memo_key:
+            return dict(self._ci_memo_val)
+        rng = random.Random(seed)
+        means = []
+        for _ in range(n_boot):
+            tot = 0.0
+            cnt = 0
+            for _ in range(k):
+                s_, n_ = blocks[rng.randrange(k)]
+                tot += s_
+                cnt += n_
+            means.append(tot / cnt)
+        means.sort()
+        lo_i = max(0, int(math.floor(alpha / 2 * n_boot)))
+        hi_i = min(n_boot - 1, int(math.ceil((1 - alpha / 2) * n_boot)) - 1)
+        out["ci_low"] = round(means[lo_i], 3)
+        out["ci_high"] = round(means[hi_i], 3)
+        self._ci_memo_key = memo_key
+        self._ci_memo_val = dict(out)
+        return out
 
     def phase_breakdown(self, since_utc: str | None = None) -> list[dict]:
         """Sonuclanan islemlerin SEANS FAZINA gore dokumu (2 Agu ozelligi).

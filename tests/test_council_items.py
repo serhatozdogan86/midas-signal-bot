@@ -202,7 +202,13 @@ def test_golive_status_progress(tmp_path):
     dd = g["criteria"]["max_dd_r"]["now"]
     assert 1.0 < dd < 1.3
     assert g["criteria"]["clusters"]["now"] == 3        # uc ayri kume
-    assert g["met"] is True
+    # v4.30: istatistik sarti eklendi. Bu 3 islemlik karisik defterde
+    # (biri kayip) CI alt siniri sifirin ALTINDADIR -> kapi artik dogru
+    # olarak KAPALI. v4.30 oncesi kod burada met=True derdi; yeni sartin
+    # tam gorevi bu kucuk-orneklem sansini kesmek (go-live-kriteri.md #4).
+    assert g["criteria"]["ci_low_r"]["now"] < 0
+    assert g["criteria"]["ci_low_r"]["ok"] is False
+    assert g["met"] is False
     assert "Go-live kriteri" in sched.build_eod_extras()
 
 

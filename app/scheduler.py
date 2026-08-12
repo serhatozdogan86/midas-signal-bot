@@ -964,6 +964,10 @@ class Scheduler:
             "expectancy_r": {"min": s.GOLIVE_MIN_EXPECTANCY_R, "now": None,
                              "ok": False},
             "max_dd_r": {"max": s.GOLIVE_MAX_DD_R, "now": None, "ok": True},
+            # v4.30 istatistik sarti: kanit kriteri oldugu icin ok=False
+            # baslar (veri yokken kapi ACIK sayilmaz - fail-closed)
+            "ci_low_r": {"min_exclusive": s.GOLIVE_CI_MIN_LOW_R,
+                         "now": None, "ok": False},
         }, "met": False}
         if self._tracker is None:
             return out
@@ -991,6 +995,18 @@ class Scheduler:
             dd = self._tracker.max_drawdown_r(since_utc=lock)
             c["max_dd_r"]["now"] = dd
             c["max_dd_r"]["ok"] = dd <= s.GOLIVE_MAX_DD_R
+            # v4.30: kume-blok bootstrap CI alt siniri > 0 sarti (Bulgu 7;
+            # yontem ve gerekce go-live-kriteri.md'de ON-KAYITLI). Aralik
+            # hesaplanamiyorsa (kume < 2) ok=False kalir - "veri yok" ile
+            # "engel yok" ayni sey degildir (CLAUDE.md 2.2).
+            ci = self._tracker.cluster_bootstrap_ci(
+                since_utc=lock, n_boot=s.GOLIVE_CI_BOOT_N,
+                alpha=s.GOLIVE_CI_ALPHA)
+            c["ci_low_r"]["now"] = ci["ci_low"]
+            c["ci_low_r"]["ci_high"] = ci["ci_high"]
+            c["ci_low_r"]["clusters"] = ci["clusters"]
+            c["ci_low_r"]["ok"] = (ci["ci_low"] is not None
+                                   and ci["ci_low"] > s.GOLIVE_CI_MIN_LOW_R)
             out["met"] = all(v["ok"] for v in c.values())
         except Exception:
             log.exception(kv(event="golive_status_error"))
@@ -1081,13 +1097,15 @@ class Scheduler:
             g = self.golive_status()
             c = g["criteria"]
             exp = c["expectancy_r"]["now"]
+            cil = c["ci_low_r"]["now"]           # v4.30 istatistik sarti
             lines.append(
                 f"Go-live kriteri: {c['decided']['now']}/{c['decided']['min']} "
                 f"sonuclanan | beklenti "
                 f"{exp if exp is not None else '-'}R"
                 f"/{c['expectancy_r']['min']}R | maksDD "
                 f"{c['max_dd_r']['now'] if c['max_dd_r']['now'] is not None else '-'}R"
-                f"/{c['max_dd_r']['max']}R -> "
+                f"/{c['max_dd_r']['max']}R | CI alt "
+                f"{cil if cil is not None else '-'}R (>0 sart) -> "
                 f"{'KARSILANDI' if g['met'] else 'henuz degil'}")
         except Exception:
             log.exception(kv(event="eod_golive_error"))

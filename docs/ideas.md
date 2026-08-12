@@ -42,3 +42,19 @@ Format: tarih | fikir | tetikleyen gozlem
   azaltabilir. Yani "kesin dogru" degil, BAGIMSIZ IKINCI GORUS olarak okunacak.
   BEKLEMENIN MALIYETI: eslestirilmis veri gerekiyor - bu arada kapanan her
   sinyal bir kiyas firsati olarak kayboluyor.
+- 2026-08-12 | REJIM FILTRESININ BEDELI OLCULMUYOR | iki-bot raporu Bulgu 2
+  Rejim filtresi boru hattinda 2. sirada SERT keser - plan hic kurulmadigi
+  icin "bu kapi koruyor mu, firsat mi kaciriyor" olculemiyor. bybit'te ayni
+  kapi hattin SONUNDA: engellenen sinyal tam plan uretip ayri deftere
+  yaziliyor. Ayni prensip midas'ta baska korumalar icin zaten var
+  (blocked=3 kill-switch, blocked=5 hipotez). FIKIR: rejim reddi icin de
+  golge plan uret (yeni blocked sinifi, SALT OLCUM, karara girmez ->
+  kohort sifirlanmaz). MALIYET: reddedilen gunlerde tam boru hatti
+  kosturulur - islem yuku olculmeli (agir-is-tick dersi).
+- 2026-08-12 | BAGIMSIZ SONUC DENETCISI (bybit'ten tasima) | iki-bot raporu Bulgu 10
+  bybit'te sonuclar mumlardan SIFIRDAN, ayri bir uygulamayla yeniden
+  turetilip kayitla kiyaslaniyor (291 kayit, 0 uyusmazlik). Gerekcesi:
+  "kendi dongusunu tekrar kullanan denetim, o dongudeki hatayi goremez."
+  midas'ta karsiligi yok; oysa muhasebemizde tek surumde 4 hata duzeltildi
+  (v4.22) - boyle bir denetci onlari deploy'dan ONCE yakalardi. SALT
+  OLCUM, motora dokunmaz. SIRA: Faz 2 kesimi oturduktan sonra.

@@ -135,6 +135,14 @@ class Settings(BaseSettings):
     GOLIVE_MAX_CLUSTER_SHARE: float = 0.25  # tek kumenin toplam icindeki payi       # min. sonuclanmis islem
     GOLIVE_MIN_EXPECTANCY_R: float = 0.15   # min. beklenti (R/islem)
     GOLIVE_MAX_DD_R: float = 8.0       # kumulatif R'de maks. dusus      # 15 dk kaba tarama
+    # v4.30 (12 Agu 2026, Bulgu 7 - Serhat onayi): ISTATISTIK SARTI.
+    # +0.15R esigi 60 islemde ~1 standart hata; sanssiz bir sistemin
+    # kapiyi gecme olasiligi %15-25 idi. Kume-blok bootstrap guven
+    # araliginin ALT siniri > 0 olmali. Kapiyi YALNIZ sikilastirir;
+    # motor degismedi, sayac sifirlanmadi (go-live-kriteri.md).
+    GOLIVE_CI_MIN_LOW_R: float = 0.0   # CI alt siniri bunun USTUNDE olmali
+    GOLIVE_CI_BOOT_N: int = 10000      # bootstrap tur sayisi
+    GOLIVE_CI_ALPHA: float = 0.05      # %95 guven araligi
     FINE_SCAN_INTERVAL_SEC: int = 60         # Phase 2 (rezerve)
     WATCHLIST_MAX: int = 40
     PREP_LEAD_MIN: int = 45                  # acilistan once hazirlik (08:45 ET ~ 15:45 TR)

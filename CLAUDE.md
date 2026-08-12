@@ -61,7 +61,8 @@ veriyi çöpe atar.
 onlar kazanır. İki AYRI karar vardır, karıştırma:
 1. **Go-live kararı** (gölge → gerçek para): ≥60 sonuçlanan işlem VE ≥25
    küme VE tek kümenin payı ≤%25 VE net beklenti ≥ +0.15R VE maks düşüş
-   ≤ 8R (beşli VE; ayrıntı go-live-kriteri.md).
+   ≤ 8R VE küme-blok bootstrap %95 GA alt sınırı > 0 (altılı VE;
+   istatistik şartı 12 Ağu, ayrıntı go-live-kriteri.md).
 2. **Çıkış varyantı kararı** (V0 → V1/V2/V3): kohort 60 işlem / 25 kümeye
    ulaşınca; varyant hem toplam net-R hem beklenti olarak V0'ı geçmeli
    VE işaret iki yarı-dönemde tutarlı olmalı (config-lock.md v3.19).

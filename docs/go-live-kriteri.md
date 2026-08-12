@@ -7,7 +7,7 @@
 > serbesttir ama **ancak bu dosyada gerekcesiyle not dusulerek** - sessiz
 > esik oynatmak kriterin varlik nedenini bozar.
 
-## Kosullar (besli VE) - 2 Agu 2026 konsey revizyonu
+## Kosullar (altili VE) - 2 Agu 2026 konsey + 12 Agu 2026 istatistik revizyonu
 1. **Orneklem:** >= 60 sonuclanmis golge islem (WIN/LOSS/EXPIRED;
    NOT_FILLED ve AMBIGUOUS sayilmaz).
 1b. **Bagimsizlik:** >= 25 farkli kume (cluster_id = yon+gun) VE hicbir
@@ -17,6 +17,21 @@
    gozleme denk geliyordu. Ham sayi tek basina yaniltici.
 2. **Beklenti:** ortalama >= +0.15R / islem (toplam R / sonuclanan).
 3. **Dayaniklilik:** kumulatif R egrisinde maksimum dusus <= 8R.
+4. **Istatistik (12 Agu 2026, ON-KAYIT; Serhat onayi):** islem basina NET
+   beklentinin kume-blok bootstrap guven araliginin ALT siniri > 0 olmali.
+   YONTEM (onceden sabit, sonuca bakip degistirilemez): kumeler
+   (cluster_id) BLOK olarak iadeli orneklenir, her turda k kumeden k kume
+   cekilir, istatistik = cekilen islemlerin net-R ortalamasi; 10.000 tur,
+   %95 guven (percentil), tohum SABIT (tekrarlanabilirlik). Kod:
+   `signal_tracker.cluster_bootstrap_ci`, esikler settings
+   (`GOLIVE_CI_*`), rapor `golive_status.criteria.ci_low_r`.
+   GEREKCE (iki-bot karsilastirma raporu Bulgu 7, bagimsiz dogrulandi):
+   defterde islem basina net-R sapmasi ~1.1 iken +0.15R esigi 60 islemde
+   ~1 standart hataya esit; hic ustunlugu olmayan bir sistemin kapiyi
+   gecme olasiligi ~%15 (islem bazinda) - %25 (kume bazinda) idi. Bu sart
+   o tesadufu keser. Kapiyi YALNIZCA SIKILASTIRIR ve motora dokunmaz;
+   bu nedenle KILIT-2 sayaci SIFIRLANMADI (v3.8/v3.10 ile ayni bilincli
+   zamanlama: kohortta henuz cok az sonuclanan islem varken eklendi).
 
 ## Ek ilkeler
 - Ilerleme her gun sonu raporunda ve nabizda otomatik yayimlanir
