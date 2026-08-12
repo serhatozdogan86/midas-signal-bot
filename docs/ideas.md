@@ -58,6 +58,15 @@ Format: tarih | fikir | tetikleyen gozlem
   midas'ta karsiligi yok; oysa muhasebemizde tek surumde 4 hata duzeltildi
   (v4.22) - boyle bir denetci onlari deploy'dan ONCE yakalardi. SALT
   OLCUM, motora dokunmaz. SIRA: Faz 2 kesimi oturduktan sonra.
+- 2026-08-12 | Bilanco takvimi restart'ta DB'den donsun | kesim gecesi gozlemi
+  EarningsService takvimi yalniz BELLEKTE tutuyor; her restart sonrasi
+  periyodik dongu yeniden cekene kadar (~1-4 dk) motor fail-closed
+  (dogru yonde guvenli ama /audit o pencerede 12/13 gosterir; seans ici
+  kritik-fix restart'inda 1-4 dk sinyal uretilmez). Tuzak tablosundaki
+  "turetilmis veriyi bellekte tutmak" dersinin takvim bicimi. FIKIR:
+  takvimi meta/DB'ye yaz, acilista oradan tohumla (bayatlik siniri
+  _STALE_SEC zaten var, fail-closed korunur). Motor disi kucuk is;
+  sirasi ayna adim 3'ten sonra.
 - 2026-08-12 | Giris bolgesi genisligi RISKE oranlanmali (ATR'ye degil) | dis inceleme, defter olcumu
   GOZLEM: dolum kurali tetigi bolgenin DIBINE (entry_min) bagliyor ama
   fiyati TEPESINDEN (entry_max) yaziyor -> islem defterde dogdugu anda

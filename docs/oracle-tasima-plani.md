@@ -12,6 +12,11 @@
 > DERS (kesim gecesi, kaliciligi icin): bir sonraki her tasimada ILK adim
 > hedef makinenin kodunu main ile ESITLEMEK; dogrulama kiyaslari motor
 > (engine_sha) + ALTYAPI (commit) sürümünü BIRLIKTE karsilastirmali.
+> DERS 2 (a7a2426 pull'unda yasandi): VM'de git komutlarini SUDO ile
+> kosturma - root sahipli .git/objects klasorleri birikir ve sonraki
+> normal pull "insufficient permission" ile kirilir. Kesim gecesi
+> `sudo chown -R ubuntu:ubuntu /opt/midas-signal-bot/.git` ile
+> temizlendi; kural: clone sonrasi TUM git islemleri ubuntu kullanicisi.
 
 ## Faz 0 - Envanter (10 dk, GO/NO-GO kapisi)
 
