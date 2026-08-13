@@ -158,7 +158,7 @@ app/
     signal_tracker.py   gölge defter (dolum/çıkış/R muhasebesi)
     exit_lab.py         KATMAN 1: aynı sinyal, 4 farklı çıkış (V0-V3)
     strategy_lab.py     KATMAN 2: 5 aday giriş stratejisi (S1-S5)
-    self_audit.py       öz-denetim (13 değişmez)
+    self_audit.py       öz-denetim (15 değişmez)
     earnings_service.py bilanço takvimi (Finnhub + yfinance yedek)
     universe.py         Midas scrape + likidite filtresi
     gist_backup.py      GitHub Gist yedekleme/geri yükleme

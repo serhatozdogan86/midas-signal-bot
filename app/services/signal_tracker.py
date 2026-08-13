@@ -460,6 +460,38 @@ class SignalTracker:
             if candles:
                 self._evaluate_signal(sig, candles)
 
+    @staticmethod
+    def _ts_date(ts) -> str:
+        """Epoch (ms veya s) -> 'YYYY-MM-DD' (UTC). time_stop_date kiyasi."""
+        try:
+            v = float(ts)
+            if v > 1e12:                       # milisaniye
+                v /= 1000.0
+            return datetime.fromtimestamp(v, tz=timezone.utc).strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            return ""
+
+    def close_expired_pending(self, today: str | None = None) -> int:
+        """Suresi gecmis PENDING'leri MUM GEREKMEDEN kapat (v4.32).
+
+        VAKA (13 Agu, DAL/UAL): iki sinyal gunluk filtrelerden dustugu icin
+        1h mumlari hic cekilmiyordu; fill_window sayaci mum listesi indeksi
+        oldugu icin mum gelmeyince NOT_FILLED asla yazilmadi ve iki kayit
+        time_stop'tan 9 gun sonra bile 10'luk tavandan slot yedi. Bu supurme
+        fiyat gerektirmez (NOT_FILLED'in R'si yok) - mum akisi tamamen kesik
+        olsa da calisir. Mumlu dogru degerlendirme her zaman onceliklidir:
+        scheduler bunu tarama SONUNDA cagirir (orphan yolu once mum cekip
+        gercek sonucu yazma sansini kullanir)."""
+        today = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = self._db.query(
+            "SELECT id, symbol FROM signals WHERE status='PENDING' "
+            "AND time_stop_date IS NOT NULL AND time_stop_date < ?", (today,))
+        for r in rows:
+            self._close(r["id"], "NOT_FILLED", None, 0.0)
+            log.info(kv(event="stale_pending_closed", id=r["id"],
+                        symbol=r["symbol"]))
+        return len(rows)
+
     def _evaluate_signal(self, sig: dict, candles: list[dict]) -> None:
         is_long = sig["direction"] == Direction.LONG.value
         fill_price = sig["fill_price"]
@@ -479,6 +511,16 @@ class SignalTracker:
             just_filled = False
             # --- 1) fill kontrolu ---
             if fill_price is None:
+                # v4.32 ZAMAN CAPASI (13 Agu DAL/UAL vakasi): fill_window
+                # mum-listesi INDEKSI oldugu icin mum akisi kesilip haftalar
+                # sonra toptan gelirse pencere fiilen kayardi - giris
+                # bolgesine time_stop'tan SONRAKI barda degen sinyal dolmus
+                # sayilirdi. Dolum yalniz time_stop_date'e kadarki barlarda
+                # tetiklenebilir; sonrasi mumla da olsa NOT_FILLED'dir.
+                tsd = sig.get("time_stop_date")
+                if tsd and self._ts_date(c["ts"]) > tsd:
+                    self._close(sig["id"], "NOT_FILLED", None, 0.0)
+                    return
                 # 2 Agu duzeltmesi (konsey 5/5: "%100 dolum iyimserligi"):
                 # Bolgenin yakin ucuna BIR TICK dokunmak dolum saymaz.
                 # Emirler MANUEL giriliyor (Telegram -> Midas, 30-60 sn

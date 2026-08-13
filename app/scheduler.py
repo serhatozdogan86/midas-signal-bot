@@ -500,7 +500,20 @@ class Scheduler:
                         reason=d.reject_reason or d.setup_type.value))
 
         if self._tracker is not None:
-            self._evaluate_orphans(set(pass1.keys()))
+            # v4.32 (DAL/UAL vakasi): yetim tanimi "taranmayan" degil "bu
+            # turda 1h VERISI GELMEYEN". Eski tanim (pass1.keys) evrende
+            # olup gunluk filtrede elenen acik-sinyalli sembolleri
+            # kacirdi - taraniyorlardi ama 1h mumlari hic cekilmiyordu,
+            # degerlendirme bos donuyordu (DAL/UAL 9 gun zombi kaldi).
+            self._evaluate_orphans(set(hourly.keys()))
+            # Son emniyet: mumsuz kalan suresi-gecmis PENDING'ler kapatilir
+            # (orphan yolu ONCE kostu - mum geldiyse gercek sonuc yazildi).
+            try:
+                n_stale = self._tracker.close_expired_pending()
+                if n_stale:
+                    log.info(kv(event="stale_pending_sweep", n=n_stale))
+            except Exception:
+                log.exception(kv(event="stale_pending_sweep_error"))
         self._watchlist = watch[: self._settings.WATCHLIST_MAX]
         self._store.record_scan(
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -513,7 +526,11 @@ class Scheduler:
             "hourly_candidates": len(candidates),
             "hourly_received": len(hourly),
             "daily_cached": len(daily),
-            "watchlist": len(watch),
+            # v4.32: "watchlist" SERVIS EDILEN (tavanli) listedir; ham aday
+            # sayisi ayri alanda (dun 43/40 karisikligi - iki sayi tek ada
+            # sikismisti, panoda tavan ustu sayi gorunuyordu)
+            "watchlist": len(self._watchlist),
+            "watchlist_raw": len(watch),
         }
         if self._commentary is not None:
             self._commentary.maybe_generate(self._regime.regime.value)

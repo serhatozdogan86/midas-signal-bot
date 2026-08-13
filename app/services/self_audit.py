@@ -167,6 +167,42 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
                 f"{len(dup)} sembol/yon ciftinde birden fazla acik kayit"
                 if dup else "yok",
                 "Dedup mantigi bozulmus olabilir (3 Agu cift kayit vakasi)")
+
+            # 14. degismez (v4.32, DAL/UAL vakasi): ZOMBI PENDING - suresi
+            # gecmis ama hala acik kayit. Iki sinyal time_stop'tan 9 gun
+            # sonra bile tavandan slot yedi ve 13/13 temiz goruduk; bu
+            # kontrol o sinifi bir daha sessiz birakmaz.
+            from datetime import datetime as _dt, timezone as _tz
+            today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+            zmb = db.query_one(
+                "SELECT COUNT(*) AS n FROM signals WHERE status='PENDING' "
+                "AND time_stop_date IS NOT NULL AND time_stop_date < ?",
+                (today,))
+            add("zombi PENDING", "DEFTER", (zmb or {}).get("n", 0) == 0,
+                f"suresi gecmis acik kayit: {(zmb or {}).get('n', '?')}",
+                "close_expired_pending supurmesi calismiyor olabilir; "
+                "scheduler tarama-sonu blogunu incele")
+
+            # 15. degismez (v4.32): ACIK SINYAL MUM TAZELIGI - acik
+            # (blocked=0) sinyalli sembolun 1h arsivi 4 gunden eskiyse
+            # degerlendirme fiilen kor demektir (DAL/UAL'de 16 gundu).
+            # 4 gun: normal hafta sonu (~2.5g) + tatil payi; yanlis alarm
+            # ucuza kacinilir (alarm gurultusu dersi).
+            cutoff_ms = (time.time() - 4 * 86400) * 1000
+            fresh_rows = db.query(
+                "SELECT s.symbol, MAX(c.ts) AS mx FROM signals s "
+                "LEFT JOIN candles c ON c.symbol=s.symbol AND c.interval='1h' "
+                "WHERE s.status!='CLOSED' AND s.blocked=0 GROUP BY s.symbol")
+            stale_syms = [r["symbol"] for r in fresh_rows
+                          if not r.get("mx")
+                          or (r["mx"] if r["mx"] > 1e12 else r["mx"] * 1000)
+                          < cutoff_ms]
+            add("acik sinyal mum tazeligi", "DEFTER", not stale_syms,
+                f"1h arsivi bayat/yok: {', '.join(sorted(stale_syms))}"
+                if stale_syms else
+                f"{len(fresh_rows)} acik sembolun arsivi taze",
+                "Yetim degerlendirme yolu (hourly.keys) bu sembolleri "
+                "kacirmis olabilir; _evaluate_orphans ve veri akisina bak")
         except Exception as e:
             add("defter kontrolleri", "DEFTER", False, f"okunamadi: {e!r}")
 

@@ -16,6 +16,46 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-13 (v4.32): DAL/UAL ZOMBI VAKASI + AYNA ADIM 3 + SAPMA
+  ESIKLERI ON-KAYDI.
+  (A) ZOMBI PENDING DUZELTMESI (yerel oturum teshisi, olculdu): gunluk
+  filtrelerden dusen acik-sinyalli sembollerin 1h mumu hic cekilmiyordu;
+  fill_window mum-listesi INDEKSI oldugu icin mum gelmeyince NOT_FILLED
+  asla yazilmadi (DAL/UAL 9 gun zombi, tavandan 2 slot). Uc katman:
+  (1) zaman capasi - dolum yalniz time_stop_date'e kadarki barlarda
+  tetiklenebilir (mum akisi kesilip toptan gelirse sahte gec dolum
+  olmaz; mum varsa GERCEK sonuc yine mumdan yazilir), (2) yetim tanimi
+  "taranmayan" -> "1h verisi gelmeyen" (hourly.keys), (3) tarama sonu
+  mumsuz supurme close_expired_pending. Oz-denetime 2 yeni degismez
+  (14 zombi PENDING, 15 acik-sinyal mum tazeligi; toplam 15). Olcum/
+  defter katmani - motor degismedi, engine_sha sabit, KILIT-2 surer.
+  DAL/UAL bu deploy'un ilk taramasinda mumlariyla degerlendirilir;
+  mum gelmezse supurme NOT_FILLED yazar. Ayrica watchlist raporu:
+  servis edilen (tavanli) sayi "watchlist", ham aday "watchlist_raw".
+  (B) AYNA ADIM 3 (Serhat onayi 12-13 Agu): canli KAGIT istemcisi
+  (integrations/alpaca_paper_client.py). Ince transkripsiyon; 'paper'
+  gecmeyen adres kurulusta REDDEDILIR (gercek para kapisi degildir).
+  Bracket kesirli adet almaz -> qty tam sayi (min 1; olcum dolum
+  orani/fiyati pesindedir). VM env: ALPACA_MIRROR_ENABLED=true +
+  yeni anahtar cifti (eski cift 13 Agu'da sizinti suphesiyle emekli).
+  (C) SAPMA ESIKLERI - OLCUM BASLAMADAN ILAN (Serhat onayi 13 Agu,
+  "iki kademeli tek kural"):
+    - HAM FARK HER ZAMAN KAYITTA: dolum orani farki + ortalama dolum
+      fiyati farki (R) surekli olculur, esiksiz raporlanir.
+    - KADEME 1 IZLEME NOTU (eylemsiz): |dolum orani farki| >= %10
+      VEYA |ort. fiyat farki| >= 0.08R -> panoda isaret; karar yok.
+    - KADEME 2 KARAR TETIGI (CIFT YONLU): >= 20 eslesmis sinyal VE
+      >= 2 hafta olcum sartiyla |dolum orani farki| >= %20 VEYA
+      |ort. fiyat farki| >= 0.15R -> KARAR TOPLANTISI acilir (otomatik
+      hicbir esik/parametre degismez; config-lock sureci isler).
+    - ISTISNA: mekanizma ARIZASI (emir gitmiyor, hep reddediliyor vb.)
+      esik/sure beklemez, hemen duzeltilir; sabir kurali yalniz SONUC
+      yorumuna uygulanir.
+    Gerekce: 0.15R = go-live beklenti esigiyle ayni buyukluk (olcum
+    yanligi o boyuttaysa go-live kararini cevirebilir); %20 = 20
+    sinyallik orneklemde gurultuden ayrisma siniri. Kademe-1/2 raporu
+    (mirror.metrics) bir sonraki kucuk surumde panoya eklenecek -
+    esikler ISTE BU YUZDEN simdi, veri gorulmeden yazildi.
 - 2026-08-12 (v4.31 / FAZ 2 KESIMI): KANONIK SISTEM ARTIK ORACLE VM.
   Render 20:47 UTC'de SUSPEND edildi (Serhat), VM ayni gece gercek moda
   alindi; defter gist'ten BIREBIR dondu (capa: 8 acik, WIN4/LOSS18/
