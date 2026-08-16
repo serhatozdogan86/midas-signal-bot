@@ -16,7 +16,11 @@ Sorumluluklar:
 4. stats() ile basari orani / toplam R hesabi.
 
 Varsayimlar (golge muhasebesi - muhafazakar, dokumante):
-- Fill fiyati: LONG'da entry_max, SHORT'ta entry_min (bolgenin ilk degen kenari).
+- Dolum (2 Agu sikilastirmasi): bolgeye dokunmak YETMEZ, fiyat bolgeyi
+  TAMAMEN katetmeli (LONG: low <= entry_min); fiyat ise KOTU uctan yazilir
+  (LONG entry_max, SHORT entry_min). Ikisi birlikte bilincli ALT SINIRDIR.
+  (M5 duzeltmesi 17 Agu: eski cumle "bolgenin ilk degen kenari" diyordu -
+  o bybit'in davranisidir, bizim degil; belge kodla celisiyordu.)
 - Ayni mumda hem stop hem TP kesilirse sira bilinemez -> AMBIGUOUS, orana dahil edilmez.
 - Tahmini olcumdur; gercek emir doldurma/spread/slippage icermez.
 """

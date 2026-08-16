@@ -33,8 +33,16 @@ if ! "$VENV/python" -m pytest -q; then
 fi
 
 # 4) Restart + saglik kontrolu
+# v4.34 (16 Agu yanlis alarmi): acilis 5 sn'den uzun surebiliyor (gist
+# restore + takvim). Tek atis yerine 30 sn'ye kadar 3'er sn arayla dene;
+# gercek cokusle yavas acilis ayrismis olur.
 sudo systemctl restart midas-signal-bot
-sleep 5
-curl -sf "http://127.0.0.1:${PORT:-8100}/healthz" >/dev/null \
-    && echo "OK: deploy tamam, servis saglikli." \
-    || { echo "RED: healthz cevap vermiyor! journalctl -u midas-signal-bot -n 50"; exit 1; }
+for i in $(seq 1 10); do
+    sleep 3
+    if curl -sf "http://127.0.0.1:${PORT:-8100}/healthz" >/dev/null; then
+        echo "OK: deploy tamam, servis saglikli (${i}. denemede, ~$((i*3)) sn)."
+        exit 0
+    fi
+done
+echo "RED: healthz 30 sn'de cevap vermedi! journalctl -u midas-signal-bot -n 50"
+exit 1

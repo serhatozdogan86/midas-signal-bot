@@ -10,4 +10,8 @@ __pycache__/
 # Calisma zamani verisi
 data/bot.db
 data/universe_cache.json
-ops/oracle/midas.env
+# v4.34: yalniz midas.env degil, her turevi (yedek/kopya) de dislanir.
+# 17 Agu vakasi: calisma agacinda kalan midas.env.yedek-* dosyasi
+# .gitignore kapsaminda degildi; tek bir 'git add -A' sirlari depoya
+# tasiyabilirdi. Kural 2.7: sirlarin evi TEK, kopyasi commit'lenemez.
+ops/oracle/midas.env*
