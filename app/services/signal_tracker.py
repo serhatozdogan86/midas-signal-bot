@@ -689,7 +689,13 @@ class SignalTracker:
             "FROM signals WHERE blocked=0 ORDER BY id DESC LIMIT ?",
             (limit,))
         for r in rows:                       # net-R (referans boy) rapora
-            if r.get("r_multiple") is not None:
+            # v4.33 (16 Agu gozlemi): maliyet yalniz GERCEKLESEN isleme
+            # yazilir. NOT_FILLED'de emir dolmamistir - komisyon/kayma
+            # dogmaz; eski hal dolmayan kayda da -0.08R gosterip net
+            # goruntuyu sistematik asagi cekiyordu (muhasebe degil rapor
+            # katmani: net_totals zaten WIN/LOSS/EXPIRED filtreliydi).
+            if (r.get("r_multiple") is not None
+                    and r.get("outcome") in ("WIN", "LOSS", "EXPIRED")):
                 c = self.cost_r(r)
                 if c is not None:
                     r["cost_r"] = c

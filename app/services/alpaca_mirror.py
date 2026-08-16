@@ -169,6 +169,20 @@ class AlpacaMirror:
                 (int(row["id"]),))
             if m is None or m["alpaca_status"] != "INTENT":
                 continue
+            # v4.33 (14 Agu DE/JNJ gozlemi): dolum penceresi COKTAN gecmis
+            # sinyale emir GONDERILMEZ - ayna hayata ortadan katildiysa bu
+            # bir olcum cifti degil kurulus artefaktidir; emir zaten bir
+            # sonraki tick'te WINDOW iptali yerdi ve metrigi kirletirdi.
+            # LATE_ONBOARD kaydi metrics()'ten DISLANIR.
+            if self._bars_since(row["symbol"],
+                                row.get("entry_candle_ts")) >= self._fill_window:
+                self._db.execute(
+                    "UPDATE mirror_fills SET alpaca_status='CANCELLED', "
+                    "closed_reason='LATE_ONBOARD' WHERE signal_id=?",
+                    (int(row["id"]),))
+                log.info(kv(event="mirror_late_onboard",
+                            symbol=row["symbol"]))
+                continue
             try:
                 is_long = row["direction"] == "LONG"
                 # limit = KOTU uc (LONG entry_max / SHORT entry_min):
@@ -254,15 +268,94 @@ class AlpacaMirror:
                 "closed_reason='TIME' WHERE id=?",
                 (res.get("price"), res.get("ts"), m["id"]))
 
+    def metrics(self) -> dict:
+        """HAM FARK olcumleri (v4.33) - sapma esikleri on-kaydinin
+        (config-lock v4.32-C, Serhat onayi 13 Agu) gosterge yarisi.
+
+        ESLESMIS CIFT tanimi: ayna emri sinyalin DOGUMUNDA gonderilmis
+        (LATE_ONBOARD haric) VE iki taraf da dolum sorusunu karara
+        baglamis. Ham degerler her zaman raporlanir; kademe yalniz
+        ISARETTIR - hicbir esik/parametre otomatik degismez.
+          kademe 0: fark izleme sinirlarinin altinda
+          kademe 1 (izleme notu, eylemsiz): |oran farki|>=0.10 veya
+                    |ort. fiyat farki|>=0.08R
+          kademe 2 (karar tetigi): >=20 cift VE >=14 gun VE
+                    (|oran farki|>=0.20 veya |ort. fiyat farki|>=0.15R)
+                    -> karar toplantisi acilir (config-lock sureci)."""
+        rows = self._db.query(
+            "SELECT m.alpaca_status, m.alpaca_fill_price, m.created_utc, "
+            "s.fill_price, s.stop_loss, s.status, s.outcome, s.direction "
+            "FROM mirror_fills m JOIN signals s ON s.id=m.signal_id "
+            "WHERE COALESCE(m.closed_reason,'') != 'LATE_ONBOARD'")
+        pairs = []
+        for r in rows:
+            mirror_decided = r["alpaca_status"] in ("FILLED", "CLOSED",
+                                                    "CANCELLED")
+            ledger_filled = r["fill_price"] is not None
+            ledger_decided = ledger_filled or (
+                r["status"] == "CLOSED" and r["outcome"] == "NOT_FILLED")
+            if mirror_decided and ledger_decided:
+                pairs.append(r)
+        n = len(pairs)
+        out = {"matched": n, "ledger_fill_rate": None,
+               "mirror_fill_rate": None, "fill_rate_diff": None,
+               "avg_price_adv_r": None, "price_pairs": 0, "tier": 0,
+               "since_utc": min((r["created_utc"] for r in pairs),
+                                default=None)}
+        if n == 0:
+            return out
+        lf = sum(1 for r in pairs if r["fill_price"] is not None) / n
+        mf = sum(1 for r in pairs
+                 if r["alpaca_status"] in ("FILLED", "CLOSED")) / n
+        out["ledger_fill_rate"] = round(lf, 3)
+        out["mirror_fill_rate"] = round(mf, 3)
+        out["fill_rate_diff"] = round(mf - lf, 3)
+        advs = []
+        for r in pairs:
+            if r["fill_price"] is None or r["alpaca_fill_price"] is None:
+                continue
+            risk = abs(r["fill_price"] - (r["stop_loss"] or 0))
+            if risk <= 0:
+                continue
+            # pozitif = ayna DAHA IYI fiyat aldi (LONG'da daha ucuz,
+            # SHORT'ta daha pahali satti) -> defter fazla kotumser yonu
+            sign = 1 if r["direction"] == "LONG" else -1
+            advs.append(sign * (r["fill_price"] - r["alpaca_fill_price"])
+                        / risk)
+        if advs:
+            out["price_pairs"] = len(advs)
+            out["avg_price_adv_r"] = round(sum(advs) / len(advs), 3)
+        rate_d = abs(out["fill_rate_diff"] or 0)
+        price_d = abs(out["avg_price_adv_r"] or 0)
+        days = 0.0
+        if out["since_utc"]:
+            try:
+                t0 = datetime.strptime(out["since_utc"],
+                                       "%Y-%m-%dT%H:%M:%SZ")
+                days = (datetime.now(timezone.utc)
+                        - t0.replace(tzinfo=timezone.utc)).days
+            except ValueError:
+                pass
+        if n >= 20 and days >= 14 and (rate_d >= 0.20 or price_d >= 0.15):
+            out["tier"] = 2
+        elif rate_d >= 0.10 or price_d >= 0.08:
+            out["tier"] = 1
+        return out
+
     def diag(self) -> dict:
         """/diag icin ozet. Etiket sozlesme geregi sabittir (md. 4)."""
         n = self._db.query_one("SELECT COUNT(*) AS n FROM mirror_fills")
         by = {r["alpaca_status"]: r["n"] for r in self._db.query(
             "SELECT alpaca_status, COUNT(*) n FROM mirror_fills "
             "GROUP BY alpaca_status")}
-        return {"label": "AYNA - karara girmez",
-                "enabled": self._enabled,
-                "client": self._client is not None,
-                "intents": (n or {}).get("n", 0),
-                "by_status": by,
-                "gaps": self._gaps}
+        out = {"label": "AYNA - karara girmez",
+               "enabled": self._enabled,
+               "client": self._client is not None,
+               "intents": (n or {}).get("n", 0),
+               "by_status": by,
+               "gaps": self._gaps}
+        try:
+            out["metrics"] = self.metrics()
+        except Exception:
+            log.exception(kv(event="mirror_metrics_error"))
+        return out

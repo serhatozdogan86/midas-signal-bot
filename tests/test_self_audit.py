@@ -72,8 +72,13 @@ def test_stale_universe_is_caught(tmp_path):
 
 
 def test_missing_earnings_calendar_is_critical(tmp_path):
+    # v4.33: hafta ici 'now' sabitlendi - hafta sonu muafiyeti (yuklu +
+    # hatasiz takvim) bu SERT vakayi degistirmez ama test Pazar gunu
+    # kosunca yaniltici kirmizi/yesil olmasin (duvar saati tuzagi).
+    from datetime import datetime, timezone
     rep = run_audit(db=_db(tmp_path), universe=_Uni(0), earnings=_Earn(False),
-                    gist=_Gist(1))
+                    gist=_Gist(1),
+                    now=datetime(2026, 8, 17, 12, tzinfo=timezone.utc))
     assert not _check(rep, "bilanco takvimi").ok
 
 

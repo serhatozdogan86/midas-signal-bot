@@ -16,7 +16,22 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
-- 2026-08-13 (v4.32): DAL/UAL ZOMBI VAKASI + AYNA ADIM 3 + SAPMA
+- 2026-08-16 (v4.33): AYNA GOSTERGELERI + UC KUCUK DUZELTME (16 Agu
+  Durum kontrolunun bulgulari; hepsi olcum/rapor katmani, motor sabit).
+  (1) mirror.metrics(): v4.32-C on-kayitli esiklerin gosterge yarisi -
+  ham dolum-orani ve fiyat farki /diag + EOD raporunda; kademe yalniz
+  ISARET. ESLESMIS CIFT tanimi netlesti: ayna dogumda katilmis olmali;
+  LATE_ONBOARD (DE/JNJ kurulus artefakti - ayna 13 Agu'da hayata
+  ortadan katildi) metrige GIRMEZ ve artik boyle sinyale emir de
+  gonderilmez. (2) Bilanco takvimi denetimi hafta sonu MUAF (yuklu +
+  cekme hatasiz sartiyla; her hafta sonu kirmizi = alarm gurultusu;
+  cekme hatasi varsa muafiyet YOK). run_audit 'now' parametresi aldi
+  (duvar saati tuzagi). (3) NOT_FILLED kayda komisyon/kayma yazilmaz
+  (rapor katmani; net_totals zaten filtreliydi). NOT: FTNT golge/ayna
+  cikis farki (mum-kapanisi vs tick) BILINEN olcum farkidir, ayna tam
+  bunu olcmek icin var - kod degisikligi gerekmez. Sabir kurali surer:
+  yorum 28 Agu + >=20 cift oncesi YOK. Ikiz depo kontrolu (pencere
+  sayaci) bybit tarafinda yerel oturuma devredildi (2.3 geregi).
   ESIKLERI ON-KAYDI.
   (A) ZOMBI PENDING DUZELTMESI (yerel oturum teshisi, olculdu): gunluk
   filtrelerden dusen acik-sinyalli sembollerin 1h mumu hic cekilmiyordu;

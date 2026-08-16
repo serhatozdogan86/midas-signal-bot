@@ -1127,6 +1127,25 @@ class Scheduler:
         except Exception:
             log.exception(kv(event="eod_golive_error"))
         try:
+            # v4.33: ayna ham farklari gunluk raporda (esikler on-kayitli;
+            # kademe yalniz ISARET - v4.32-C sozlesmesi, otomatik eylem yok)
+            if self._mirror is not None and self._mirror.enabled:
+                mm = self._mirror.metrics()
+                if mm.get("matched"):
+                    tier_txt = {0: "", 1: " | IZLEMEDE (kademe 1)",
+                                2: " | KARAR TETIGI (kademe 2)"}.get(
+                                    mm.get("tier", 0), "")
+                    pa = mm.get("avg_price_adv_r")
+                    lines.append(
+                        f"AYNA (karara girmez): {mm['matched']} eslesme | "
+                        f"dolum defter %{(mm['ledger_fill_rate'] or 0) * 100:.0f}"
+                        f" / ayna %{(mm['mirror_fill_rate'] or 0) * 100:.0f} | "
+                        f"fiyat avantaji "
+                        f"{f'{pa:+.2f}R' if pa is not None else '-'}"
+                        f"{tier_txt}")
+        except Exception:
+            log.exception(kv(event="eod_mirror_metrics_error"))
+        try:
             cmp_svc = getattr(self, "data_comparison", None)
             if cmp_svc is not None and cmp_svc.enabled:
                 line = cmp_svc.summary_line()

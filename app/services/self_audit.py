@@ -88,8 +88,12 @@ def _iso_age_hours(iso: str | None) -> float | None:
 def run_audit(db, tracker=None, universe=None, earnings=None,
               gist=None, exit_lab=None, strategy_lab=None,
               engine_sha: str | None = None, settings=None,
-              notifier=None, telegram=None) -> AuditReport:
-    """Tum degismezleri kontrol eder. Hicbir sey DEGISTIRMEZ."""
+              notifier=None, telegram=None, now=None) -> AuditReport:
+    """Tum degismezleri kontrol eder. Hicbir sey DEGISTIRMEZ.
+    now: test edilebilirlik icin (duvar saatine bagimli test tuzagi);
+    verilmezse UTC simdi."""
+    from datetime import datetime as _dt, timezone as _tz
+    now = now or _dt.now(_tz.utc)
     rep = AuditReport()
 
     def add(name, group, ok, detail, action="", severity="warn"):
@@ -111,9 +115,21 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
     if earnings is not None:
         try:
             st = earnings.status()
-            add("bilanco takvimi", "VERI", st.get("ready"),
-                f"ready={st.get('ready')} sembol={st.get('symbols')} "
-                f"fail_streak={st.get('fail_streak')}",
+            ok = st.get("ready")
+            detail = (f"ready={st.get('ready')} sembol={st.get('symbols')} "
+                      f"fail_streak={st.get('fail_streak')}")
+            # v4.33 (16 Agu gozlemi): hafta sonu takvim dogal olarak 24h
+            # tazelik sinirini asar (son yenileme Cuma aksami) ve denetim
+            # HER hafta sonu kirmizi yanardi - kirmiziya alismak denetimi
+            # oldurur (alarm gurultusu dersi). Cumartesi/Pazar: takvim
+            # yuklu ve cekme hatasi yoksa MUAF (piyasa da kapali, motor
+            # zaten sinyal uretmiyor). Hafta ici kural aynen sert.
+            if (not ok and now.weekday() >= 5
+                    and (st.get("symbols") or 0) > 0
+                    and (st.get("fail_streak") or 0) == 0):
+                ok = True
+                detail += " (hafta sonu muafiyeti: yuklu + hatasiz)"
+            add("bilanco takvimi", "VERI", ok, detail,
                 "Takvim yoksa motor fail-closed'a gecer ve SINYAL "
                 "URETMEZ; Finnhub/yedek kaynagi kontrol et", "critical")
         except Exception as e:
