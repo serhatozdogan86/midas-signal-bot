@@ -59,10 +59,14 @@ Format: tarih | fikir | tetikleyen gozlem
   (v4.22) - boyle bir denetci onlari deploy'dan ONCE yakalardi. SALT
   OLCUM, motora dokunmaz. SIRA: Faz 2 kesimi oturduktan sonra.
 - 2026-08-12 | Bilanco takvimi restart'ta DB'den donsun | kesim gecesi gozlemi
+  ONCELIK YUKSELDI (17 Agu): pencere SAHADA IKI KEZ OLCULDU - 5.5 ve
+  ~6 dk (asagidaki "1-4 dk" tahmini iyimsermis; karar verirken olculen
+  degere bakilacak). Seans ici kritik-fix restart'i = ~6 dk sinyalsiz
+  bot. Siradaki kucuk surumun 1 numarali adayi.
   EarningsService takvimi yalniz BELLEKTE tutuyor; her restart sonrasi
-  periyodik dongu yeniden cekene kadar (~1-4 dk) motor fail-closed
-  (dogru yonde guvenli ama /audit o pencerede 12/13 gosterir; seans ici
-  kritik-fix restart'inda 1-4 dk sinyal uretilmez). Tuzak tablosundaki
+  periyodik dongu yeniden cekene kadar (olculen ~6 dk) motor fail-closed
+  (dogru yonde guvenli ama /audit o pencerede eksik gosterir; seans ici
+  kritik-fix restart'inda o sure sinyal uretilmez). Tuzak tablosundaki
   "turetilmis veriyi bellekte tutmak" dersinin takvim bicimi. FIKIR:
   takvimi meta/DB'ye yaz, acilista oradan tohumla (bayatlik siniri
   _STALE_SEC zaten var, fail-closed korunur). Motor disi kucuk is;
