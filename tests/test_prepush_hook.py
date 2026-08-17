@@ -59,34 +59,38 @@ def _run(tmp_path, ref="refs/heads/feature", dow=3, hm="1200",
                           cwd=tmp_path)
 
 
-def test_seans_icinde_main_push_engellenir(tmp_path):
+def test_seans_icinde_main_push_serbest_ama_hatirlatmali(tmp_path):
+    """v4.35 (17 Agu hizalamasi): kesim sonrasi main push deploy degildir
+    (CLAUDE.md 2.5, v4.31) - kanca ENGELLEMEZ, hatirlatma birakir. Seans
+    kilidi artik deploy.sh'de (botun takvimiyle). Eski kancada bu test
+    rc=1 beklerdi; celiski 17 Agu'da sahada yakalandi."""
     r = _run(tmp_path, ref="refs/heads/main", dow=3, hm="1200")
-    assert r.returncode == 1
-    assert "ENGEL (2.5)" in r.stdout
-
-
-def test_kritik_fix_seans_icinde_gecirir(tmp_path):
-    r = _run(tmp_path, ref="refs/heads/main", dow=3, hm="1200", kritik="1")
     assert r.returncode == 0
-    assert "KRITIK_FIX=1 ile gecildi" in r.stdout
+    assert "NOT (2.5)" in r.stdout
 
 
-def test_seans_disi_main_push_serbest(tmp_path):
+def test_seans_disi_main_push_hatirlatmasiz(tmp_path):
     r = _run(tmp_path, ref="refs/heads/main", dow=3, hm="2000")
     assert r.returncode == 0
+    assert "NOT (2.5)" not in r.stdout
 
 
-def test_hafta_sonu_main_push_serbest(tmp_path):
+def test_hafta_sonu_main_push_hatirlatmasiz(tmp_path):
     r = _run(tmp_path, ref="refs/heads/main", dow=6, hm="1200")
     assert r.returncode == 0
+    assert "NOT (2.5)" not in r.stdout
 
 
 def test_seans_sinirlari(tmp_path):
-    # 09:29 serbest, 09:30 engelli, 15:59 engelli, 16:00 serbest
-    assert _run(tmp_path, ref="refs/heads/main", hm="0929").returncode == 0
-    assert _run(tmp_path, ref="refs/heads/main", hm="0930").returncode == 1
-    assert _run(tmp_path, ref="refs/heads/main", hm="1559").returncode == 1
-    assert _run(tmp_path, ref="refs/heads/main", hm="1600").returncode == 0
+    # hatirlatma yalniz 09:30-15:59 ET araliginda gorunur
+    assert "NOT (2.5)" not in _run(tmp_path, ref="refs/heads/main",
+                                   hm="0929").stdout
+    assert "NOT (2.5)" in _run(tmp_path, ref="refs/heads/main",
+                               hm="0930").stdout
+    assert "NOT (2.5)" in _run(tmp_path, ref="refs/heads/main",
+                               hm="1559").stdout
+    assert "NOT (2.5)" not in _run(tmp_path, ref="refs/heads/main",
+                                   hm="1600").stdout
 
 
 def test_dal_pushu_seans_icinde_serbest(tmp_path):
