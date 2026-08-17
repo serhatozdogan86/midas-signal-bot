@@ -39,6 +39,7 @@ karar kuralı → sonuç → karar.
 | Öncelik | Hipotez | Karar kuralı | Durum |
 |---|---|---|---|
 | 1 | Hedefsiz çıkış (V3) canlıda V0'ı geçer | 60 işlem/25 küme; hem toplam hem beklenti + iki yarı tutarlı | ÖLÇÜLÜYOR |
+| 7 | Gölge dolum zamanlaması sonucu değiştiriyor (FTNT vakası, 17 Ağu) | Ayna dönemi sonunda (28 Ağu + ≥20 çift): gölge/ayna sonuç UYUŞMAZLIĞI oranı ve yönü raporlanır; uyuşmazlık ≥ %25 ise dolum modeli karar toplantısına taşınır | AYNA ÖLÇÜYOR |
 | 2 | Momentum üst dilimindeki sinyaller daha iyi | mom_pct üst/alt yarı karşılaştırması, n≥40 | VERİ BİRİKİYOR |
 | 3 | Oynak hisselerdeki sinyaller daha iyi | atr_rank üst/alt yarı, n≥40 | VERİ BİRİKİYOR |
 | 4 | Absorbsiyon etiketi taşıyanlar daha iyi | etiketli vs etiketsiz, n≥30 | VERİ BİRİKİYOR |
@@ -52,3 +53,14 @@ karar kuralı → sonuç → karar.
   bağlayıcı kullanamaz.
 - **Bloomberg terminal klonu (repo)**: Next.js/Redis yığını + veri
   katmanı `Math.random()` ile simüle fiyat üretiyor.
+
+## Saha gözlemi: FTNT — aynı sinyal, iki defterde iki ayrı işlem (2026-08-17)
+Sinyal 14 Ağu 13:30 mumunda doğdu. AYNA (gerçek zamanlı): 13:46'da
+164.04'ten doldu, 14:17'de 159.16'dan STOP — giriş mumunun İÇİNDE stop
+seviyesi zaten kırılmıştı (mum dibi 159.10 < stop 159.3335). GÖLGE (mum
+tabanlı): bir SONRAKİ mumdan 161.50 ile doldu, Cuma boyunca stop'a hiç
+değmedi (Cuma dibi 159.61), Pazartesi açılış boşluğunda stop → −1.0R.
+Aynı sinyal, iki farklı giriş anı, iki farklı fiyat, iki farklı gün.
+Ders: gölge defterin "sonraki mum" dolum modeli yalnız FİYATI değil
+İŞLEMİN KENDİSİNİ de değiştirebiliyor. Bu tek vaka hüküm değildir —
+hükmü hipotez #7'nin karar kuralı verecek (ayna dönemi sonu).
