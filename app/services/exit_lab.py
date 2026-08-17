@@ -53,6 +53,14 @@ VARIANTS: dict[str, dict] = {
     # +315R. V3 tam bu hucreyi canli olcer: STOP AYNEN KALIR (1.0x),
     # hedef YOK, sure ~10 islem gunu (70 saatlik bar).
     "V3_ORTA": {"mode": "wide", "stop_mult": 1.0, "max_bars": 70},
+    # v4.36 (hipotez 8 ON-KAYDI, research-log 17 Agu): ATR IZ-SUREN cikis.
+    # Perakende arastirmasi (SuperTrend/Chandelier ailesinin tek damitilmis
+    # degerli fikri) + "cikis > giris" olculmus bulgusu. Baslangic stopu
+    # sinyalin KENDI stopu; ATR(14) isindiktan sonra iz = en iyi kapanis
+    # -/+ 3.0xATR, yalniz LEHTE ilerler, baslangic stopunun gerisine
+    # dusmez. Hedef YOK; sure V0 ile ayni (28 bar) - boylece V0'la tek
+    # fark cikis mekanizmasi olur, kiyas temiz kalir.
+    "V4_IZ": {"mode": "trail", "atr_n": 14, "atr_mult": 3.0, "max_bars": 28},
 }
 
 
@@ -90,6 +98,10 @@ def replay(sig: dict, candles: list[dict], variant: str,
             else ref + cfg["stop_mult"] * risk0
         tp1 = tp2 = None
         max_bars = cfg["max_bars"]
+    elif cfg["mode"] == "trail":
+        stop = sig["stop_loss"]          # iz isinana kadar canli stop
+        tp1 = tp2 = None
+        max_bars = cfg["max_bars"]
     else:
         stop, tp1, tp2 = sig["stop_loss"], sig["tp1"], sig["tp2"]
         max_bars = cfg["rest_max_bars"]
@@ -99,6 +111,10 @@ def replay(sig: dict, candles: list[dict], variant: str,
     legs: list[dict] = []
     remaining = 1.0
     r_acc = 0.0
+    # V4_IZ durumu: TR listesi, onceki kapanis, dolumdan beri en iyi kapanis
+    t_trs: list[float] = []
+    t_prev: float | None = None
+    t_best: float | None = None
 
     for i, c in enumerate(candles):
         just_filled = False
@@ -120,10 +136,10 @@ def replay(sig: dict, candles: list[dict], variant: str,
                 continue
 
         risk = (fill - stop) if is_long else (stop - fill)
-        if cfg["mode"] == "wide":
+        if cfg["mode"] in ("wide", "trail"):
             # canli risk tabani (sinyalin kendi stop'u) ile R tutarliligi:
-            # varyantin stop'u genis ama R payda olarak CANLI riski
-            # kullanir - boylece V0/V1/V2 ayni olcekte kiyaslanir.
+            # varyantin stop'u genis/izli ama R payda olarak CANLI riski
+            # kullanir - boylece tum varyantlar ayni olcekte kiyaslanir.
             risk = (fill - sig["stop_loss"]) if is_long \
                 else (sig["stop_loss"] - fill)
         if risk <= 0:
@@ -201,6 +217,25 @@ def replay(sig: dict, candles: list[dict], variant: str,
             r_acc += pnl * remaining
             legs.append({"px": px, "frac": remaining, "why": "TIME", "ts": c["ts"]})
             return _finish(sig, fill, px, r_acc, legs, shares, c["ts"], "EXPIRED")
+        if cfg["mode"] == "trail":
+            # SIRALAMA KRITIK (ileriye-bakma yasagi): bu barin cikis
+            # kontrolleri yukarida ESKI stopla yapildi; iz ancak simdi,
+            # bu barin kapanisiyla ilerletilir - bir SONRAKI bara uygulanir.
+            tr = (c["high"] - c["low"]) if t_prev is None else max(
+                c["high"] - c["low"], abs(c["high"] - t_prev),
+                abs(c["low"] - t_prev))
+            t_prev = c["close"]
+            t_trs.append(tr)
+            if len(t_trs) > cfg["atr_n"]:
+                t_trs.pop(0)
+            t_best = c["close"] if t_best is None else (
+                max(t_best, c["close"]) if is_long else min(t_best, c["close"]))
+            if len(t_trs) >= cfg["atr_n"]:
+                atr = sum(t_trs) / len(t_trs)
+                cand = (t_best - cfg["atr_mult"] * atr) if is_long \
+                    else (t_best + cfg["atr_mult"] * atr)
+                # iz yalniz LEHTE ilerler; baslangic stopunun gerisine dusmez
+                stop = max(stop, cand) if is_long else min(stop, cand)
     if fill is None:
         return LabResult("PENDING")
     return LabResult("FILLED", fill_price=fill, legs=legs,

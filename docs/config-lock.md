@@ -16,6 +16,18 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-17 (v4.36): CIKIS LABORATUVARINA V4_IZ (ATR iz-suren cikis).
+  Hipotez 8'in ON-KAYITLI karar kuraliyla (research-log 17 Agu; iki
+  botun bagimsiz perakende arastirmasinin kesisimi + "cikis > giris"
+  olculmus bulgusu). Tanim: hedefsiz; stop = en iyi kapanis -/+
+  3.0xATR(14), yalniz lehte ilerler, baslangic stopu sinyalin kendi
+  stopu; sure V0 ile ayni (28 bar) - V0'la TEK fark cikis mekanizmasi.
+  SALT OLCUM: motor/karar/tavan etkilenmez, engine_sha sabit, KILIT-2
+  kesintisiz; EOD kosusu lab kohortunun tamamini geriye donuk doldurur
+  (replay) - V4 de V0-V3'le AYNI sinyal kumesinde olculur. Karar ani
+  v3.19 simetrigi: 60 islem / 25 kume dolunca. Mekanizma kaniti testle:
+  ayni mum serisinde V3 -1R yazarken V4 kari kilitler
+  (tests/test_exit_lab_v4.py; eski kodda 5/5 kirmizi, kosuldu).
 - 2026-08-16 (v4.33): AYNA GOSTERGELERI + UC KUCUK DUZELTME (16 Agu
   Durum kontrolunun bulgulari; hepsi olcum/rapor katmani, motor sabit).
   (1) mirror.metrics(): v4.32-C on-kayitli esiklerin gosterge yarisi -
