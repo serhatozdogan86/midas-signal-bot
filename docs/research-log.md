@@ -40,6 +40,8 @@ karar kuralı → sonuç → karar.
 |---|---|---|---|
 | 1 | Hedefsiz çıkış (V3) canlıda V0'ı geçer | 60 işlem/25 küme; hem toplam hem beklenti + iki yarı tutarlı | ÖLÇÜLÜYOR |
 | 7 | Gölge dolum zamanlaması sonucu değiştiriyor (FTNT vakası, 17 Ağu) | Ayna dönemi sonunda (28 Ağu + ≥20 çift): gölge/ayna sonuç UYUŞMAZLIĞI oranı ve yönü raporlanır; uyuşmazlık ≥ %25 ise dolum modeli karar toplantısına taşınır | AYNA ÖLÇÜYOR |
+| 8 | ATR iz-süren çıkış (V4) sabit-hedefli V0'ı geçer — ÖN-KAYIT 17 Ağu, perakende araştırması + "çıkış > giriş" bulgusu; iki botun bağımsız araştırması kesişti | V4 = hedefsiz, stop = izlenen en yüksek kapanış − 3.0×ATR(14), yalnız lehte yönde hareket eder, time-stop V0 ile aynı. exit_lab'e eklenir, V0-V3 ile AYNI sinyal kümesinde ölçülür. Karar v3.19 simetriği: V4 hem toplam net-R hem beklenti olarak V0'ı geçmeli VE işaret iki yarı dönemde tutarlı olmalı (60 işlem / 25 küme dolunca) | KODLANACAK (salt ölçüm) |
+| 9 | Volatilite sıkışması kırılımı (Squeeze, S6 adayı) pozitif beklenti taşır — ÖN-KAYIT 17 Ağu; TradingView'ın en beğenilen mekanizması + volatilite kümelenmesi literatürü; bybit araştırmasının da 1. tercihi | Tanım: BB(20,2) bantları KC(20,1.5) İÇİNE girince "sıkışık"; sıkışma ≥6 bar sürüp fiyat sıkışma aralığının üstünde kapatınca LONG tetik; stop aralığın alt ucu; RR/maliyet filtreleri mevcut kurallarla. Önce research/ 2y backtest: ≥100 işlem VE net beklenti > 0 VE iki yarı tutarlı VE tavansız kıyasta S1-S5 arasında ilk 3 → strategy_lab'e S6; aksi RED ve günlüğe | BACKTEST SIRADA |
 | 2 | Momentum üst dilimindeki sinyaller daha iyi | mom_pct üst/alt yarı karşılaştırması, n≥40 | VERİ BİRİKİYOR |
 | 3 | Oynak hisselerdeki sinyaller daha iyi | atr_rank üst/alt yarı, n≥40 | VERİ BİRİKİYOR |
 | 4 | Absorbsiyon etiketi taşıyanlar daha iyi | etiketli vs etiketsiz, n≥30 | VERİ BİRİKİYOR |
@@ -64,3 +66,22 @@ Aynı sinyal, iki farklı giriş anı, iki farklı fiyat, iki farklı gün.
 Ders: gölge defterin "sonraki mum" dolum modeli yalnız FİYATI değil
 İŞLEMİN KENDİSİNİ de değiştirebiliyor. Bu tek vaka hüküm değildir —
 hükmü hipotez #7'nin karar kuralı verecek (ayna dönemi sonu).
+
+## Perakende motor araştırması — kesişim kaydı (2026-08-17)
+İki bağımsız araştırma (bu oturum + bybit oturumu, aynı soru) kesiştirildi:
+- ÇİFTE ONAY: volatilite sıkışması kırılımı (Squeeze) — iki listenin de
+  tepesinde. Hipotez 9 olarak ön-kayıtlı.
+- MIDAS ÖNCELİĞİ: ATR iz-süren çıkış — bybit'te "kenara not" (çıkış
+  laboratuvarı yok), bizde 1. sıra (exit_lab hazır + "çıkış > giriş"
+  ölçülmüş bulgusu). Hipotez 8 olarak ön-kayıtlı.
+- ORTAK RED: SMC/ICT ailesi (bizim ölçümle reddimizle örtüştü), UT
+  Bot/QQE/Ichimoku/SuperTrend-giriş (S1/S2 ambalajı), grid/martingale
+  (MQL5'in en çok satan robotu gizli martingale; tek ayda %70 erime),
+  Lorentzian ML (test edilemez kara kutu — ön-kayıt disiplinine aykırı).
+- KUYRUK: çapalı VWAP pullback (H-C) ve seçim kuralı deneyi (H-D +
+  "olağandışı günlük hacim" kapısı, bybit 2. tercihiyle birleşik) —
+  karar kuralları sıra geldiğinde yazılacak.
+- DERS (iki araştırma da aynı sonuca vardı): "en çok satan" listesi
+  alışveriş listesi değil TUZAK HARİTASIDIR; pazarlama gücü kârlılık
+  kanıtı değildir. Kaynak raporu bybit deposunda:
+  docs/perakende-arastirmasi-2026-08-17.md.
