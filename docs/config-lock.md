@@ -16,6 +16,14 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-17 (v4.37): KORELASYON OLCUM ALETI (ikiz aktarimi, bybit
+  correlation.py -> midas). Ikiz-depo-notu "midas oturumuna acik is"
+  maddesi kapandi. StrategyLab ozet uretirken adaylarin gunluk net-R
+  serilerinden cift korelasyonu + N_eff (etkin bagimsiz bahis) + ayni-gun
+  sinyal ortusmesi raporlanir; rapor lab ozetiyle meta'ya kalicilasir.
+  SALT OLCUM: karar modulleri import EDEMEZ (AST anahtar testi); kendi
+  kendini dogrulama testi S1|S5 ayni giris -> korelasyon 1.0. bybit'in
+  N_eff evren-tutarliligi duzeltmesi aynen tasindi. Motor/kilit etkisiz.
 - 2026-08-17 (v4.36): CIKIS LABORATUVARINA V4_IZ (ATR iz-suren cikis).
   Hipotez 8'in ON-KAYITLI karar kuraliyla (research-log 17 Agu; iki
   botun bagimsiz perakende arastirmasinin kesisimi + "cikis > giris"

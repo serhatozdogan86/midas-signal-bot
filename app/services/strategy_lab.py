@@ -411,6 +411,16 @@ class StrategyLab:
         mo = getattr(self.settings, "MAX_OPEN_SIGNALS", 10)
         out = {"lab_start": self.lab_start, "universe": n_ok,
                "strategies": {}}
+        # v4.37 KORELASYON (ikiz aktarimi, bybit correlation.py): seriler
+        # ham islemler ATILMADAN ONCE cikarilir (bellek dersi v4.4 - yalniz
+        # gun->R sozlukleri kalir, islemlerin kendisi yine birakilir).
+        # "5 aday kac BAGIMSIZ fikir?" sorusunun cevabi ozetle birlikte
+        # meta'ya kalicilasir; salt olcum, karara girmez.
+        try:
+            from app.services.correlation import build_report
+            out["correlation"] = build_report(all_trades)
+        except Exception:
+            log.exception(kv(event="strategy_lab_corr_failed"))
         for name in STRATEGIES:
             tr = all_trades[name]
             capped = apply_caps(tr, md, mo, ranked=True)

@@ -310,10 +310,9 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
    (eşik önerisi 12 Ağu toplantı notlarında, onay bekliyor)
 6. CI-yeşili şartının VM dağıtımına uyarlanması (deploy.sh yalnız
    yeşil CI'da çeksin; Render iskeleti kesimle anlamsızlaştı)
-7. Korelasyon ölçüm aleti — bybit'ten taşıma (ikiz-depo-notu.md,
-   "midas oturumuna açık iş"): StrategyLab varyantlarının
-   bağımsızlığını ölçer; salt ölçüm + anahtar test. Kaynak:
-   bybit `app/services/correlation.py` (okumak için add_repo).
+7. ~~Korelasyon ölçüm aleti~~ ✔ TAŞINDI (v4.37, 17 Ağu) — StrategyLab
+   bağımsızlık raporu artık lab özetiyle birlikte üretiliyor
+   (`app/services/correlation.py`; ikiz-depo-notu.md kaydı kapandı).
 8. İkiz not eşitliği mekanizması: iki deponun ikiz-depo-notu.md'si
    sessizce ayrışabiliyor (13 Ağu'da yaşandı); senkron damgası/denetim
    fikri değerlendirilecek.

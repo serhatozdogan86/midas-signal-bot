@@ -179,12 +179,11 @@ aynı prensip midas'ta kill-switch (`blocked=3`) ve açılış penceresi
 (`blocked=4`) için zaten uygulanmış — sadece ana rejim filtresine
 uygulanmamış.
 
-### M5 — Belge kodla çelişiyor (öncelik: düşük, dakikalık iş)
+### M5 — Belge kodla çelişiyor ✔ KAPANDI (v4.34, 2026-08-17)
 
-`signal_tracker` docstring'i hâlâ *"Fill fiyati: bölgenin ilk değen
-kenarı"* diyor. Bu **bybit'in davranışının tarifi**; midas'ın kendi kodu
-tam katetme istiyor (M3). `stats()` içindeki not doğru
-("conservative fills (full zone traversal)"), docstring güncellenmemiş.
+**Durum: çözüldü.** `signal_tracker` docstring'i artık kendi dolum
+kuralımızı tarif ediyor (tam katetme + kötü uç; "bölgenin ilk değen
+kenarı" cümlesi — bybit davranışının tarifi — kaldırıldı).
 
 ## Açık maddeler — bybit tarafı
 
@@ -328,19 +327,21 @@ karşılığı ARANDI:
 gerekçesiyle kapandı (S4_CARRY için de aynı mantık geçerlidir; midas'ta
 funding ailesi yoktur).
 
-## Korelasyon ölçüm aleti — ikiz kontrolü (2026-08-13)
+## Korelasyon ölçüm aleti — ikiz kontrolü (2026-08-13) ✔ TAŞINDI (v4.37, 2026-08-17)
 
-**Sonuç: TAŞINABİLİR — midas'ta AÇIK İŞ.** bybit'e çoklu-strateji
-korelasyon/örtüşme aleti eklendi (app/services/correlation.py + /correlation;
-Faz A salt-rapor: çift korelasyonu, N_eff, aynı-gün-aynı-yön oranı).
-midas'ta karşılığı arandı: **StrategyLab çoklu paralel strateji işletiyor**
-(Trade.strategy alanı, strateji bazlı defter) ve korelasyon/örtüşme ölçümü
-YOK (grep: 'correlation/korelasyon' sıfır sonuç). Yani alet ikize birebir
-taşınabilir ve StrategyLab varyantlarının bağımsızlığını ölçer.
-Bu oturumun midas'a yazma erişimi yok → **midas oturumuna açık iş**:
-correlation.py'nin uyarlanması + ölçüm-only anahtar testi. (S9_GECE
-stratejisi ise 3b kapsamı DIŞI — mekanizma hatası/ölçüm düzeltmesi değil,
-yeni bahis; ayrıca hisse piyasası gece kapalıyken kriptonun 21–23 UTC
-penceresi midas evreninde tanımsız.)
+**Durum: kapandı.** bybit'e çoklu-strateji korelasyon/örtüşme aleti
+eklenmişti (app/services/correlation.py + /correlation; Faz A salt-rapor:
+çift korelasyonu, N_eff, aynı-gün-aynı-yön oranı); midas'ta StrategyLab
+çoklu paralel strateji işletirken bağımsızlık ölçümü yoktu → **alet
+taşındı** (midas `app/services/correlation.py` v4.37). Uyarlama farkları
+(bilinçli, modül docstring'inde): veri kaynağı DB değil laboratuvarın
+bellek-içi Trade listeleri (midas ham işlemi saklamaz — bellek dersi);
+günlük NET R; LONG-only olduğundan yön örtüşmesi "aynı gün sinyal"
+oranına indirgenir. Anahtar testler: karar modülleri import edemez (AST)
++ kendi kendini doğrulama (S1|S5 aynı giriş → korelasyon 1.0 çıkmalı).
+bybit'in evren-tutarlılığı düzeltmesi (N_eff yalnız ölçülen çiftlerden)
+aynen taşındı. (S9_GECE stratejisi 3b kapsamı DIŞI — mekanizma
+hatası/ölçüm düzeltmesi değil, yeni bahis; hisse piyasası gece kapalıyken
+kriptonun 21–23 UTC penceresi midas evreninde tanımsız.)
 
 2026-08-16 eki (B1): midas v4.32/v4.33 dağıtımı sırasında yapılan ikiz kontrolü — bybit `signal_tracker` okuması, üretim venv'inde koşturulan 4 kanıt testi, canlı defterden 26 açık kayıt ve 1336 kapalı kaydın süre analizi.
