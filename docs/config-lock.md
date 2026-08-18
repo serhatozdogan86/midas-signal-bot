@@ -16,7 +16,14 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
-- 2026-08-17 (v4.37): KORELASYON OLCUM ALETI (ikiz aktarimi, bybit
+- 2026-08-18 (v4.38): BILANCO TAKVIMI RESTART'I ATLATIR. Saha olcumu
+  (17 Agu, iki kez): restart sonrasi takvim penceresi ~6 dk fail-closed
+  - seans ici kritik-fix restart'i o kadar sure sinyalsiz bot demekti.
+  Son BASARILI takvim meta'ya yazilir, acilista TAZELIK SARTIYLA
+  tohumlanir; bayat kopya YUKLENMEZ (_STALE_SEC hukmu surer - kalicilik
+  2.2'yi GEVSETMEZ, testle kilitli), basarisiz cekim son iyi kopyayi
+  ezmez (gist '[]' vakasi dersi). Motor/kilit etkisiz; davranis
+  degisikligi yalniz acilis penceresinin kapanmasi.
   correlation.py -> midas). Ikiz-depo-notu "midas oturumuna acik is"
   maddesi kapandi. StrategyLab ozet uretirken adaylarin gunluk net-R
   serilerinden cift korelasyonu + N_eff (etkin bagimsiz bahis) + ayni-gun

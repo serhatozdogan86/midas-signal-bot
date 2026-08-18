@@ -32,13 +32,16 @@ _STALE_SEC = 24 * 3600
 
 
 class EarningsService:
+    _META_KEY = "earnings_calendar"
+
     def __init__(self, finnhub: FinnhubClient, calendar: MarketCalendar,
-                 fallback=None) -> None:
+                 fallback=None, db=None) -> None:
         self._finnhub = finnhub
         self._calendar = calendar
         self._lock = threading.Lock()
         self._dates: dict[str, list[date]] = {}
         self._fetched_at = 0.0
+        self._db = db
         # v3.16: takvim yuklendi mi + basarisizlikta HIZLI yeniden deneme.
         # 3 Agu vakasi: prep sirasinda /calendar/earnings timeout'a dustu,
         # _dates BOS kaldi ve bilanco filtresi TUM SEANS BOYUNCA sessizce
@@ -54,6 +57,58 @@ class EarningsService:
         self._fb_dates: dict[str, list] = {}   # basarili sonuclar
         self._fb_failed: set[str] = set()      # hata alanlar (bilmiyoruz)
         self._fb_day: date | None = None
+        # v4.38 (17-18 Agu olcumu): takvim yalniz BELLEKTEYDI; her restart
+        # sonrasi periyodik dongu yeniden cekene kadar (~6 dk, iki saha
+        # olcumu) motor fail-closed kaliyordu - seans ici kritik-fix
+        # restart'i = ~6 dk sinyalsiz bot. Tuzak tablosu dersi ("turetilmis
+        # veriyi bellekte tutma"): son BASARILI takvim meta'ya yazilir,
+        # acilista TAZELIK SARTIYLA geri yuklenir. Bayat kopya YUKLENMEZ
+        # (fail-closed 2.2 aynen korunur; _STALE_SEC hukmu surer).
+        self._seed_from_db()
+
+    def _seed_from_db(self) -> None:
+        if self._db is None:
+            return
+        try:
+            row = self._db.query_one(
+                "SELECT value FROM meta WHERE key=?", (self._META_KEY,))
+            if not row or not row["value"]:
+                return
+            import json
+            saved = json.loads(row["value"])
+            last_ok = float(saved.get("last_ok") or 0)
+            if (time.time() - last_ok) >= _STALE_SEC:
+                return                      # bayat kopya: fail-closed korunur
+            dates = {sym: [date.fromisoformat(d) for d in ds]
+                     for sym, ds in (saved.get("dates") or {}).items()}
+            if not dates:
+                return
+            with self._lock:
+                self._dates = dates
+                self._ready = True
+                self._last_ok = last_ok
+                self._fetched_at = float(saved.get("fetched_at") or last_ok)
+            log.info(kv(event="earnings_seeded_from_db",
+                        symbols=len(dates),
+                        age_min=round((time.time() - last_ok) / 60, 1)))
+        except Exception:
+            log.exception(kv(event="earnings_seed_failed"))
+
+    def _persist(self) -> None:
+        if self._db is None:
+            return
+        try:
+            import json
+            with self._lock:
+                payload = {"last_ok": self._last_ok,
+                           "fetched_at": self._fetched_at,
+                           "dates": {s: [d.isoformat() for d in ds]
+                                     for s, ds in self._dates.items()}}
+            self._db.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                (self._META_KEY, json.dumps(payload)))
+        except Exception:
+            log.exception(kv(event="earnings_persist_failed"))
 
     def _fresh_ready(self) -> bool:
         """Takvim yuklu VE bayat degil (kilit altinda cagrilmali)."""
@@ -96,6 +151,10 @@ class EarningsService:
                 log.warning(kv(event="earnings_refresh_failed",
                                fail_streak=self._fail_streak,
                                ready=self._ready))
+        if rows:
+            # v4.38: yalniz BASARILI takvim kalicilasir; basarisiz cekim
+            # meta'daki son iyi kopyayi ASLA ezmez (gist [] vakasi dersi).
+            self._persist()
         log.info(kv(event="earnings_refresh", symbols=len(mapping),
                     window=f"{d_from}..{d_to}"))
 

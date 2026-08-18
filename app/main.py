@@ -81,7 +81,10 @@ def main() -> None:
         # yfinance'in bu ucu scrape tabanli (Render'da engelli
         # olan .info ucundan farkli) - calismazsa None doner
         # ve motor guvenli tarafta kalir.
-        fallback=yf_client.get_earnings_dates)
+        fallback=yf_client.get_earnings_dates,
+        # v4.38: takvim restart'i atlatir (taze kopya meta'dan tohumlanir;
+        # ~6 dk'lik fail-closed acilis penceresi kapanir)
+        db=db)
     notifier = TelegramNotifier(settings.TELEGRAM_BOT_TOKEN,
                                 settings.TELEGRAM_CHAT_ID,
                                 settings.TELEGRAM_PARSE_MODE)
