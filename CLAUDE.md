@@ -316,4 +316,9 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 8. İkiz not eşitliği mekanizması: iki deponun ikiz-depo-notu.md'si
    sessizce ayrışabiliyor (13 Ağu'da yaşandı); senkron damgası/denetim
    fikri değerlendirilecek.
+8b. Sağlayıcı tavanı taraması (ikiz dersi, 18 Ağu): "tavana dayanan
+   yanıt tam sayılamaz" sınıfı midas'ın DİĞER uçlarında taranmadı —
+   Alpaca bar sayfalaması (`download_bulk`/`_fetch_chunk` limitleri),
+   fundamentals, Midas scrape. Finnhub takvimi (v4.40) ve bybit
+   funding/kline kapatıldı; kalanlar açık.
 9. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)
