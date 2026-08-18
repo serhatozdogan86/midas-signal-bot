@@ -9,8 +9,16 @@ olcumu YOKTU) -> alet tasindi + anahtar test yazildi.
 NE YAPAR: strateji laboratuvari adaylarinin (S1-S5) gunluk net-R
 serilerini cift cift karsilastirir: Pearson korelasyonu, etkin bagimsiz
 bahis sayisi (N_eff), ayni-gun sinyal ortusmesi. "5 aday" gercekte kac
-BAGIMSIZ fikir? sorusuna sayi verir (S1 ve S5 ayni girisi paylasir -
-korelasyonlari ~1 cikmali; alet kendi kendini boyle dogrular).
+BAGIMSIZ fikir? sorusuna sayi verir.
+
+KALIBRASYON DUZELTMESI (18 Agu, ilk canli rapor): oz-dogrulama noktasi
+same_day_signal'dir - S1|S5 ayni girisi paylasir, ortusme orani 1.000
+CIKMALI (canlida cikti). Net-R korelasyonlari ise ~1 CIKMAK ZORUNDA
+DEGIL: cikislar farkli (S1->V0, S5->V2 genis) ve canli olcum 0.198
+verdi. Bu alet hatasi degil ARASTIRMA BULGUSUdur: ayni giristen dogan
+iki strateji net-R'de yalniz 0.198 korele ise P&L'i giris degil CIKIS
+kurali belirliyor - "cikis > giris" bulgusunun ucuncu bagimsiz kaniti
+(research-log).
 
 NE YAPMAZ: esik/karar/agirlik URETMEZ. Karar modulleri bu modulu
 IMPORT EDEMEZ (anahtar test: tests/test_correlation.py).

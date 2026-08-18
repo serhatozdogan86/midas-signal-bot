@@ -85,3 +85,15 @@ hükmü hipotez #7'nin karar kuralı verecek (ayna dönemi sonu).
   alışveriş listesi değil TUZAK HARİTASIDIR; pazarlama gücü kârlılık
   kanıtı değildir. Kaynak raporu bybit deposunda:
   docs/perakende-arastirmasi-2026-08-17.md.
+
+## Saha bulgusu: aynı giriş, %19.8 net-R korelasyonu (2026-08-18)
+İlk canlı korelasyon raporu: S1 ve S5 GİRİŞİ birebir paylaşır
+(same_day_signal = 1.000, 32/32 gün — aletin öz-doğrulaması geçti) ama
+günlük net-R korelasyonları yalnız **0.198**. Tek fark çıkış kuralı
+(S1→V0 tarzı, S5→V2 geniş). Yani aynı girişten doğan iki stratejinin
+kâr eğrileri neredeyse bağımsız: **P&L'i giriş değil ÇIKIŞ belirliyor.**
+"Çıkış tasarımı girişten önemli" bulgusunun ÜÇÜNCÜ bağımsız kanıtı
+(1: tarama backtest'i +48.5R→+151.5R; 2: iki botun perakende araştırması
+kesişimi; 3: bu canlı ölçüm). Diğer değerler: N_eff 3.21, ort. korelasyon
+0.139, en yüksek çift S2|S3 = 0.631 (aynı-gün örtüşme %74.6). Karar
+üretilmedi — V4/V0 kıyası kendi önceden yazılmış kuralıyla sürüyor.

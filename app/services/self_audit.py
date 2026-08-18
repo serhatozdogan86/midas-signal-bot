@@ -132,6 +132,20 @@ def run_audit(db, tracker=None, universe=None, earnings=None,
             add("bilanco takvimi", "VERI", ok, detail,
                 "Takvim yoksa motor fail-closed'a gecer ve SINYAL "
                 "URETMEZ; Finnhub/yedek kaynagi kontrol et", "critical")
+
+            # 16. degismez (v4.40, 704 sorusturmasi): TAKVIM KAPSAMASI.
+            # Finnhub ~1500 satirda sessizce kirper ve EN YAKIN tarihleri
+            # atar; takvim "taze ama EKSIK" olabilir - eski denetim bunu
+            # goremedi ve karartma 3 hafta fiilen korumasiz kaldi
+            # (5 sinyal, -3.35R). Kanarya (dilim tavana dayanmis) varsa
+            # veri tam sayilamaz.
+            add("takvim kapsamasi", "VERI",
+                not st.get("cap_suspect", False),
+                "kirpma suphesi VAR (dilim tavana dayandi)"
+                if st.get("cap_suspect") else "dilimler tavanin altinda",
+                "Saglayici cevabi kirpiyor olabilir; dilim boyunu kucult "
+                "(earnings_service._SLICE_DAYS) ve AV hakemiyle kiyasla",
+                "critical")
         except Exception as e:
             add("bilanco takvimi", "VERI", False, f"okunamadi: {e!r}")
 

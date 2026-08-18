@@ -16,7 +16,30 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
-- 2026-08-18 (v4.38): BILANCO TAKVIMI RESTART'I ATLATIR. Saha olcumu
+- 2026-08-18 (v4.40): FINNHUB TAKVIM KIRPMASI - 704 SORUSTURMASI KAPANDI.
+  BULGU (yerel oturum olcumu, dar-pencere yeniden sorgulamayla KANITLI):
+  /calendar/earnings ~1500 satirda SESSIZCE kirper ve kirptigi yer
+  pencerenin BASI - en yakin tarihler atilir (hata/uyari yok). Sezon
+  zirvesinde -4..+14 gunluk istegimiz tavana dayaniyordu; karartmanin
+  baktigi +-2 is gunu fiilen takvimde YOKTU ve "tarih bilinmiyorsa filtre
+  GECIRIR" kurali geregi 2.2 sessizce ihlal oldu. Denetim yesil kaldi
+  (veri tazeydi, sadece EKSIKTI). 1490/1491 sayilari sahteydi (kirpilmis
+  tavan); gercek pencere ~4244 sembolmus. HASAR (olculdu): karartma
+  icinde dogan 5 sinyal - BMY +1.05R, PCAR -1.40R, AMGN -1.00R (3 Agu
+  "Finnhub timeout" teshisi EKSIKMIS - gercek sebep bu), HWM -1.00R,
+  ALL -1.00R; toplam -3.35R (kumulatif golge sonucun ~%34'u). KOHORT:
+  besinin TAMAMI 8 Agu ONCESI (kohort-0/kilit-1) - KILIT-2 ve go-live
+  sayaci TEMIZ; gecmis kayitlara cerrahi yapilmaz, bu not dusulur.
+  YAN BULGU: yfinance yedegi VM'de OLUYDU (lxml kurulu degil; istemci
+  ImportError'i sessizce None'a yutuyor) - yedek hic calismamis.
+  DUZELTMELER (v4.40, veri katmani - motor davranisi degismez):
+  (1) pencere 3'er gunluk DILIMLERLE cekilir (olculen zirve ~670/3g,
+  tavanin cok altinda) + dedup, (2) kirpma KANARYASI: dilim >=1400
+  satirsa cap_suspect -> 16. degismez "takvim kapsamasi" KIRMIZI
+  (toplam 16 degismez), (3) requirements'a lxml (yedek bagimliligiyla
+  gelir), (4) AV hakem araci (v4.39) kiyas icin duruyor. IKIZ BORCU:
+  "saglayici sessizce kirpiyor" kalibi bybit'te aranacak (enstruman
+  listesi, funding gecmisi, mum sayfalama) - yerel oturuma devredildi. Saha olcumu
   (17 Agu, iki kez): restart sonrasi takvim penceresi ~6 dk fail-closed
   - seans ici kritik-fix restart'i o kadar sure sinyalsiz bot demekti.
   Son BASARILI takvim meta'ya yazilir, acilista TAZELIK SARTIYLA

@@ -16,14 +16,18 @@ from app.services.market_calendar import MarketCalendar
 
 
 class _FH:
-    def __init__(self, rows=None, fail_times=0):
+    """v4.40 uyumu: refresh artik pencereyi DILIMLERLE ceker (kirpma
+    korumasi), yani bir refresh birden cok cagri yapar. 'failing' bayragi
+    TAM kesintiyi taklit eder (tum dilimler bos); calls ham cagri sayar."""
+
+    def __init__(self, rows=None, failing=False):
         self.rows = rows or []
-        self.fail_times = fail_times
+        self.failing = failing
         self.calls = 0
 
     def get_earnings_calendar(self, d_from, d_to):
         self.calls += 1
-        if self.calls <= self.fail_times:
+        if self.failing:
             return []
         return self.rows
 
@@ -32,7 +36,7 @@ _ROWS = [{"symbol": "AMGN", "date": "2026-08-04"}]
 
 
 def test_service_not_ready_when_first_fetch_fails():
-    svc = EarningsService(_FH(fail_times=1), MarketCalendar())
+    svc = EarningsService(_FH(failing=True), MarketCalendar())
     svc.refresh(date(2026, 8, 3))
     assert svc.status()["ready"] is False
     info = svc.info("AMGN", date(2026, 8, 3))
@@ -40,14 +44,15 @@ def test_service_not_ready_when_first_fetch_fails():
 
 
 def test_service_retries_quickly_when_not_ready(monkeypatch):
-    fh = _FH(_ROWS, fail_times=1)
+    fh = _FH(_ROWS, failing=True)
     svc = EarningsService(fh, MarketCalendar())
-    svc.refresh(date(2026, 8, 3))           # 1. deneme: bos
-    assert fh.calls == 1 and svc.status()["ready"] is False
+    svc.refresh(date(2026, 8, 3))           # 1. deneme: tam kesinti
+    assert fh.calls >= 1 and svc.status()["ready"] is False
     import app.services.earnings_service as mod
     monkeypatch.setattr(mod, "_RETRY_SEC", 0)
+    fh.failing = False                      # kaynak toparladi
     svc.refresh(date(2026, 8, 3))           # TTL beklemeden tekrar dener
-    assert fh.calls == 2 and svc.status()["ready"] is True
+    assert svc.status()["ready"] is True
     assert svc.info("AMGN", date(2026, 8, 3)).available is True
 
 
@@ -55,8 +60,9 @@ def test_ready_service_does_not_refetch_within_ttl():
     fh = _FH(_ROWS)
     svc = EarningsService(fh, MarketCalendar())
     svc.refresh(date(2026, 8, 3))
+    first = fh.calls                        # v4.40: dilim sayisi kadar
     svc.refresh(date(2026, 8, 3))
-    assert fh.calls == 1                    # TTL korunur
+    assert fh.calls == first                # TTL korunur: yeni cagri yok
 
 
 def _engine_decision(earnings, fail_closed=True):

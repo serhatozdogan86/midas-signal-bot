@@ -29,6 +29,11 @@ _RETRY_SEC = 600          # veri yokken 10 dk'da bir tekrar dene
 # kaliyordu. Son basarili yuklemeden bu kadar sure gectiyse takvim BAYAT
 # sayilir -> fail-closed (2.2) devreye girer, sinyal uretilmez.
 _STALE_SEC = 24 * 3600
+# v4.40: Finnhub takvim ucu ~1500 satirda sessizce kirper (18 Agu olcumu).
+# Pencere dilim dilim cekilir; tek dilim bu esige yaklasirsa kirpma
+# SUPHESI vardir ve veri "tam" sayilamaz -> denetim kirmizi yakar.
+_SLICE_DAYS = 3
+_CAP_CANARY_ROWS = 1400
 
 
 class EarningsService:
@@ -50,6 +55,7 @@ class EarningsService:
         self._ready = False
         self._last_ok = 0.0
         self._fail_streak = 0
+        self._cap_suspect = False          # v4.40 kirpma kanaryasi
         # v3.18 YEDEK KAYNAK (yfinance). Finnhub takvimi coktugunde
         # YALNIZ pass-2 adaylari icin (~50 sembol) sembol basina
         # sorgulanir; pass-1 (300 sembol) asla yedege gitmez.
@@ -128,19 +134,46 @@ class EarningsService:
                     return
         d_from = (today - timedelta(days=_WINDOW_BACK_DAYS)).isoformat()
         d_to = (today + timedelta(days=_WINDOW_FWD_DAYS)).isoformat()
-        rows = self._finnhub.get_earnings_calendar(d_from, d_to)
+        # v4.40 (18 Agu, 704 sorusturmasi - OLCULDU): Finnhub bu ucu
+        # ~1500 satirda SESSIZCE kirpiyor ve kirptigi yer pencerenin BASI,
+        # yani EN YAKIN bilancolar (hata yok, uyari yok). Sezon zirvesinde
+        # -4..+14 gunluk tek istek 1500'e dayaniyor ve karartmanin baktigi
+        # +-2 is gunu fiilen takvimden dusuyordu: 5 sinyal karartma icinde
+        # dogdu (BMY/PCAR/AMGN/HWM/ALL, -3.35R; hepsi kilit-2 ONCESI).
+        # Cozum: pencere 3'er gunluk DILIMLERLE cekilir (olculen zirve
+        # ~670 satir/3 gun - tavanin cok altinda) + kanarya: dilim tavana
+        # yaklasirsa kirpma suphesi isaretlenir, denetim kirmizi yakar.
+        rows_all: list[dict] = []
+        cap_suspect = False
+        cur = today - timedelta(days=_WINDOW_BACK_DAYS)
+        end = today + timedelta(days=_WINDOW_FWD_DAYS)
+        while cur <= end:
+            piece_end = min(cur + timedelta(days=_SLICE_DAYS - 1), end)
+            piece = self._finnhub.get_earnings_calendar(
+                cur.isoformat(), piece_end.isoformat())
+            if len(piece) >= _CAP_CANARY_ROWS:
+                cap_suspect = True
+                log.warning(kv(event="earnings_cap_suspect",
+                               d_from=cur.isoformat(),
+                               d_to=piece_end.isoformat(), rows=len(piece)))
+            rows_all.extend(piece)
+            cur = piece_end + timedelta(days=1)
+        rows = rows_all
         mapping: dict[str, list[date]] = {}
+        seen: set[tuple[str, str]] = set()   # dilim sinirlarina karsi dedup
         for row in rows:
             sym = str(row.get("symbol", "")).upper()
             raw = str(row.get("date", ""))
-            if not sym or not raw:
+            if not sym or not raw or (sym, raw) in seen:
                 continue
+            seen.add((sym, raw))
             try:
                 mapping.setdefault(sym, []).append(date.fromisoformat(raw))
             except ValueError:
                 continue
         with self._lock:
             self._fetched_at = time.time()
+            self._cap_suspect = cap_suspect
             if rows:
                 self._dates = mapping
                 self._ready = True
@@ -192,6 +225,9 @@ class EarningsService:
                     "fallback_ok": len(self._fb_dates),
                     "fallback_failed": len(self._fb_failed),
                     "fail_streak": self._fail_streak,
+                    # v4.40: kirpma kanaryasi - True ise takvim "tam"
+                    # sayilamaz (denetim 16. degismez kirmizi yakar)
+                    "cap_suspect": getattr(self, "_cap_suspect", False),
                     "last_ok_age_min": (round((time.time() - self._last_ok) / 60)
                                         if self._last_ok else None)}
 

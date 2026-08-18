@@ -5,3 +5,7 @@ numpy>=1.26,<3
 pydantic>=2.8,<3
 pydantic-settings>=2.4,<3
 yfinance==1.5.2
+# v4.40 (18 Agu bulgusu): yfinance'in bilanco-takvimi scrape yolu lxml
+# ister; VM'de kurulu degildi ve istemci ImportError'i sessizce None'a
+# yutuyordu - yedek kaynak fiilen OLUYDU. Yedek, bagimliligiyla gelir.
+lxml>=5,<7

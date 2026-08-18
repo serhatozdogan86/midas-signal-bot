@@ -45,5 +45,10 @@ def test_cache_ttl_prevents_refetch():
     svc = EarningsService(fake, MarketCalendar())
     today = date(2026, 7, 28)
     svc.refresh(today, force=True)
+    # v4.40: pencere artik DILIMLERLE cekilir (kirpma korumasi) -> ilk
+    # refresh dilim sayisi kadar cagri yapar; onemli olan TTL icindeki
+    # ikinci refresh'in YENI cagri yapmamasi.
+    first = fake.calls
+    assert first >= 2                      # gercekten dilimli
     svc.refresh(today)  # TTL icinde -> yeni cagri yok
-    assert fake.calls == 1
+    assert fake.calls == first
