@@ -344,14 +344,24 @@ def test_worst_fill_tp1_guard_blocks_negative_edge():
 # ------------------------- v3.11: evren bayatlik alarmi (31 Tem sessizligi)
 def test_universe_refresh_empty_keeps_old_list_and_warns(caplog):
     """Likidite filtresi bos donerse eski liste servis edilir ama tarih
-    GUNCELLENMEZ -> sessiz bayatlama. Artik WARNING loglanir."""
-    from datetime import date, timedelta
-    from app.services.universe import UniverseProvider
+    GUNCELLENMEZ -> sessiz bayatlama. Artik WARNING loglanir.
+
+    v4.44 (21 Agu, ikiz taramasinin yan avi): fixture date.today()
+    (MAKINENIN yerel tarihi) ile tohumlaniyordu; stale_days() ise
+    _et_today() (ET tarihi) ile olcer. Yerel tarih ET'den ayrisinca
+    (TR'de 00:00-07:00; UTC makinede 00:00-04:00 UTC) test kirmizi
+    yaniyor ve deploy.sh'nin asilamaz test kapisini MESRU deploy
+    penceresinde kilitleyebiliyordu. Tuzak tablosu dersinin nuksu:
+    fixture, uretim kodunun kullandigi saat kaynagiyla tohumlanmali.
+    TZ deneyiyle kanitli: TZ=UTC 2 passed, TZ=Asia/Istanbul 2 failed
+    (eski fixture; yerel oturum olcumu)."""
+    from datetime import timedelta
+    from app.services.universe import UniverseProvider, _et_today
     u = UniverseProvider.__new__(UniverseProvider)
     import threading
     u._lock = threading.Lock()
     u._filtered = ["AAPL", "MSFT"]
-    u._filtered_date = date.today() - timedelta(days=3)
+    u._filtered_date = _et_today() - timedelta(days=3)
     u._raw_count = 0
     u._load_raw = lambda: ["AAPL", "MSFT"]
     u._liquidity_filter = lambda raw: []          # filtre coktu
@@ -364,14 +374,47 @@ def test_universe_refresh_empty_keeps_old_list_and_warns(caplog):
 
 
 def test_universe_stale_days_zero_when_fresh():
-    from datetime import date
-    from app.services.universe import UniverseProvider
+    # v4.44: date.today() degil _et_today() - fixture uretimle ayni saat
+    # kaynagini kullanmali (yukaridaki testin docstring'ine bak)
+    from app.services.universe import UniverseProvider, _et_today
     import threading
     u = UniverseProvider.__new__(UniverseProvider)
     u._lock = threading.Lock()
     u._filtered = ["AAPL"]
-    u._filtered_date = date.today()
+    u._filtered_date = _et_today()
     assert u.stale_days() == 0
+
+
+def test_stale_days_saat_diliminden_bagimsiz(monkeypatch):
+    """Sinifi kapatan degismezlik (v4.44): ET cabasiyla tohumlanmis
+    tazelik olcumu, surecin YEREL saat dilimi ne olursa olsun ayni
+    sonucu vermeli. Uretim _et_today() acik ZoneInfo kullandigi icin
+    gecer; biri onu date.today()'e cevirirse Auckland/Istanbul
+    dilimlerinde ayrisir ve bu test yakalar (tzset olan platformda)."""
+    import os
+    import time as _time
+    if not hasattr(_time, "tzset"):
+        import pytest
+        pytest.skip("tzset yok (Windows) - Linux kapisinda olculur")
+    from app.services.universe import UniverseProvider, _et_today
+    import threading
+    u = UniverseProvider.__new__(UniverseProvider)
+    u._lock = threading.Lock()
+    u._filtered = ["AAPL"]
+    u._filtered_date = _et_today()
+    old_tz = os.environ.get("TZ")
+    try:
+        for tz in ("UTC", "Asia/Istanbul", "Pacific/Auckland",
+                   "America/New_York"):
+            monkeypatch.setenv("TZ", tz)
+            _time.tzset()
+            assert u.stale_days() == 0, f"TZ={tz} sonucu degistirdi"
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        _time.tzset()
 
 
 def test_open_blackout_blocks_pre_market_by_design():
