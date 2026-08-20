@@ -134,6 +134,15 @@ def create_app(store: StateStore, scheduler: Scheduler,
                 diag["mirror"] = mirror.diag()
         except Exception:
             diag["mirror"] = {"error": "mirror_failed"}
+        # v4.45 (21 Agu): go-live blogu artik /diag'da da yayimlanir.
+        # Simdiye kadar yalniz gist nabzina ve gunluk rapora akiyordu;
+        # uc deploy'un dogrulama listesi /diag'da bosuna aradi. Ozellikle
+        # yanlislama durumu (state/met) panodan/tunelden aninda gorunur
+        # olmali - "kural var ≠ gorunur" dersi.
+        try:
+            diag["golive"] = scheduler.golive_status()
+        except Exception:
+            diag["golive"] = {"error": "golive_failed"}
         diag["news"] = news.info() if news is not None else None
         try:
             diag["session"] = scheduler.session_info()

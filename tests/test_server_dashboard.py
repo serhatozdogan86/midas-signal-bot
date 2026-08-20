@@ -692,6 +692,18 @@ def test_diag_surum_alani_tasir(tmp_path):
     assert v.get("commit")
 
 
+def test_diag_golive_blogu_tasir(tmp_path):
+    """v4.45 (21 Agu): go-live blogu /diag'da yayimlanir - uc deploy'un
+    dogrulama listesi orada bosuna aradi (yalniz gist nabzina akiyordu).
+    Yanlislama durumu (state + met=False) tunel/panodan aninda gorunur
+    olmali. Eski kodda bu test kirmizi (anahtar yok)."""
+    c = _client(tmp_path)
+    g = c.get("/diag").get_json().get("golive")
+    assert g is not None and "criteria" in g
+    assert g["met"] is False                      # yanlislanan kohort
+    assert "YANLISLANDI" in g.get("state", "")
+
+
 def test_backup_info_gist_kimligini_admin_disina_vermez(tmp_path):
     """v4.28 guvenlik (10 Agu bulgusu): gist 'secret'tir ama URL'yi bilen
     herkes okur - /backup/info kimligi kimliksiz veriyordu. Kimlik yalniz
