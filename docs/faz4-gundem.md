@@ -39,9 +39,15 @@ kume dolunca (v3.19 kurali islemeye devam).
 JNJ vakasi (+7.91R dolum-riskiyle, +2.29R tasarim-riskiyle; 80 dolumun
 34'u bolge disi). Fiili-risk normalizasyonu "pozisyon boyu fiili doluma
 gore buyutulur" varsayimina dayaniyor - elle emirde dogrulanmamis.
-Cikti: KILIT-3 defteri icin R tanimi karari (aday: tasarim-riski R +
-fiili-dolum R'nin YAN SUTUN olarak raporlanmasi). Ikiz taramasi bybit'te
-acik (ayni gap kurali).
+IKIZ TARAMASI SONUCU (21 Agu, ikiz-depo-notu G1): bybit'te gap dali YOK
+ve tasarim/fiili risk orani hicbir kayitta 1.0'i asmiyor - R sismesi
+yapisal olarak imkansiz (kontrol grubu). Karsit-olgu: midas'in gap
+kurali bybit defterine uygulansa +4.03R -> +350.89R illuzyon uretirdi
+(ust sinir; asimetri: zarar -1R'ye capali, kazanc payda kuculdukce
+serbest). JNJ'siz kilit-2 dususu 9.05R olurdu - yanlislama karari
+JNJ muhasebesine dayanmiyor, tersine derinlesiyor.
+Cikti: KILIT-3 defteri icin R tanimi karari (guclu aday: tasarim-riski
+R ana olcu + fiili-dolum R yan sutun).
 
 ### F5 — Karartma-temiz yeniden okuma
 v4.40 oncesi takvim eksikti; kohort-0/kilit-1 sayilari 5 kirli sinyal
