@@ -19,13 +19,14 @@ from tests.test_alpaca_mirror_step2 import (FakeClient, _candles,
 
 def _mirror_pair(db, m, symbol, ledger_fill, mirror_status,
                  mirror_fill=None, stop=98.0, direction="LONG",
-                 created="2026-08-14T14:00:00Z", late=False):
+                 created="2026-08-14T14:00:00Z", late=False,
+                 entry_min=100.0, entry_max=101.0):
     """signals + mirror_fills cifti kur (metrics icin)."""
     db.execute(
         "INSERT INTO signals(symbol,direction,created_utc,entry_candle_ts,"
         "entry_min,entry_max,stop_loss,tp1,status,outcome,fill_price,blocked)"
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,0)",
-        (symbol, direction, created, 1000, 100.0, 101.0, stop, 104.0,
+        (symbol, direction, created, 1000, entry_min, entry_max, stop, 104.0,
          "CLOSED" if ledger_fill is None else "FILLED",
          "NOT_FILLED" if ledger_fill is None else None, ledger_fill))
     sid = db.query_one("SELECT id FROM signals ORDER BY id DESC LIMIT 1")["id"]
@@ -56,9 +57,11 @@ def test_metrics_oran_fiyat_ve_dislama(tmp_path):
     """WFC tipi (ikisi de doldu, ayna daha iyi fiyat), TER tipi (ayna
     doldu, defter dolmadi), LATE_ONBOARD (dislanir)."""
     db, m = _setup(tmp_path, FakeClient())
-    # ikisi de doldu: defter 88.63 (worst-fill), ayna 88.53 -> avantaj
-    # (88.63-88.53)/risk(88.63-86.63=2.0) = +0.05R
-    _mirror_pair(db, m, "WFC", 88.63, "FILLED", 88.53, stop=86.63)
+    # ikisi de doldu: defter 88.63 (worst-fill = bolgenin ust ucu),
+    # ayna 88.53 -> avantaj (88.63-88.53)/TASARIM riski(88.63-86.63=2.0)
+    # = +0.05R (v4.42: payda tasarim riski)
+    _mirror_pair(db, m, "WFC", 88.63, "FILLED", 88.53, stop=86.63,
+                 entry_min=87.6, entry_max=88.63)
     # ayna girdi, defter girmedi
     _mirror_pair(db, m, "TER", None, "FILLED", 406.30, stop=395.0)
     # kurulus artefakti - hesaba KATILMAZ
@@ -73,6 +76,23 @@ def test_metrics_oran_fiyat_ve_dislama(tmp_path):
     # oran farki 0.5 >= 0.10 -> kademe 1 (izleme notu); kademe 2 DEGIL
     # cunku 20 cift yok - sabir kurali kodda da yasiyor
     assert mm["tier"] == 1
+
+
+def test_gap_dolumu_paydayi_patlatamaz(tmp_path):
+    """CIEN vakasi (20 Agu): defter gap'te BOLGENIN ALTINDAN, stop'a 2.2
+    puan mesafeden doldu; eski payda (dolum riski) cokunce tek cift
+    -10.5R 'sapma' uretip 13 ciftin ortalamasini ele gecirdi. v4.42:
+    payda TASARIM riski - ayni cift artik sinirli (-0.91R) olculur.
+    Eski kodda bu test kirmizi yanar."""
+    db, m = _setup(tmp_path, FakeClient())
+    _mirror_pair(db, m, "CIEN", 421.585, "CLOSED", 445.11,
+                 stop=419.355, entry_min=432.4604, entry_max=445.27)
+    mm = m.metrics()
+    assert mm["price_pairs"] == 1
+    # tasarim riski 25.915 -> (421.585-445.11)/25.915 = -0.908
+    assert -1.0 < mm["avg_price_adv_r"] < -0.8
+    # eski payda (dolum riski 2.23) -10.5 uretirdi - o dunya kapandi
+    assert mm["avg_price_adv_r"] > -2.0
 
 
 def test_tier2_ancak_orneklem_ve_sure_dolunca(tmp_path):

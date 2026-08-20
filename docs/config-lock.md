@@ -16,7 +16,31 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
-- 2026-08-18 (v4.40): FINNHUB TAKVIM KIRPMASI - 704 SORUSTURMASI KAPANDI.
+- 2026-08-20 (v4.42): YANLISLAMA TETIGI DOGRULANDI + AYNA METRIK
+  DUZELTMESI. (A) KILIT-2 kohortu NET maks. dususu 8.90R > 8.0R -
+  go-live-kriteri.md'nin 30 Tem ON-KAYITLI yanlislama kurali TETIKLENDI.
+  Dogrulama bagimsiz (yerel oturum, anlik DB kopyasi, botun kendi
+  kodu + elle capraz hesap birebir): 8 islemlik kesintisiz kayip serisi
+  TJX(11 Agu)->CIEN(18 Agu), egri hic artiya gecmedi; JNJ karsit-olgusuna
+  dayanikli (JNJ bolge icinde dolsaydi dusus 9.05 olurdu). NOT: maksDD
+  tarihsel tepe - bu kohort icin ded ≤8R sarti matematiksel olarak bir
+  daha SAGLANAMAZ; kohort go-live acisindan OLU. KARAR BEKLIYOR
+  (Serhat): kuralin geregi "golge uretim durur, Faz 4 one cekilir";
+  onerilen uyarlama toplantida. Parametre "kurtarma" YAPILMAZ.
+  (B) AYNA -0.76R ALARMI GERI CEKILDI: tek aykiri (CIEN) - gap'te bolge
+  altindan dolan islemde eski payda (dolum riski) cokup tek cifti
+  -10.5R gostermisti; 12 ciftin ortalamasi +0.06R, medyan +0.004R -
+  sistematik dezavantaj YOK. Metrik paydasi TASARIM riskine cevrildi
+  (bolgenin kotu ucu <-> stop; sinyal basina sabit birim), CIEN
+  gerileme testi eski kodda kirmizi.
+  (C) YENI ARASTIRMA MADDESI (Faz 4 gundemi + ikiz gorevi): bolge-alti
+  gap dolumlarinda R paydasi kuculup R sisiyor (JNJ +7.91R, tasarim
+  riskiyle +2.29R olurdu; 80 dolumun 34'u bolge disi). Hesap hatasi
+  degil - fiili risk normalizasyonu; ancak pozisyon boyutunun fiili
+  dolума gore buyutuldugu varsayimina dayaniyor (emirler elle - varsayim
+  dogrulanmamis). Defter muhasebesi degisikligi KILIT konusu ->
+  Faz 4'te "tasarim-riski R" muhasebesi degerlendirilecek; bybit'te
+  ayni gap kurali ikiz taramasina alindi.
   BULGU (yerel oturum olcumu, dar-pencere yeniden sorgulamayla KANITLI):
   /calendar/earnings ~1500 satirda SESSIZCE kirper ve kirptigi yer
   pencerenin BASI - en yakin tarihler atilir (hata/uyari yok). Sezon

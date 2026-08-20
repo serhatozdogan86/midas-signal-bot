@@ -284,7 +284,8 @@ class AlpacaMirror:
                     -> karar toplantisi acilir (config-lock sureci)."""
         rows = self._db.query(
             "SELECT m.alpaca_status, m.alpaca_fill_price, m.created_utc, "
-            "s.fill_price, s.stop_loss, s.status, s.outcome, s.direction "
+            "s.fill_price, s.stop_loss, s.status, s.outcome, s.direction, "
+            "s.entry_min, s.entry_max "
             "FROM mirror_fills m JOIN signals s ON s.id=m.signal_id "
             "WHERE COALESCE(m.closed_reason,'') != 'LATE_ONBOARD'")
         pairs = []
@@ -314,12 +315,20 @@ class AlpacaMirror:
         for r in pairs:
             if r["fill_price"] is None or r["alpaca_fill_price"] is None:
                 continue
-            risk = abs(r["fill_price"] - (r["stop_loss"] or 0))
+            # v4.42 (20 Agu CIEN vakasi): payda DOLUM riski degil TASARIM
+            # riski (bolgenin kotu ucu <-> stop). Gap'te bolge ALTINDAN
+            # dolan islemde dolum riski cokuyor ve tek cift ortalamayi
+            # patlatiyordu (CIEN: -10.5R "avantaj" - 13 ciftin toplam
+            # sapmasinin %64'u tek basina; cikarilinca ortalama isaret
+            # degistiriyordu). Tasarim riski sinyal basina SABIT payda.
+            is_long = r["direction"] == "LONG"
+            ref = r["entry_max"] if is_long else r["entry_min"]
+            risk = abs((ref or 0) - (r["stop_loss"] or 0))
             if risk <= 0:
                 continue
             # pozitif = ayna DAHA IYI fiyat aldi (LONG'da daha ucuz,
             # SHORT'ta daha pahali satti) -> defter fazla kotumser yonu
-            sign = 1 if r["direction"] == "LONG" else -1
+            sign = 1 if is_long else -1
             advs.append(sign * (r["fill_price"] - r["alpaca_fill_price"])
                         / risk)
         if advs:
