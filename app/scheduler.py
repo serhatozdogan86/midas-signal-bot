@@ -986,6 +986,12 @@ class Scheduler:
             "ci_low_r": {"min_exclusive": s.GOLIVE_CI_MIN_LOW_R,
                          "now": None, "ok": False},
         }, "met": False}
+        # v4.43: kohort yanlislandiysa kapi HICBIR kosulda acilamaz;
+        # kriterler seffaflik icin hesaplanmaya devam eder ama met
+        # zorla False kalir ve durum raporda acikca gorunur.
+        falsified = getattr(s, "COHORT_FALSIFIED_NOTE", "") or ""
+        if falsified:
+            out["state"] = falsified
         if self._tracker is None:
             return out
         try:
@@ -1024,7 +1030,8 @@ class Scheduler:
             c["ci_low_r"]["clusters"] = ci["clusters"]
             c["ci_low_r"]["ok"] = (ci["ci_low"] is not None
                                    and ci["ci_low"] > s.GOLIVE_CI_MIN_LOW_R)
-            out["met"] = all(v["ok"] for v in c.values())
+            # v4.43: yanlislanan kohortta met asla True olamaz
+            out["met"] = (not falsified) and all(v["ok"] for v in c.values())
         except Exception:
             log.exception(kv(event="golive_status_error"))
         return out
@@ -1123,7 +1130,7 @@ class Scheduler:
                 f"{c['max_dd_r']['now'] if c['max_dd_r']['now'] is not None else '-'}R"
                 f"/{c['max_dd_r']['max']}R | CI alt "
                 f"{cil if cil is not None else '-'}R (>0 sart) -> "
-                f"{'KARSILANDI' if g['met'] else 'henuz degil'}")
+                f"{'KOHORT YANLISLANDI - salt olcum (Faz 4)' if g.get('state') else ('KARSILANDI' if g['met'] else 'henuz degil')}")
         except Exception:
             log.exception(kv(event="eod_golive_error"))
         try:

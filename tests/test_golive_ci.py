@@ -98,11 +98,30 @@ def test_sansli_defter_eski_kapiyi_gecerdi_yenisini_gecemez(tmp_path):
 
 def test_tutarli_ustunluk_kapiyi_acar(tmp_path):
     """Sart asilamaz bir duvar DEGIL: her kumesi pozitif, tutarli bir
-    defter CI alt sinirini sifirin ustune tasir ve kapi acilir."""
+    defter CI alt sinirini sifirin ustune tasir ve kapi acilir.
+    (v4.43: KILIT-2 yanlislandigi icin varsayilan ayarlarda kapi kapali;
+    bu test kapi MEKANIGINI olctugunden yanlislama notu bosaltilir -
+    KILIT-3 dunyasinin provasi.)"""
     tr = _tracker(tmp_path)
     for i in range(30):
         _closed(tr._db, i, 0.9 + (i % 3) * 0.3, f"LONG-P{i:02d}")
-    g = _sched(tr, GOLIVE_MIN_DECIDED=30, GOLIVE_MIN_CLUSTERS=30).golive_status()
+    g = _sched(tr, GOLIVE_MIN_DECIDED=30, GOLIVE_MIN_CLUSTERS=30,
+               COHORT_FALSIFIED_NOTE="").golive_status()
     assert g["criteria"]["ci_low_r"]["now"] > 0
     assert g["criteria"]["ci_low_r"]["ok"] is True
     assert g["met"] is True
+
+
+def test_yanlislanan_kohortta_kapi_hicbir_kosulda_acilamaz(tmp_path):
+    """v4.43 (20 Agu, Serhat karari B): yanlislama tetiklendikten sonra
+    TUM kriterler yesile donse bile kapi ACILMAZ - maksDD tarihsel tepe,
+    kohort matematiksel olarak olu; 'met' zorla False, durum raporda.
+    Eski kodda bu test kirmizi (state alani yok, met True olurdu)."""
+    tr = _tracker(tmp_path)
+    for i in range(30):
+        _closed(tr._db, i, 0.9 + (i % 3) * 0.3, f"LONG-P{i:02d}")
+    g = _sched(tr, GOLIVE_MIN_DECIDED=30,
+               GOLIVE_MIN_CLUSTERS=30).golive_status()   # varsayilan: yanlislandi
+    assert "YANLISLANDI" in g.get("state", "")
+    assert all(v["ok"] for v in g["criteria"].values())  # kriterler yesil...
+    assert g["met"] is False                             # ...ama kapi KAPALI

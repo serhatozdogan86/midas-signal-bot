@@ -16,6 +16,18 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-20 (v4.43 / KARAR): KILIT-2 KOHORTU YANLISLANDI - KARNE
+  KAPANDI. Serhat karari "B" (secenekler sunuldu, tutanak: v4.42 notu +
+  dogrulama tablolari). Uygulama: (1) yanlislama durumu koda islendi
+  (settings.COHORT_FALSIFIED_NOTE; golive_status.state + met kalici
+  False + EOD satirinda "KOHORT YANLISLANDI - salt olcum"); kriterler
+  seffaflik icin hesaplanmaya devam eder. (2) Motor ve TUM olcum
+  katmanlari (ayna, exit/strategy/hypo lab) SALT-OLCUM modunda akmaya
+  devam eder - golge mod disiplini ayni, Telegram sinyalleri kapali.
+  (3) Faz 4 analizi basladi: gundem docs/faz4-gundem.md (F1-F8, madde
+  basina on-kayit disipliniyle). (4) KILIT-3 ilanina kadar parametre
+  "kurtarma" YASAK. Not: bu olay sistemin BASARISI olarak kayda gecer -
+  on-kayitli fren, gercek para yanmadan, tasarlandigi gibi calisti.
 - 2026-08-20 (v4.42): YANLISLAMA TETIGI DOGRULANDI + AYNA METRIK
   DUZELTMESI. (A) KILIT-2 kohortu NET maks. dususu 8.90R > 8.0R -
   go-live-kriteri.md'nin 30 Tem ON-KAYITLI yanlislama kurali TETIKLENDI.

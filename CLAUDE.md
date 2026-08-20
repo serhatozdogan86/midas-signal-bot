@@ -251,7 +251,10 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
   (commit 873ac85 / v4.31); Render askıda. Defter kesimde birebir taşındı
   (8 açık; WIN 4 / LOSS 18 / EXPIRED 4 / NOT_FILLED 4; −9.65R brüt).
   Karar arşivi gist revizyonlarından 22.500 satır olarak geri toplandı.
-- Kohort: KİLİT-2 (8 Ağu'dan beri) 60 işlem eşiğinde birikiyor
+- **20 Ağu: KİLİT-2 kohortu YANLIŞLANDI** (NET maksDD 8.90R > 8R;
+  30 Tem ön-kayıtlı kural; Serhat kararı "B"). Karne kapandı; sistem
+  SALT-ÖLÇÜM modunda akıyor, Faz 4 analizi sürüyor
+  (docs/faz4-gundem.md). KİLİT-3'e kadar parametre "kurtarma" YASAK.
 - Çıkış laboratuvarı: V0 (canlı) / V1 (kısmi kâr) / V2 (geniş stop) /
   V3 (hedefsiz aynı stop) paralel ölçülüyor
 - Strateji laboratuvarı: S1 momentum, S2 Donchian, S3 hacimli kırılım,

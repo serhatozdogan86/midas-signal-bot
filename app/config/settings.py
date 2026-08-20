@@ -143,6 +143,15 @@ class Settings(BaseSettings):
     GOLIVE_CI_MIN_LOW_R: float = 0.0   # CI alt siniri bunun USTUNDE olmali
     GOLIVE_CI_BOOT_N: int = 10000      # bootstrap tur sayisi
     GOLIVE_CI_ALPHA: float = 0.05      # %95 guven araligi
+    # v4.43 (20 Agu 2026, Serhat karari "B"): KILIT-2 kohortu YANLISLANDI.
+    # 30 Tem on-kayitli yanlislama kurali tetiklendi (NET maksDD 8.90R >
+    # 8R; 8 islemlik kesintisiz seri, bagimsiz dogrulandi). maksDD tarihsel
+    # tepe oldugundan bu kohort go-live kapisini bir daha ACAMAZ ->
+    # karne kapandi; sistem SALT-OLCUM modunda akmaya devam eder (ayna/
+    # lablar veri toplar), Faz 4 analizi baslar. KILIT-3 ilanina kadar
+    # parametre "kurtarma" YASAK (go-live-kriteri.md).
+    COHORT_FALSIFIED_NOTE: str = ("YANLISLANDI 2026-08-20: maksDD 8.90R > "
+                                  "8R (on-kayitli kural, 30 Tem); karar B")
     FINE_SCAN_INTERVAL_SEC: int = 60         # Phase 2 (rezerve)
     WATCHLIST_MAX: int = 40
     PREP_LEAD_MIN: int = 45                  # acilistan once hazirlik (08:45 ET ~ 15:45 TR)
