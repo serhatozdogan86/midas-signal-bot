@@ -49,6 +49,15 @@ JNJ muhasebesine dayanmiyor, tersine derinlesiyor.
 Cikti: KILIT-3 defteri icin R tanimi karari (guclu aday: tasarim-riski
 R ana olcu + fiili-dolum R yan sutun).
 
+### F4b — Giris bandi / dolum orani (23 Agu gozlemi)
+Dolum orani %78.9 (ayna ile birebir ayni - model dogrulanmis); 21 Agu
+dogumlu 4 kayit 1-2 islem gunudur PENDING. Soru: bant (dolum kurali +
+bolge tasarimi) dogru islemleri mi kaciriyor? Veri kaynagi: NOT_FILLED
+anatomisi (bybit aletinin tasinmasi - envanterde acik) + ayna
+NOT_FILLED/CANCELLED kiyasi. M3'un simetrigi: M3 "dolanlar pesin
+zararli mi" sorar, F4b "dolmayanlar kacan kazanc mi" sorar. Karar
+kurali yazilmadan olcum yorumlanmaz.
+
 ### F5 — Karartma-temiz yeniden okuma
 v4.40 oncesi takvim eksikti; kohort-0/kilit-1 sayilari 5 kirli sinyal
 iceriyor. KILIT-2 temizdi. Cikti: tum-kohort tarihsel okumalar bu
