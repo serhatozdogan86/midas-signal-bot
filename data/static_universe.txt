@@ -1,5 +1,9 @@
 # Statik yedek evren - Midas'ta listelenen likit ABD hisseleri (haftalik bakim).
 # Scrape ve cache basarisiz olursa bu liste kullanilir. Likidite filtresi yine uygulanir.
+# 24 Agu 2026: SQ -> XYZ (Block Inc. sembolunu degistirdi; canli scrape zaten
+# XYZ getiriyordu, yalniz bu YEDEK liste bayatti - F6 backtest'inde yakalandi).
+# NOT: 'BRK.B' bicimi DOGRUDUR; Yahoo'ya giderken nokta tireye cevrilir
+# (YFinanceClient._to_yahoo, 30 Tem). Burada tire yazilmaz.
 AAPL
 MSFT
 NVDA
@@ -31,7 +35,7 @@ ZS
 DDOG
 NET
 SHOP
-SQ
+XYZ
 PYPL
 COIN
 HOOD

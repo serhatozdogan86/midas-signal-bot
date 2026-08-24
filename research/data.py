@@ -15,38 +15,72 @@ atlanmaz, ekrana yazilir ve evren sayisi raporlanir.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
 import pandas as pd
 
+from app.integrations.yfinance_client import YFinanceClient
+
 BT_DIR = Path(os.environ.get("BT_DIR", "research/_data"))
 PKL = BT_DIR / "daily.pkl"
 UNIVERSE_TXT = Path("data/static_universe.txt")
+CACHE_JSON = Path("data/universe_cache.json")
 BENCH = "SPY"
 
 
-def universe() -> list[str]:
-    """Statik evren + SPY (rejim/rezidüel icin gerekli)."""
-    syms = [ln.strip() for ln in UNIVERSE_TXT.read_text().splitlines()
-            if ln.strip() and not ln.startswith("#")]
+def universe() -> tuple[list[str], str]:
+    """Arastirma evreni + SPY. Doner: (semboller, kaynak adi).
+
+    KAYNAK SIRASI (24 Agu duzeltmesi): once CANLI evren onbellegi
+    (data/universe_cache.json - botun kendi kazidigi liste), o yoksa
+    statik yedek. Gerekce: ilk yazimda yalniz statik dosya okunuyordu
+    ve arastirma evreni canli evrenden SESSIZCE ayrisiyordu (ilk
+    kosumda yakalandi: SQ artik XYZ, sirket sembolunu degistirmis).
+    Arastirma baska bir evrende olculurse hukum canli bota ait olmaz.
+    """
+    syms: list[str] = []
+    kaynak = "statik yedek liste"
+    try:
+        cached = json.loads(CACHE_JSON.read_text()).get("symbols", [])
+        if cached:
+            syms, kaynak = list(cached), f"canli evren onbellegi ({CACHE_JSON})"
+    except (OSError, ValueError):
+        pass
+    if not syms:
+        syms = [ln.strip() for ln in UNIVERSE_TXT.read_text().splitlines()
+                if ln.strip() and not ln.startswith("#")]
     if BENCH not in syms:
         syms.append(BENCH)
-    return syms
+    return syms, kaynak
+
+
+def to_yahoo(symbols: list[str]) -> dict[str, str]:
+    """Yahoo bicimi -> depo bicimi haritasi.
+
+    URETIMDEKI kurali yeniden kullanir (YFinanceClient._to_yahoo):
+    'BRK.B' Yahoo'da 'BRK-B'dir. Bu tuzak canli tarafta 30 Tem'de
+    cozulmustu; arastirma katmani kendi yolunu yazdigi icin AYNI
+    tuzagi 24 Agu'da yeniden kesfetti (ilk kosumda "BRK.B verisi yok"
+    uyarisi). Ders: paralel uygulama, cozulmus hatalari geri getirir.
+    """
+    return {YFinanceClient._to_yahoo(s): s for s in symbols}
 
 
 def download(years: int = 2) -> pd.DataFrame:
     import yfinance as yf                      # yalniz indirirken gerekir
-    syms = universe()
-    print(f"indiriliyor: {len(syms)} sembol, {years} yil")
-    raw = yf.download(syms, period=f"{years}y", interval="1d",
+    syms, kaynak = universe()
+    harita = to_yahoo(syms)                    # yahoo_sembol -> depo_sembolu
+    print(f"indiriliyor: {len(syms)} sembol, {years} yil (evren: {kaynak})")
+    raw = yf.download(list(harita), period=f"{years}y", interval="1d",
                       progress=False, auto_adjust=False, group_by="column")
     if raw is None or raw.empty:
         raise RuntimeError("veri gelmedi - ag/saglayici sorunu. "
                            "Bos onbellek YAZILMAZ (2.1).")
-    got = {s for s in syms if ("Close", s) in raw.columns
+    got = {s for s in harita if ("Close", s) in raw.columns
            and raw[("Close", s)].notna().any()}
-    eksik = sorted(set(syms) - got)
+    eksik = sorted(harita[s] for s in set(harita) - got)
     if eksik:
         print(f"UYARI: {len(eksik)} sembol icin veri yok: "
               f"{', '.join(eksik[:15])}{' ...' if len(eksik) > 15 else ''}")

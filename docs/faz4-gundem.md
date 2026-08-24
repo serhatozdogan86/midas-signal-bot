@@ -63,20 +63,32 @@ v4.40 oncesi takvim eksikti; kohort-0/kilit-1 sayilari 5 kirli sinyal
 iceriyor. KILIT-2 temizdi. Cikti: tum-kohort tarihsel okumalar bu
 dipnotla yeniden cercevelenir (kayit duzeltilmez, not dusulur).
 
-### F6 — S6 Squeeze backtest'i (hipotez 9, on-kayitli)
-research/ duzeneginde 2y; karar kurali research-log'da yazili.
-KILIT-3 roster adayi.
-DURUM (24 Agu): DUZENEK HAZIR, sonuc YOK. Sinyal kurali
-(strategies.squeeze_breakout), karar kurali (harness.verdict_h9) ve
-veri katmani (research/data.py) yazildi + testlerle kilitlendi;
-kosmak icin piyasa verisi gerekiyor ve bulut oturumunun agi kapali
-(Yahoo CONNECT 403) - backtest'i agi olan oturum kosar.
-YAN BULGU (kayda deger): eski duzenek /home/claude/bt/*.pkl okuyordu,
-yani gecici bir analiz ortamina bagliydi ve o ortam kapandiginda
-KOSULAMAZ hale gelmisti. Olcum aleti yeniden uretilemiyorsa olcum de
-yeniden uretilemez; veri katmani bu yuzden depo icine alindi.
-IKIZ SORUSU: ayni kusur bybit'in research/ duzeneginde de var mi
-(ikiz-depo-notu.md'ye tasinacak).
+### F6 — S6 Squeeze backtest'i ✔ KAPANDI: RED (24 Agu)
+2y gunluk backtest kosuldu (167 sembol / 500 gun / LONG+SHORT / ortak
+cikis). On-kayitli dort sarttan ikisi tutmadi: net beklenti -0.044R
+(>0 olacakti) ve siralamada 6'da 5. (ilk 3 olacakti). S6 roster'a
+ALINMAZ. Ikinci yarinin belirgin duzelmesi (-0.083R -> -0.005R) BILEREK
+dikkate alinmadi - sart "beklenti > 0" idi, "duzeliyor mu" degil.
+Ayrinti + tam tablo: research-log.md (F6 HUKUM).
+
+ASIL BULGU (F1/F7'ye girdi): yedi stratejiden ALTISI negatif; tek
+pozitif +0.005R ve 143.8R geri cekilmeli, yani gurultu. Ustune hayatta
+kalma yanliligi tum LONG tarafini yukari cekiyor - gercegi daha kotu.
+Motorun gunluk vekili -0.050R; canli golge defter de negatif. Iki
+BAGIMSIZ olcum ayni yone isaret ediyor: 20 Agu yanlislanmasi sanssizlik
+degil. KILIT-3 tasarimi bunu veri olarak alacak.
+
+YAN BULGU 1 (kapandi): eski duzenek /home/claude/bt/*.pkl okuyordu -
+kapanmis gecici bir ortam - yani harness KOSULAMAZ durumdaydi. Veri
+katmani depo icine alindi (research/data.py).
+YAN BULGU 2 (kapandi): arastirma evreni canli evrenden sessizce
+ayrismisti (SQ -> XYZ; ayrica BRK.B bicim tuzagi uretimde 30 Tem'de
+cozulmustu, arastirma kendi yolunu yazdigi icin geri gelmisti).
+Duzeltildi + tools/universe_drift.py denetcisi eklendi.
+IKIZ: bybit her iki konuda da ONDEYDI (veri indiricisi depo ici +
+butunluk raporu; backtest evreni UniverseProvider'dan). Kayit
+ikiz-depo-notu.md 24 Agu bolumunde; bybit'in butunluk raporunun
+midas'a tasinmasi ACIK.
 
 ### F7 — Secim kurali (H-D): momentum agirlikli aday siralamasi
 Bulgu 1+3 birlesimi (tek kanitli edge 12-1 momentum; "tavan degil secim

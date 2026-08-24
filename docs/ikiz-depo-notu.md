@@ -613,3 +613,25 @@ Bu kayıt şu an yalnız midas kopyasında. bybit kopyasına aynısı
 yazılmalı (açık kuyruk md. 8: iki notun sessizce ayrışması — 13 Ağu'da
 yaşanmıştı). Bulut oturumunun bybit'e yazma yetkisi yok; taşıma yerel
 oturuma bırakıldı.
+
+### Ek (aynı gün, F6 koşumundan sonra): evren kaynağı — bybit yine önde
+F6'nın ilk koşumu iki eksik sembol raporladı; ikisi de "araştırma
+evreni canlı evrenden ayrıştı" sınıfından (SQ→XYZ bayatlığı; BRK.B
+biçim tuzağı — üretimde 30 Tem'de çözülmüş, araştırma kendi yolunu
+yazdığı için geri gelmişti).
+
+bybit'te bu yapısal olarak imkânsız: `tools/download_backtest_data.py`
+evreni **UniverseProvider'ı yeniden kullanarak** seçiyor (kendi
+docstring'i: "canlı botla AYNI kural"). midas'ta araştırma katmanı
+evreni statik yedek dosyadan okuyordu.
+→ Düzeltildi: `research/data.py` artık önce canlı evren önbelleğini
+(`data/universe_cache.json`) okur, sembol dönüşümünde üretimin
+`YFinanceClient._to_yahoo` kuralını kullanır; statik liste yalnız
+yedektir. Ayrıca `tools/universe_drift.py` (yedek↔canlı karşılaştırıcı,
+salt-okur) eklendi — bybit'te bu denetçinin karşılığı YOK, ters yönde
+taşınabilir (statik yedek listesi varsa aynı bayatlama riski orada da
+vardır; kontrol edilmeli).
+
+Özet: bu turda ikiz karşılaştırması üç şey verdi — biri bizde kusur
+(veri yolu), biri bizde kusur (evren kaynağı), biri onlarda eksik
+(kayma denetçisi). Kural 3b'nin iki yönlü çalıştığının örneği.

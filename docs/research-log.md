@@ -123,3 +123,80 @@ ağı olan oturum koşacak. Kurulan parçalar:
   "hangi sıralamayı kullansam geçerdi" oynamasını kapatır.
 Bir sonraki adım: ağı olan oturumda `python3 -m research.data --years 2`
 + `python3 -m research.run`, çıktı bu günlüğe hüküm olarak yazılır.
+
+## F6 HÜKÜM: Hipotez 9 (S6 Squeeze) — **RED** (2026-08-24)
+2 yıllık günlük backtest (167 sembol, 500 gün, LONG+SHORT, ortak çıkış
+mekaniği) koşuldu. Ön-kayıtlı dört şarttan ikisi tutmadı:
+
+| Şart | Sonuç | |
+|---|---|---|
+| işlem ≥ 100 | 802 | ✅ |
+| net beklenti > 0 | **−0.044R** | ❌ |
+| iki yarı tutarlı | ikisi de negatif | ✅ |
+| S1–S5 içinde ilk 3 | 6'da **5.** | ❌ |
+
+S6 strategy_lab'e ALINMAZ. TradingView'ın en beğenilen mekanizması,
+bizim evrenimizde ve bizim çıkış mekaniğimizle para kazandırmıyor.
+Perakende araştırmasının dersi ("en çok satan liste = tuzak haritası")
+bir kez daha, bu kez kendi verimizle doğrulandı.
+
+**İkinci yarı uyarısı — bilerek dikkate ALINMADI.** S6'nın ikinci yarısı
+belirgin şekilde daha iyi (−0.083R → −0.005R, isabet %49.4 → %55.4) ve
+"düzeliyor, bir şans daha" demek çok kolay olurdu. Ön-kayıtlı kuralın
+varlık sebebi tam olarak bu an: şart "net beklenti > 0" idi, "ikinci
+yarıda iyileşiyor mu" değil. Kural sonuca bakılarak gevşetilirse
+ön-kayıt anlamını kaybeder. RED, RED'dir. (İyileşme merak konusu olarak
+kalır; istenirse AYRI ve ÖNCEDEN yazılmış bir hipotezle sorulur.)
+
+### Asıl bulgu S6 değil, tablonun tamamı
+| strateji | işlem | beklenti_R | toplam_R | maxDD_R |
+|---|---|---|---|---|
+| 4_REZIDUEL_STATARB | 4774 | **+0.005** | +22.8 | 143.8 |
+| 3_RSI2_DONUS | 4481 | −0.001 | −4.1 | 122.7 |
+| 5_52H_ZIRVE | 1506 | −0.008 | −12.7 | 78.6 |
+| 2_KESITSEL_MOMENTUM | 1551 | −0.036 | −56.5 | 87.5 |
+| 6_SQUEEZE_KIRILIM | 802 | −0.044 | −35.3 | 42.8 |
+| 0_BIZIM_VEKIL | 858 | −0.050 | −42.6 | 66.4 |
+| 1_DONCHIAN_KIRILIM | 10506 | −0.068 | −717.0 | 727.8 |
+
+Yedi stratejiden altısı negatif; tek pozitif (+0.005R) 143.8R geri
+çekilmeyle gürültüden ayırt edilemez. Üstüne düzeneğin kendi uyarısı
+var: evren BUGÜNKÜ liste, yani hayatta kalma yanlılığı tüm LONG
+tarafını YUKARI çekiyor — gerçek rakamlar bu tablodan daha kötü.
+Yani "en iyi" S4 bile büyük olasılıkla sıfırın altında.
+
+**Bu tablo canlı defteri doğruluyor.** Motorun günlük vekili
+(0_BIZIM_VEKIL) −0.050R veriyor; canlı gölge defter de negatif beklenti
+gösteriyor. İki BAĞIMSIZ ölçüm aynı yöne işaret ediyor: 20 Ağustos
+yanlışlanması şanssızlık değil, kurulumun kendisiyle ilgili. KİLİT-3
+tasarımı bunu veri olarak almalı — F1 (zarar anatomisi) ve F7 (seçim
+kuralı) bu tablonun ışığında okunacak. Not: bu düzenek GÜNLÜK mumla ve
+ortak ATR çıkışıyla çalışır; canlı motor 1s setup + kendi çıkışını
+kullanır, yani vekil birebir motor değildir — yön göstergesidir, hüküm
+değil.
+
+## Araştırma evreni canlı evrenden ayrışmış (2026-08-24, F6 yan bulgusu)
+İlk koşumda iki sembol veri getirmedi ve ikisi de "borsadan kalkmış"
+DEĞİLDİ:
+- **BRK.B** — biçim hatası. Yahoo nokta değil tire ister (BRK-B).
+  Üretim bunu 30 Tem'de zaten çözmüştü (`YFinanceClient._to_yahoo`);
+  araştırma katmanı kendi veri yolunu yazdığı için **çözülmüş bir hata
+  geri geldi**. Ders paralel uygulamayla ilgili: aynı işi iki yerde
+  yazarsan, birinde öğrendiğini diğerinde yeniden öğrenirsin.
+- **SQ** — gerçekten bayat. Block Inc. sembolünü XYZ yaptı; canlı
+  scrape zaten XYZ getiriyordu, bayat olan yalnız statik YEDEK listeydi.
+
+Yapılan: (1) `research/data.py` artık üretimin sembol kuralını yeniden
+kullanıyor ve evreni önce **canlı evren önbelleğinden** alıyor (statik
+liste yalnız yedek); (2) statik listede SQ → XYZ; (3)
+`tools/universe_drift.py` — yedek liste ile canlı evreni karşılaştıran
+salt-okur denetçi (haftalık bakım adımı, kayma varsa çıkış kodu 1);
+(4) `tests/test_universe_drift.py` (9 test, mutasyonla kırılabilirliği
+ölçüldü).
+
+Bu koşumdaki etkisi küçüktü (170'te 2 sembol) ve RED kararını
+değiştirmez — S6 beklentide geniş farkla eleniyor. Ama yedek liste
+ancak scrape VE cache birlikte çöktüğünde devreye girer: yani en kötü
+günde. O gün bayat listeyle çalışmak, "yedeğim var" sanıp yedeksiz
+kalmaktır. Bulgu, `research/data.py`'ın eksik sembolü ekrana yazdığı
+için yakalandı (ilke 2.1 işini yaptı).
