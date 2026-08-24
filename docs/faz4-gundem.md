@@ -66,6 +66,17 @@ dipnotla yeniden cercevelenir (kayit duzeltilmez, not dusulur).
 ### F6 — S6 Squeeze backtest'i (hipotez 9, on-kayitli)
 research/ duzeneginde 2y; karar kurali research-log'da yazili.
 KILIT-3 roster adayi.
+DURUM (24 Agu): DUZENEK HAZIR, sonuc YOK. Sinyal kurali
+(strategies.squeeze_breakout), karar kurali (harness.verdict_h9) ve
+veri katmani (research/data.py) yazildi + testlerle kilitlendi;
+kosmak icin piyasa verisi gerekiyor ve bulut oturumunun agi kapali
+(Yahoo CONNECT 403) - backtest'i agi olan oturum kosar.
+YAN BULGU (kayda deger): eski duzenek /home/claude/bt/*.pkl okuyordu,
+yani gecici bir analiz ortamina bagliydi ve o ortam kapandiginda
+KOSULAMAZ hale gelmisti. Olcum aleti yeniden uretilemiyorsa olcum de
+yeniden uretilemez; veri katmani bu yuzden depo icine alindi.
+IKIZ SORUSU: ayni kusur bybit'in research/ duzeneginde de var mi
+(ikiz-depo-notu.md'ye tasinacak).
 
 ### F7 — Secim kurali (H-D): momentum agirlikli aday siralamasi
 Bulgu 1+3 birlesimi (tek kanitli edge 12-1 momentum; "tavan degil secim

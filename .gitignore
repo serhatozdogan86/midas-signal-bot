@@ -15,3 +15,6 @@ data/universe_cache.json
 # .gitignore kapsaminda degildi; tek bir 'git add -A' sirlari depoya
 # tasiyabilirdi. Kural 2.7: sirlarin evi TEK, kopyasi commit'lenemez.
 ops/oracle/midas.env*
+
+# Backtest onbellegi (F6, 24 Agu): yeniden uretilebilir veri depoya girmez
+research/_data/

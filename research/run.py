@@ -1,19 +1,28 @@
-"""Tum stratejileri tum evrende kosar, sonuclari tabloya doker."""
+"""Tum stratejileri tum evrende kosar, sonuclari tabloya doker.
+
+24 Agu (F6): iki degisiklik.
+ 1) Veri yolu depo icine alindi (research/data.py) - eski
+    /home/claude/bt/... yollari gecici bir analiz ortamindaydi ve o
+    ortam kapaninca duzenek kosulamaz olmustu.
+ 2) Hipotez 9 (S6 Squeeze) icin ON-KAYITLI karar kurali KODA yazildi
+    (verdict_h9). Kural sonuca bakilmadan once sabitlendigi icin
+    "sonuca gore kural esnetme" fiziksel olarak zorlasir.
+"""
 from __future__ import annotations
 
 import sys
 
 import pandas as pd
 
-sys.path.insert(0, "/home/claude/bt")
-from harness import ExecConfig, atr, by_period, metrics, simulate  # noqa: E402
-import strategies as S  # noqa: E402
+from research import strategies as S
+from research.data import BENCH, load
+from research.harness import ExecConfig, atr, metrics, simulate, verdict_h9
 
-RAW = pd.read_pickle("/home/claude/bt/daily.pkl")
+RAW = load()
 CLOSE = RAW["Close"]
-SYMS = [s for s in open("/tmp/universe.txt").read().split()
-        if s in CLOSE.columns and CLOSE[s].notna().sum() > 400]
-BENCH = CLOSE["SPY"]
+SYMS = [s for s in CLOSE.columns
+        if s != BENCH and CLOSE[s].notna().sum() > 400]
+BENCH_PX = CLOSE[BENCH]
 
 
 def bars_for(sym: str) -> pd.DataFrame | None:
@@ -42,7 +51,7 @@ def run(directions=("LONG", "SHORT"), cfg: ExecConfig | None = None,
     cfg = cfg or ExecConfig()
     ranks = momentum_ranks()
     all_trades: dict[str, list] = {k: [] for k in S.REGISTRY}
-    for i, sym in enumerate(SYMS):
+    for sym in SYMS:
         bars = bars_for(sym)
         if bars is None:
             continue
@@ -52,7 +61,7 @@ def run(directions=("LONG", "SHORT"), cfg: ExecConfig | None = None,
                     rp = ranks[sym].reindex(bars.index) if sym in ranks else None
                     sig = fn(bars, d, rank_pct=rp)
                 elif name == "4_REZIDUEL_STATARB":
-                    sig = fn(bars, d, bench=BENCH)
+                    sig = fn(bars, d, bench=BENCH_PX)
                 else:
                     sig = fn(bars, d)
                 if sig is None or not sig.any():
@@ -68,8 +77,23 @@ def run(directions=("LONG", "SHORT"), cfg: ExecConfig | None = None,
 
 
 if __name__ == "__main__":
-    print(f"evren: {len(SYMS)} sembol\n")
+    print(f"evren: {len(SYMS)} sembol (kiyas: {BENCH})\n")
     tbl, frames = run()
-    print("=== TUM DONEM (2021-2026), LONG+SHORT, ortak cikis mekanigi ===")
+    print("=== TUM DONEM, LONG+SHORT, ortak cikis mekanigi ===")
     print(tbl.to_string(index=False))
-    pd.to_pickle(frames, "/home/claude/bt/trades.pkl")
+    print("\nHATIRLATMA: evren BUGUNKU liste - hayatta kalma yanliligi")
+    print("tum LONG stratejileri yukari yanli (harness ilkesi 6).\n")
+    v = verdict_h9(frames)
+    print("=== HIPOTEZ 9 (S6 Squeeze) ON-KAYITLI KARAR ===")
+    for k, ok in v.get("kosullar", {}).items():
+        print(f"  [{'X' if ok else ' '}] {k}")
+    if "olcum" in v:
+        print(f"  olcum : {v['olcum']}")
+        print(f"  yari-1: {v['ilk_yari']}")
+        print(f"  yari-2: {v['ikinci_yari']}")
+        print(f"  rakip beklentiler: {v['rakip_beklenti']}")
+    print(f"  KARAR : {v['karar']}")
+    out = "research/_data/trades.pkl"
+    pd.to_pickle(frames, out)
+    print(f"\nislem defterleri: {out}")
+    sys.exit(0)

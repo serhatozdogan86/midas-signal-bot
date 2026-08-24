@@ -562,3 +562,54 @@ vermişti. İki bot da elle giriliyor. **Karar toplantısına.**
 2. **midas:** M3 + G1 birlikte ölçülmeli. Dolum kuralının iki bacağının
    net etkisi bilinmiyor; `alpaca_mirror` tam da bunu ayırt etmek için
    yazılmıştı (13 çift, kademe 1).
+
+## Backtest düzeneğinin yeniden üretilebilirliği + S6/S11 tanım hizası — ikiz kontrolü (2026-08-24)
+
+**Kaynak: midas F6.** Hipotez 9'un (Squeeze) backtest'ine başlarken
+`research/run.py`'ın `/home/claude/bt/daily.pkl` okuduğu görüldü — o yol
+kapanmış geçici bir analiz ortamındaydı. Yani düzenek **koşulamaz**
+durumdaydı ve bunu kimse fark etmemişti; ölçüm aleti yeniden
+üretilemiyorsa ölçüm de yeniden üretilemez.
+
+### Bulgu 1 — ikizde AYNI KUSUR YOK (kontrol edildi, bulunamadı)
+bybit'te backtest verisi depo içindeki `tools/download_backtest_data.py`
+ile indiriliyor: `--out` argümanı, sembol başına CSV, ayrıca **bütünlük
+raporu** (satır sayısı, beklenen sayı, tekrar/dedup, zaman boşlukları,
+tarih aralığı → `_report.json`). Sabit kodlanmış geçici yol yok; analiz
+betikleri `data_dir` parametresi alıyor. Yani bybit bu konuda midas'ın
+**önündeydi**.
+→ Ters yön uygulandı: midas'a `research/data.py` yazıldı (evren depodan,
+önbellek `research/_data/`, .gitignore'da). Eksik sembol sessizce
+atlanmıyor, ekrana yazılıyor; SPY yoksa fail-closed. **Açık iş:** bybit'in
+bütünlük raporunun (boşluk/tekrar sayımı) midas tarafında karşılığı henüz
+yok — bir sonraki turda taşınacak.
+
+### Bulgu 2 — S6 (midas) ile S11 (bybit) tanımları AYRIŞIYOR
+İki bot aynı mekanizmayı bağımsız ön-kayıtla aldı; tanımlar birebir
+değil. Fark bilinçli olarak KORUNDU, çünkü her iki tarafın ön-kaydı da
+sonuç görülmeden yazılmıştı ve sonuca bakıp hizalamak kural esnetmesi
+olurdu:
+
+| | midas S6 (hipotez 9, 17 Ağu) | bybit S11 (17 Ağu) |
+|---|---|---|
+| Tetik anı | sıkışma ≥6 bar sürdükten sonra aralık dışı kapanış (çözülme ŞART DEĞİL) | yalnızca sıkışma ÇÖZÜLÜNCE |
+| Momentum teyidi | yok | var (LazyBear lin-reg momentum aynı yönde) |
+| Zaman dilimi | günlük | 4 saatlik |
+| Stop | ortak ATR mekaniği (kıyas için); S6 kendi stop'u strategy_lab'e kalır | sıkışma aralığının karşı ucu |
+
+**Tanımda düzeltilen tek şey** (sonuca bakılmadan, 24 Ağu): midas'ta KC
+merkezi başta EMA20'ydi, BB merkezi SMA20. Merkezler farklı olunca "BB,
+KC'nin içinde" sınavı genişliğe değil merkez kaymasına da duyarlı hale
+geliyordu — yani sıkışmayı değil sıkışma+eğilim karışımını ölçüyordu.
+İki merkez de SMA20'ye çekildi; bu hem LazyBear kanoniği hem de ikizin
+kullandığı biçim (bybit yorumu: "orta bant iki kanalda da aynı olduğundan
+bu, 'BB tamamen KC içinde' koşulunun birebir eşdeğeridir").
+
+Kalan farklar sonuç alındıktan sonra "ikiz varyantı" olarak AYRI bir
+hipotezle ölçülebilir; ön-kayıt metinleri değiştirilmeyecek.
+
+### Senkron notu
+Bu kayıt şu an yalnız midas kopyasında. bybit kopyasına aynısı
+yazılmalı (açık kuyruk md. 8: iki notun sessizce ayrışması — 13 Ağu'da
+yaşanmıştı). Bulut oturumunun bybit'e yazma yetkisi yok; taşıma yerel
+oturuma bırakıldı.

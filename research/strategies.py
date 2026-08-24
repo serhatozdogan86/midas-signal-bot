@@ -1,7 +1,7 @@
 """
-BES STRATEJI - hepsi buyuk kurumlarin fiilen kullandigi aileler,
-KANONIK parametrelerle (optimize edilmedi; optimize etseydik "gecmise
-en iyi uydurulan"i olcmus olurduk).
+ALTI STRATEJI - hepsi buyuk kurumlarin veya perakende tarafin fiilen
+kullandigi aileler, KANONIK parametrelerle (optimize edilmedi; optimize
+etseydik "gecmise en iyi uydurulan"i olcmus olurduk).
 
 1) DONCHIAN / TURTLE KIRILIMI  - trend takibi (CTA'lar: Winton, Man AHL,
    Chesapeake). Kural: 20 gunluk en yuksegin uzerinde kapanis -> LONG;
@@ -23,6 +23,12 @@ en iyi uydurulan"i olcmus olurduk).
 5) 52-HAFTA ZIRVESI YAKINLIGI  - George & Hwang (2004); momentum
    fonlarinin "yeni zirve" filtresi. Fiyat 52 haftanin zirvesinin
    %2 yakininda + hacim teyidi -> LONG.
+
+6) VOLATILITE SIKISMASI KIRILIMI (Squeeze) - TradingView'in en begenilen
+   mekanizmasi (LazyBear) + volatilite kumelenmesi literaturu; bybit
+   arastirmasinin da 1. tercihi. BB(20,2) bantlari KC(20,1.5) icine
+   girince "sikisik"; sikisma >=6 bar surup fiyat sikisma araliginin
+   ustunde kapatinca LONG. Hipotez 9 olarak ON-KAYITLI (17 Agu).
 
 KIYAS TABANI:
 - BIZIM_VEKIL: mevcut motorumuzun gunluk vekili (fiyat>50MA>200MA +
@@ -107,6 +113,80 @@ def near_52w_high(bars: pd.DataFrame, direction: str) -> pd.Series:
     return fresh & vol_ok
 
 
+# ---------------------------------------------------------------- 6
+def squeeze_breakout(bars: pd.DataFrame, direction: str,
+                     bb_n: int = 20, bb_k: float = 2.0,
+                     kc_n: int = 20, kc_k: float = 1.5,
+                     min_bars: int = 6) -> pd.Series:
+    """VOLATILITE SIKISMASI KIRILIMI (hipotez 9, on-kayit 17 Agu).
+
+    Tanim ON-KAYITTAN aynen alindi (research-log.md sat. 44), burada
+    hicbir parametre "iyilestirilmedi" - optimize etseydik gecmise en
+    iyi uydurulani olcmus olurduk (harness ilkesi 5):
+      sikisma = BB(20,2) bantlari KC(20,1.5) ICINDE (LazyBear kanonigi;
+      iki kanalin merkezi de SMA20, KC yarigenisligi 1.5 x SMA20(TR))
+      tetik   = sikisma >= 6 bar surup fiyat sikisma araliginin USTUNDE
+                kapatinca LONG (ayna: ALTINDA kapanis -> SHORT)
+
+    Look-ahead YOK: i barinin sinyali yalnizca <= i verisini kullanir
+    (sikisma dizisi i-1'de biter, aralik i-1'e kadarki high/low'dur);
+    harness girisi zaten i+1 acilisindan yapar.
+
+    Tekrar YOK: ayni sikismadan yalnizca ILK kirilim sinyal olur -
+    aksi halde sikisma devam ederken her bar sinyal uretirdi (52H
+    zirvesindeki 'fresh' korumasinin ayni gerekcesi).
+
+    NOT (bilincli): on-kayitta "stop araligin alt ucu" yaziyor; O KURAL
+    S6'nin strategy_lab uygulamasina aittir. Burada TUM stratejiler
+    ORTAK cikis mekanigiyle kosar (harness tasarim ilkesi) - yoksa
+    "giris mi cikis mi kazandirdi" ayrilamaz. Kiyas gecerse S6'nin
+    kendi stop'u strategy_lab'de olculur.
+
+    IKIZ FARKI (bybit S11, ikiz-depo-notu 24 Agu): bybit tetigi yalnizca
+    sikisma COZULUNCE alir ve ayrica momentum teyidi arar. midas'in
+    on-kaydinda ikisi de YOK - burada on-kayit metnine sadik kalindi;
+    daha dar varyant sonuclara bakildiktan SONRA "kural esnetme" olurdu.
+    Ikiz varyanti ayri bir hipotez olarak olculebilir.
+    """
+    if direction not in ("LONG", "SHORT"):
+        return pd.Series(False, index=bars.index)
+    c, h, low = bars["close"], bars["high"], bars["low"]
+    # IKI KANALIN ORTASI DA SMA20 (LazyBear kanonigi; ikiz bybit S11 ile
+    # ayni). Ilk yazimda KC merkezi EMA'ydi - o zaman "BB, KC icinde"
+    # sinavi genislige DEGIL merkezlerin kaymasina da duyarli oluyordu,
+    # yani sikismayi olcmek yerine sikisma+egilim karisimi olcuyordu.
+    # Duzeltme SONUCA BAKILMADAN yapildi (24 Agu, ikiz karsilastirmasi).
+    mid = c.rolling(bb_n).mean()
+    sd = c.rolling(bb_n).std(ddof=0)
+    bb_up, bb_dn = mid + bb_k * sd, mid - bb_k * sd
+    rng = pd.concat([h - low, (h - c.shift()).abs(),
+                     (low - c.shift()).abs()], axis=1).max(axis=1)
+    atr_kc = rng.rolling(kc_n).mean()
+    kc_up, kc_dn = mid + kc_k * atr_kc, mid - kc_k * atr_kc
+    squeezed = ((bb_up < kc_up) & (bb_dn > kc_dn)).fillna(False).values
+
+    hv, lv, cv = h.values, low.values, c.values
+    out = np.zeros(len(bars), dtype=bool)
+    run = 0                 # i-1'de biten kesintisiz sikisma uzunlugu
+    hi = lo = None          # o sikismanin aralik ust/alt ucu
+    fired = False           # bu sikismadan sinyal alindi mi
+    for i in range(len(bars)):
+        if run >= min_bars and not fired and np.isfinite(cv[i]):
+            if direction == "LONG" and cv[i] > hi:
+                out[i], fired = True, True
+            elif direction == "SHORT" and cv[i] < lo:
+                out[i], fired = True, True
+        if squeezed[i]:
+            run += 1
+            hi = hv[i] if hi is None else max(hi, hv[i])
+            lo = lv[i] if lo is None else min(lo, lv[i])
+        else:
+            # sikisma bitti: kirilimi bekleme penceresi de biter ancak
+            # cikis barinin KENDISI tetik olabilir (yukarida bakildi).
+            run, hi, lo, fired = 0, None, None, False
+    return pd.Series(out, index=bars.index)
+
+
 # ------------------------------------------------------ kiyas tabani
 def bizim_vekil(bars: pd.DataFrame, direction: str) -> pd.Series:
     """Mevcut motorun gunluk vekili (birebir degil - canlida 1h setup var)."""
@@ -129,5 +209,6 @@ REGISTRY = {
     "3_RSI2_DONUS": rsi2_reversion,
     "4_REZIDUEL_STATARB": residual_zscore,
     "5_52H_ZIRVE": near_52w_high,
+    "6_SQUEEZE_KIRILIM": squeeze_breakout,
     "0_BIZIM_VEKIL": bizim_vekil,
 }

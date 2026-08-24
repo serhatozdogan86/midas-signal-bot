@@ -137,3 +137,47 @@ def by_period(trades: pd.DataFrame, label: str) -> pd.DataFrame:
         m = metrics(g, f"{label} {y}")
         rows.append(m)
     return pd.DataFrame(rows)
+
+
+def halves(trades: pd.DataFrame) -> tuple[dict, dict]:
+    """Donemi ORTADAN ikiye boler (tarih medyani). Tutarlilik sinavi:
+    iki yarida da isaret ayni mi? (config-lock v3.19 usulu)"""
+    t = trades.sort_values("exit_date")
+    mid = len(t) // 2
+    return (metrics(t.iloc[:mid], "ilk yari"),
+            metrics(t.iloc[mid:], "ikinci yari"))
+
+
+def verdict_h9(frames: dict) -> dict:
+    """HIPOTEZ 9 KARAR KURALI - research-log.md sat. 44'ten aynen:
+      >=100 islem VE net beklenti > 0 VE iki yari tutarli VE tavansiz
+      kiyasta S1-S5 arasinda ilk 3  ->  strategy_lab'e S6
+      aksi halde RED (ve gunluge yazilir)
+
+    'Ilk 3' olcusu: NET BEKLENTI (R/islem). Bu yorum sonuca BAKILMADAN
+    sabitlendi (24 Agu): depoda her yerde headline olcu beklentidir;
+    toplam R yalnizca BILGI olarak raporlanir, hukme girmez. Boylece
+    "hangi siralamayi kullansam gecerdi" oynamasi kapali.
+    """
+    s6 = frames.get("6_SQUEEZE_KIRILIM", pd.DataFrame())
+    if s6.empty:
+        return {"karar": "RED", "gerekce": "hic islem uretmedi"}
+    m = metrics(s6, "S6")
+    a, b = halves(s6)
+    rakip = {k: metrics(v, k)["beklenti_R"]
+             for k, v in frames.items()
+             if k[0] in "12345" and not v.empty}
+    sirali = sorted(list(rakip.values()) + [m["beklenti_R"]], reverse=True)
+    ilk3 = m["beklenti_R"] >= sirali[min(2, len(sirali) - 1)]
+    # bool() sart: numpy True'su JSON'a/rapora np.True_ diye dokuluyor
+    # ve "is True" kontrolleri sessizce yaniltiyor (24 Agu, test yakaladi).
+    kosul = {
+        "islem >= 100": bool(m["islem"] >= 100),
+        "net beklenti > 0": bool(m["beklenti_R"] > 0),
+        "iki yari tutarli": bool((a.get("beklenti_R", 0) > 0)
+                                 == (b.get("beklenti_R", 0) > 0)),
+        "S1-S5 icinde ilk 3 (beklenti)": bool(ilk3),
+    }
+    return {"karar": "S6 -> strategy_lab" if all(kosul.values()) else "RED",
+            "kosullar": kosul, "olcum": m, "ilk_yari": a, "ikinci_yari": b,
+            "rakip_beklenti": rakip}

@@ -41,7 +41,7 @@ karar kuralı → sonuç → karar.
 | 1 | Hedefsiz çıkış (V3) canlıda V0'ı geçer | 60 işlem/25 küme; hem toplam hem beklenti + iki yarı tutarlı | ÖLÇÜLÜYOR |
 | 7 | Gölge dolum zamanlaması sonucu değiştiriyor (FTNT vakası, 17 Ağu) | Ayna dönemi sonunda (28 Ağu + ≥20 çift): gölge/ayna sonuç UYUŞMAZLIĞI oranı ve yönü raporlanır; uyuşmazlık ≥ %25 ise dolum modeli karar toplantısına taşınır | AYNA ÖLÇÜYOR |
 | 8 | ATR iz-süren çıkış (V4) sabit-hedefli V0'ı geçer — ÖN-KAYIT 17 Ağu, perakende araştırması + "çıkış > giriş" bulgusu; iki botun bağımsız araştırması kesişti | V4 = hedefsiz, stop = izlenen en yüksek kapanış − 3.0×ATR(14), yalnız lehte yönde hareket eder, time-stop V0 ile aynı. exit_lab'e eklenir, V0-V3 ile AYNI sinyal kümesinde ölçülür. Karar v3.19 simetriği: V4 hem toplam net-R hem beklenti olarak V0'ı geçmeli VE işaret iki yarı dönemde tutarlı olmalı (60 işlem / 25 küme dolunca) | KODLANACAK (salt ölçüm) |
-| 9 | Volatilite sıkışması kırılımı (Squeeze, S6 adayı) pozitif beklenti taşır — ÖN-KAYIT 17 Ağu; TradingView'ın en beğenilen mekanizması + volatilite kümelenmesi literatürü; bybit araştırmasının da 1. tercihi | Tanım: BB(20,2) bantları KC(20,1.5) İÇİNE girince "sıkışık"; sıkışma ≥6 bar sürüp fiyat sıkışma aralığının üstünde kapatınca LONG tetik; stop aralığın alt ucu; RR/maliyet filtreleri mevcut kurallarla. Önce research/ 2y backtest: ≥100 işlem VE net beklenti > 0 VE iki yarı tutarlı VE tavansız kıyasta S1-S5 arasında ilk 3 → strategy_lab'e S6; aksi RED ve günlüğe | BACKTEST SIRADA |
+| 9 | Volatilite sıkışması kırılımı (Squeeze, S6 adayı) pozitif beklenti taşır — ÖN-KAYIT 17 Ağu; TradingView'ın en beğenilen mekanizması + volatilite kümelenmesi literatürü; bybit araştırmasının da 1. tercihi | Tanım: BB(20,2) bantları KC(20,1.5) İÇİNE girince "sıkışık"; sıkışma ≥6 bar sürüp fiyat sıkışma aralığının üstünde kapatınca LONG tetik; stop aralığın alt ucu; RR/maliyet filtreleri mevcut kurallarla. Önce research/ 2y backtest: ≥100 işlem VE net beklenti > 0 VE iki yarı tutarlı VE tavansız kıyasta S1-S5 arasında ilk 3 → strategy_lab'e S6; aksi RED ve günlüğe | DÜZENEK HAZIR — VERİ BEKLİYOR (24 Ağu) |
 | 2 | Momentum üst dilimindeki sinyaller daha iyi | mom_pct üst/alt yarı karşılaştırması, n≥40 | VERİ BİRİKİYOR |
 | 3 | Oynak hisselerdeki sinyaller daha iyi | atr_rank üst/alt yarı, n≥40 | VERİ BİRİKİYOR |
 | 4 | Absorbsiyon etiketi taşıyanlar daha iyi | etiketli vs etiketsiz, n≥30 | VERİ BİRİKİYOR |
@@ -97,3 +97,29 @@ kâr eğrileri neredeyse bağımsız: **P&L'i giriş değil ÇIKIŞ belirliyor.*
 kesişimi; 3: bu canlı ölçüm). Diğer değerler: N_eff 3.21, ort. korelasyon
 0.139, en yüksek çift S2|S3 = 0.631 (aynı-gün örtüşme %74.6). Karar
 üretilmedi — V4/V0 kıyası kendi önceden yazılmış kuralıyla sürüyor.
+
+## F6 düzeneği: S6 Squeeze backtest'i kuruldu (2026-08-24)
+Hipotez 9'un ölçüm düzeneği yazıldı; **sonuç henüz YOK** — bulut
+oturumunun ağı piyasa verisine kapalı (Yahoo CONNECT 403), backtest'i
+ağı olan oturum koşacak. Kurulan parçalar:
+- `research/strategies.py::squeeze_breakout` — tanım ön-kayıttan aynen
+  (BB(20,2) ⊂ KC(20,1.5), ≥6 bar, aralık üstü kapanış). Look-ahead yok,
+  aynı sıkışmadan tek sinyal. Davranış testleri:
+  `tests/test_research_squeeze.py` (mutasyonla kırılabildiği ölçüldü:
+  spam koruması kaldırılınca 1→3 sinyal, look-ahead enjekte edilince
+  tetik kayıyor).
+- `research/harness.py::verdict_h9` — dört şartlı karar kuralı KODDA.
+  `tests/test_research_h9_verdict.py` altı senaryoyla kilitliyor
+  (n eşiği, negatif beklenti, tek yarıdan gelen kâr, sıralamada 4.'lük).
+- `research/data.py` — veri artık depo içinden üretilebiliyor. Eski
+  düzenek `/home/claude/bt/*.pkl` okuyordu; o geçici analiz ortamı
+  kapandığı için harness **koşulamaz** durumdaydı (24 Ağu'da fark
+  edildi). Ölçüm aleti yeniden üretilemiyorsa ölçüm de yeniden
+  üretilemez — bu, kayıt altına alınacak bir kusurdu.
+- YORUM ÖN-KAYDI (sonuca bakılmadan, 24 Ağu): ön-kayıttaki "S1–S5
+  arasında ilk 3" sıralaması **net beklenti (R/işlem)** üzerinden
+  okunur; toplam R yalnız bilgi olarak raporlanır. Gerekçe: depoda
+  headline ölçü her yerde beklentidir. Bu not, sonuç geldiğinde
+  "hangi sıralamayı kullansam geçerdi" oynamasını kapatır.
+Bir sonraki adım: ağı olan oturumda `python3 -m research.data --years 2`
++ `python3 -m research.run`, çıktı bu günlüğe hüküm olarak yazılır.
