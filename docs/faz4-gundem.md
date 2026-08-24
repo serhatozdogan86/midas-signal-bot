@@ -75,6 +75,26 @@ kurali belirleyici"). Karar kurali yazilacak, backtest research/'ta.
 v4.32-C esikleri ve hipotez 7 kurali aynen isler; Faz 4'e girdi olur
 (dolum modeli karari F4 ile birlesir).
 
+### F9 — Kill-switch firsat maliyeti (24 Agu gozlemi)
+24 Agu'da endeks kill-switch'i QQQ'da 17 kez tetikledi (-%1.11 ... -%1.65)
+ve sonra birakti; NTRA sinyali ENGELLENMEDI, GECIKTI - ayni gun daha kotu
+fiyattan yeniden dogdu. Yani frenin maliyeti "uretilmeyen sinyal" degil
+"daha kotu dogan sinyal" olabilir; bu simdiye dek hic olculmedi.
+Veri kaynagi HAZIR, ek kod GEREKMIYOR: blocked=3 kohortu (kill-switch,
+~25 kayit) hypo_r uzerinden zaten akiyor (session_guard modul basligi:
+"koruma gercekten R kurtariyor mu, tahmin degil VERI olsun").
+Soru: kill-switch kac kotu islemi engelledi, kac iyi islemi geciktirdi -
+ve geciken islemlerin giris fiyati ne kadar bozuldu?
+ON-KARAR KURALI (simdiden, sonuca bakilmadan): blocked=3 kohortunun
+hipotetik net-R'si <= 0 ise fren KAZANDIRIYOR, aynen kalir. > 0 ise
+"engelleme" ile "geciktirme" ayristirilir: ayni gun yeniden dogan
+kayitlarda fiili giris - hipotetik giris farki R cinsinden hesaplanir;
+gecikme maliyeti toplam blocked=3 kazancinin yarisindan buyukse
+KILIT-3'te fren "sinyal iptali" yerine "sinyal erteleme + bant koruma"
+olarak yeniden tasarlanir. n < 20 ise hukum yok, olcum surer.
+Not: bu bir OLCUM maddesidir; v3.9 kill-switch'i KILIT-3 ilanina kadar
+oldugu gibi calisir (zemin kurali 1).
+
 ## Cikti
 Faz 4 raporu -> KILIT-3 tasarim onerisi (roster + cikis + R tanimi +
 secim kurali) -> Serhat onayi -> yeni kilit ilani + sayaclar sifirdan.

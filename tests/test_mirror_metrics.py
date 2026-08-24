@@ -107,6 +107,26 @@ def test_tier2_ancak_orneklem_ve_sure_dolunca(tmp_path):
     assert mm["tier"] == 2
 
 
+def test_orneklem_dolsa_da_sapma_yoksa_kademe_sifir(tmp_path):
+    """24 Agu saha sorusu: matched=21 (>=20 esigi doldu) ama tier=0 -
+    ariza mi? HAYIR. tier bir OLGUNLUK merdiveni degil SAPMA
+    merdivenidir; sapma sifirsa ornekem ne kadar buyurse buyusun
+    kademe 0'dir. Sahada olculen: dolum farki 0.000, fiyat +0.01R.
+    Bu test o semantigi kilitler - biri 'orneklem doldu, tier'i
+    yukselt' diye kod yazarsa kirmizi yanar."""
+    db, m = _setup(tmp_path, FakeClient())
+    for i in range(21):
+        # ikisi de doldu, ayni fiyattan: fark 0.000, avantaj 0.000R
+        _mirror_pair(db, m, f"Z{i}", 101.0, "FILLED", 101.0, stop=99.0,
+                     entry_min=100.0, entry_max=101.0,
+                     created="2026-07-01T14:00:00Z")   # >14 gun once
+    mm = m.metrics()
+    assert mm["matched"] == 21                 # kapi orneklem sarti dolu
+    assert mm["fill_rate_diff"] == 0.0
+    assert mm["avg_price_adv_r"] == 0.0
+    assert mm["tier"] == 0                     # sapma yok -> kademe yok
+
+
 def test_audit_takvim_hafta_sonu_muafiyeti(tmp_path):
     """Hafta sonu bayat takvim kirmizi YAKMAZ (yuklu + hatasiz sartiyla);
     hafta ici ayni durum kirmizi YAKAR. Duvar saatinden bagimsiz:

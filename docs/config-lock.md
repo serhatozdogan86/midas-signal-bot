@@ -16,6 +16,24 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-24 (NOT, kod degisikligi YOK): uc saha dogrulamasi kayda gecti.
+  (1) AYNA TIER SEMANTIGI: matched=21 (>=20 esigi karsilandi) ama
+  tier=0 - bu bir arizanin degil, SAPMA YOKLUGUNUN ciktisidir.
+  tier bir "olgunluk" merdiveni DEGIL, bir "sapma" merdivenidir:
+  tier2 = (n>=20 VE gun>=14 VE (dolum farki>=0.20 VEYA fiyat>=0.15R)),
+  tier1 = (dolum farki>=0.10 VEYA fiyat>=0.08R). Olculen: dolum farki
+  0.000 (defter 0.762 / ayna 0.762), fiyat avantaji +0.01R (14 cift).
+  Yani 28 Agu kapisinin ORNEKLEM sarti doldu, SAPMA ise sifira yakin -
+  tier=0 dogru cevaptir. Kapi gununde bakilacak sey tier'in yukselmesi
+  degil, esiklerin ON-KAYITLI okunmasidir (F8).
+  (2) NVDA karartmasi arsivden KANITLANDI: NO_TRADE,
+  failed_filters=["EARNINGS"], "bilanco blackout: 2026-08-26
+  (+2 islem gunu)", days_to_earnings=2. Bilanco 26 Agu'dur (25 degil -
+  onceki oturumdaki tahminim yanlisti); v4.40 takvim dilimlemesi
+  sahada calisiyor, fail-closed davranis dogru.
+  (3) Kill-switch 24 Agu'da QQQ'da 17 kez tetikledi ve birakti; NTRA
+  engellenmedi GECIKTI ve daha kotu fiyattan yeniden dogdu -> Faz 4
+  gundemine F9 (firsat maliyeti, on-karar kurali yazili) eklendi.
 - 2026-08-20 (v4.43 / KARAR): KILIT-2 KOHORTU YANLISLANDI - KARNE
   KAPANDI. Serhat karari "B" (secenekler sunuldu, tutanak: v4.42 notu +
   dogrulama tablolari). Uygulama: (1) yanlislama durumu koda islendi
