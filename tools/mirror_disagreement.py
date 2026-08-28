@@ -17,8 +17,13 @@ import argparse
 import json
 import sqlite3
 import sys
+from pathlib import Path
 
-from app.services.alpaca_mirror import disagreement_report
+# Depo kokunu yola ekle: alet tools/ icinden kosuluyor ama hesabi
+# servisin kendi kodundan aliyor (iki yerde iki cevap olmasin).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.services.alpaca_mirror import disagreement_report  # noqa: E402
 
 SQL = ("SELECT m.alpaca_status, m.closed_reason, s.outcome, s.status, "
        "s.fill_price, s.symbol "
@@ -39,12 +44,23 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default="data/bot.db")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--stdin", action="store_true",
+                    help="satirlari JSON olarak stdin'den al (VM'de "
+                         "salt-okur sqlite sorgusu kosup ciktisini "
+                         "yerel klonda islemek icin - seans ici yol)")
     args = ap.parse_args()
-    try:
-        rows = fetch(args.db)
-    except sqlite3.Error as exc:
-        print(f"HATA: veritabani okunamadi ({args.db}): {exc}")
-        return 2
+    if args.stdin:
+        try:
+            rows = json.load(sys.stdin)
+        except ValueError as exc:
+            print(f"HATA: stdin JSON okunamadi: {exc}")
+            return 2
+    else:
+        try:
+            rows = fetch(args.db)
+        except sqlite3.Error as exc:
+            print(f"HATA: veritabani okunamadi ({args.db}): {exc}")
+            return 2
     rep = disagreement_report(rows)
     if args.json:
         print(json.dumps(rep, ensure_ascii=False, indent=2))
