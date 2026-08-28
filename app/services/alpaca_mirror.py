@@ -73,6 +73,90 @@ _INDEX_SQL = ("CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_signal "
               "ON mirror_fills(signal_id)")
 
 
+# ---- Hipotez 7 (28 Agu kapisi): sonuc siniflari ------------------------
+# Iki defterin sozlugu farkli; kiyas icin ORTAK sinifa cevrilir.
+# Siniflar sonuc gorulmeden sabitlendi (28 Agu 14:00 UTC).
+DOLMADI, KAZANC, ZARAR, SURE, BELIRSIZ = ("DOLMADI", "KAZANC", "ZARAR",
+                                          "SURE", "BELIRSIZ")
+
+
+def ledger_class(status: str | None, outcome: str | None,
+                 fill_price: float | None) -> str | None:
+    """Golge defter sonucu -> ortak sinif. Sonuclanmamis kayit None."""
+    if outcome == "NOT_FILLED":
+        return DOLMADI
+    if outcome == "WIN":
+        return KAZANC
+    if outcome == "LOSS":
+        return ZARAR
+    if outcome == "EXPIRED":
+        return SURE
+    if outcome == "AMBIGUOUS":
+        return BELIRSIZ
+    return None                      # PENDING/FILLED: henuz sonuc yok
+
+
+def mirror_class(alpaca_status: str | None,
+                 closed_reason: str | None) -> str | None:
+    """Ayna sonucu -> ortak sinif. Hala acik pozisyon (FILLED) None."""
+    if alpaca_status == "CANCELLED":
+        return DOLMADI               # WINDOW ya da broker iptali
+    if alpaca_status == "CLOSED":
+        if closed_reason == "TP":
+            return KAZANC
+        if closed_reason == "STOP":
+            return ZARAR
+        if closed_reason == "TIME":
+            return SURE
+        return BELIRSIZ              # bilinmeyen kapanis nedeni gizlenmez
+    return None                      # INTENT/SUBMITTED/FILLED: sonuc yok
+
+
+def disagreement_report(rows: list[dict]) -> dict:
+    """Eslesmis ciftlerin sonuc uyusmazligi (hipotez 7). Saf fonksiyon:
+    veritabanina degil, satir listesine bakar - hem servis hem
+    tools/mirror_disagreement.py ayni hesabi kullansin diye."""
+    karsilastirilan, uyusmaz, ornekler = 0, 0, []
+    yalniz_defter_girdi = yalniz_ayna_girdi = 0
+    defter_kazanc = ayna_kazanc = 0
+    bekleyen = 0
+    for r in rows:
+        d = ledger_class(r.get("status"), r.get("outcome"),
+                         r.get("fill_price"))
+        a = mirror_class(r.get("alpaca_status"), r.get("closed_reason"))
+        if d is None or a is None:
+            bekleyen += 1            # "henuz bilmiyoruz" - paydaya girmez
+            continue
+        karsilastirilan += 1
+        if d == KAZANC:
+            defter_kazanc += 1
+        if a == KAZANC:
+            ayna_kazanc += 1
+        if d == a:
+            continue
+        uyusmaz += 1
+        if d == DOLMADI and a != DOLMADI:
+            yalniz_ayna_girdi += 1
+        elif a == DOLMADI and d != DOLMADI:
+            yalniz_defter_girdi += 1
+        if len(ornekler) < 12:
+            ornekler.append({"symbol": r.get("symbol"),
+                             "defter": d, "ayna": a})
+    oran = round(uyusmaz / karsilastirilan, 3) if karsilastirilan else None
+    return {"label": "AYNA - karara girmez",
+            "karsilastirilan": karsilastirilan,
+            "sonuclanmamis": bekleyen,
+            "uyusmaz": uyusmaz,
+            "uyusmazlik_orani": oran,
+            "esik": 0.25,
+            "esik_asildi": (oran is not None and oran >= 0.25),
+            "yon": {"yalniz_defter_girdi": yalniz_defter_girdi,
+                    "yalniz_ayna_girdi": yalniz_ayna_girdi,
+                    "defter_kazanc": defter_kazanc,
+                    "ayna_kazanc": ayna_kazanc},
+            "ornekler": ornekler}
+
+
 REF_RISK_USD = 100.0        # tracker.cost_r ile ayni referans (10k$ / %1)
 FILL_WINDOW_BARS = 14       # canli defterle birebir (FILL_WINDOW_BARS)
 MAX_TRACK_BARS = 28         # canli time-stop ile birebir (MAX_TRACK_BARS)
@@ -351,6 +435,33 @@ class AlpacaMirror:
             out["tier"] = 1
         return out
 
+    def disagreement(self) -> dict:
+        """HIPOTEZ 7 OLCUSU (28 Agu kapisi): golge defter ile ayna AYNI
+        sonuca mi vardi? SALT OLCUM - hicbir esigi degistirmez (md. 5).
+
+        On-kayit (research-log hipotez 7, 17 Agu): "golge/ayna sonuc
+        UYUSMAZLIGI orani ve yonu raporlanir; uyusmazlik >= %25 ise
+        dolum modeli karar toplantisina tasinir."
+
+        OKUMA YORUMU - kapi gunu sayilar GORULMEDEN sabitlendi
+        (28 Agu 14:00 UTC, veri henuz cekilmedi):
+        - Payda: eslesmis ciftlerden IKI TARAFI DA sonuclanmis olanlar.
+          Ayna tarafi hala acik (FILLED) olan cift sayilmaz - "henuz
+          bilmiyoruz" ile "ayrildilar" ayni sey degildir (2.2 refleksi).
+        - Uyusmazlik: sonuc SINIFLARI farkli. 'Dolmadi' bir siniftir,
+          yani "biri girdi digeri girmedi" de uyusmazliktir - hipotez
+          7'nin dogdugu FTNT vakasi tam olarak buydu.
+        - Yon: hangi taraf daha sik girdi / daha sik kazandi.
+        Bu yorum simdiden yazildi ki sonuc gelince "hangi paydayla
+        %25'in altinda kalir" oynamasi yapilamasin.
+        """
+        rows = self._db.query(
+            "SELECT m.alpaca_status, m.closed_reason, s.outcome, s.status, "
+            "s.fill_price, s.symbol "
+            "FROM mirror_fills m JOIN signals s ON s.id=m.signal_id "
+            "WHERE COALESCE(m.closed_reason,'') != 'LATE_ONBOARD'")
+        return disagreement_report(rows)
+
     def diag(self) -> dict:
         """/diag icin ozet. Etiket sozlesme geregi sabittir (md. 4)."""
         n = self._db.query_one("SELECT COUNT(*) AS n FROM mirror_fills")
@@ -367,4 +478,8 @@ class AlpacaMirror:
             out["metrics"] = self.metrics()
         except Exception:
             log.exception(kv(event="mirror_metrics_error"))
+        try:
+            out["disagreement"] = self.disagreement()   # hipotez 7 (28 Agu)
+        except Exception:
+            log.exception(kv(event="mirror_disagreement_error"))
         return out

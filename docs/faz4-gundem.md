@@ -98,6 +98,39 @@ kurali belirleyici"). Karar kurali yazilacak, backtest research/'ta.
 v4.32-C esikleri ve hipotez 7 kurali aynen isler; Faz 4'e girdi olur
 (dolum modeli karari F4 ile birlesir).
 
+OKUMA NOTU - 28 Agu 14:00 UTC, YENI SAYILAR GORULMEDEN yazildi.
+Kapi gunu su UC soru sirayla okunur; sirayi sonradan degistirmek
+"hangi siralamayla gecerdi" oynamasi olur:
+
+1) ORNEKLEM SARTI: >=20 eslesmis cift VE >=14 gun.
+   24 Agu itibariyla matched=21, sure doldu -> sart SAGLANIYOR.
+   Saglanmazsa: sure uzatilir, YORUM YAPILMAZ (kismi veriye hukum yok).
+2) SAPMA (v4.32-C, cift yonlu): dolum orani farki >=%20 VEYA ortalama
+   fiyat avantaji >=0.15R ise kademe 2 = KARAR TOPLANTISI.
+   |fark| >=0.10 / >=0.08R ise kademe 1 = izleme notu, EYLEM YOK.
+   24 Agu olcumu: dolum farki 0.000, fiyat +0.01R -> kademe 0.
+   HATIRLATMA: kademe bir OLGUNLUK merdiveni degil SAPMA merdivenidir;
+   tier=0 "bozuk" degil "ayrisma yok" demektir (24 Agu notu).
+3) HIPOTEZ 7 (sonuc uyusmazligi): uyusmazlik orani >= %25 ise dolum
+   modeli karar toplantisina tasinir. Olcusu artik KODDA:
+   `AlpacaMirror.disagreement()` + `tools/mirror_disagreement.py`
+   (salt-okur, deploy gerektirmez - seans ici kosulabilir).
+   Payda = iki tarafi da SONUCLANMIS ciftler (ayna pozisyonu hala
+   acikken sayilmaz); "dolmadi" bir sonuc SINIFIDIR, yani "biri girdi
+   digeri girmedi" uyusmazliktir (hipotez 7 FTNT vakasindan dogdu).
+
+HUKUM SEKILLERI (ucu de mesru, dordu yok):
+ a) Sapma yok + uyusmazlik <%25 -> DOLUM MODELI DOGRULANDI. Defterin R
+    muhasebesi bagimsiz ikinci gorusle ortusuyor; F4'un "tasarim riski
+    mi fiili risk mi" tartismasi bu dogrulamayi girdi olarak alir.
+ b) Kademe 2 VEYA uyusmazlik >=%25 -> KARAR TOPLANTISI acilir.
+    Otomatik hicbir sey degismez (izolasyon md. 5).
+ c) Ornekleme ragmen veri tutarsiz/eksik (ornekler bos, sinif
+    dagitimi anlamsiz) -> hukum ERTELENIR ve sebebi yazilir.
+Ayna paper hesabinin kendisi de bir simulasyondur (NBBO dokunusu =
+dolum varsayimi): "mutlak gercek" degil, bagimsiz ikinci gorustur.
+Bu cumle hukum metnine de girecek.
+
 ### F9 — Kill-switch firsat maliyeti (24 Agu gozlemi)
 24 Agu'da endeks kill-switch'i QQQ'da 17 kez tetikledi (-%1.11 ... -%1.65)
 ve sonra birakti; NTRA sinyali ENGELLENMEDI, GECIKTI - ayni gun daha kotu
