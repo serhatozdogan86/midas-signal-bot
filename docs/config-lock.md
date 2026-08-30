@@ -16,6 +16,27 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-08-30 (v4.48 + AYNA KAPISI HUKMU): iki kayit.
+  (1) AYNA DONEMI HUKMU = (b) KARAR TOPLANTISI. 28 Agu kapisi
+  olculdu: 29 karsilastirilan cift, 9 uyusmazlik, oran %31.0 >
+  on-kayitli %25 esigi (hipotez 7). Ayni anda sapma kademesi 0
+  (dolum orani farki 0.000, fiyat +0.01R) - celiski DEGIL: kademe
+  ORANLARIN toplamda ayrismasina, uyusmazlik CIFT CIFT ayni sonuca
+  varilip varilmadigina bakar. Iki defter ayni ORANDA ama FARKLI
+  islemlerde doluyor. Uyusmazliklarin govdesi "defter DOLMADI /
+  ayna KAZANC" ekseninde (ABBV, EQIX, NTRA). Toplanti belgesi:
+  docs/ayna-karar-toplantisi.md. OTOMATIK HICBIR SEY DEGISMEDI;
+  parametre degisikligi KILIT-3'e kadar zaten yasak. Karsi kanit
+  toplantinin merkezinde: ikiz G2 bulgusu "gevsek tetik" ile gelen
+  karin illuzyon oldugunu olcmustu (+6.96R -> -171.91R) ve Alpaca
+  paper'in kendisi o gevsek modelin bir uygulamasidir.
+  (2) deploy.sh: hafta sonu YANLIS ALARMI duzeltildi. Rejim bekleme
+  dongusu hafta sonu/tatilde her zaman bosa doner - scheduler.tick
+  o gunlerde erken cikar, run_prep hic kosmaz, _regime "UNKNOWN
+  (not computed)" kalir. 30 Agu Pazar deploy'unda birebir yasandi
+  (200. sn'de hala UNKNOWN, "bot su an KOR" notu basilacakti).
+  Artik once botun KENDI takvimine sorulur; seans yoksa beklemeden
+  dogru cumle yazilir (anayasa 6: alarm gurultusu alarmi oldurur).
 - 2026-08-24 (NOT, kod degisikligi YOK): uc saha dogrulamasi kayda gecti.
   (1) AYNA TIER SEMANTIGI: matched=21 (>=20 esigi karsilandi) ama
   tier=0 - bu bir arizanin degil, SAPMA YOKLUGUNUN ciktisidir.

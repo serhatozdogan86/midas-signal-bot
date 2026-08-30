@@ -52,6 +52,37 @@ if [ "$ready" != "1" ]; then
     echo "RED: healthz 150 sn'de cevap vermedi! journalctl -u midas-signal-bot -n 50"
     exit 1
 fi
+# v4.48 (30 Agu SAHA GOZLEMI): asagidaki rejim beklemesi HAFTA SONU
+# HER ZAMAN bosa doner. Sebep scheduler.tick'te: hafta sonu/tatilde
+# session_times(today) None -> tick erken cikar -> run_prep hic kosmaz
+# -> _regime "UNKNOWN (not computed)" olarak KALIR. Yani Pazar gunu
+# yapilan deploy 6 dakika bekleyip "bot su an KOR" diye YANLIS ALARM
+# basiyordu (30 Agu Pazar deploy'unda birebir yasandi: 200. sn'de hala
+# UNKNOWN). Anayasa 6: alarm gurultusu alarmi oldurur. Bu yuzden once
+# botun KENDI takvimine sorulur; seans yoksa beklemeden dogru cumle
+# yazilir. Ayni sekilde hazirlik saatinden (acilis - PREP_LEAD_MIN)
+# once de rejim heniz hesaplanmis olmaz.
+skip_regime=$("$VENV/python" - <<'PY'
+from datetime import timedelta
+from app.config.settings import Settings
+from app.services.market_calendar import MarketCalendar
+cal, s = MarketCalendar(), Settings()
+now = cal.now_et()
+ses = cal.session_times(now.date())
+if ses is None:
+    print(f"BUGUN SEANS YOK (hafta sonu/tatil). Rejim, bir sonraki islem "
+          f"gunu hazirlik taramasinda ({cal.next_trading_day(now.date())}) "
+          f"yerlesecek - bu KORLUK DEGIL, takvim boyle.")
+elif now < ses[0] - timedelta(minutes=s.PREP_LEAD_MIN):
+    print("HAZIRLIK SAATI HENUZ GELMEDI. Rejim, acilistan "
+          f"{s.PREP_LEAD_MIN} dk once hesaplanacak.")
+PY
+)
+if [ -n "$skip_regime" ]; then
+    echo "OK: deploy tamam. $skip_regime"
+    exit 0
+fi
+
 # v4.46 (21 Agu gozlemi): "saglikli" != "HAZIR". healthz 12 sn'de yesil
 # derken bot ~4.5 dk rejim=UNKNOWN + evren cekimiyle kor kaldi. Seans
 # disi zararsiz; seans ici --force deploy'da yaniltici. Rejim yerlesene
