@@ -16,6 +16,30 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-09-01 (v4.49, SALT OLCUM + operasyon): uc kayit.
+  (1) AYNA ANATOMI ALETI: karar toplantisinin B adimi kodlandi -
+  app/services/mirror_anatomy.py (nufuz orani: fiyat giris bolgesine
+  ne kadar girdi; 1.0 = defterin dolum sarti olan TAM katetme) +
+  tools/mirror_pair_anatomy.py (salt-okur). YORUM KURALI sonuclara
+  BAKILMADAN yazildi: medyan >= 0.85 model katiligi lehine, <= 0.50
+  ayna gevsekligi lehine, arada hukum yok. Hukme yalniz defterin
+  KACIRDIGI vakalar girer; cikis ayrismasi ayri sayilir.
+  (2) AYNA YENIDEN OLCUMU: 38 cift / 9 uyusmazlik / %23.7 (kapi gunu
+  29 cift / %31.0 idi). Kapinin hukmunu GERI ALMAZ - esik on-kayitli
+  tarihte olculdu; sonradan olcup "simdi gecti" demek on-kayit
+  disiplininin engelledigi davranistir. Yeni bulgu: uyusmazlik UC ayri
+  olay (ayna girdi/defter giremedi 3; defter girdi/ayna giremedi 2;
+  ikisi de girdi sonuc ayristi 4 - ve bu dortte AYNA ZARAR yazdi,
+  defter SURE/BELIRSIZ). Aynanin avantaji giriste, dezavantaji
+  cikista - ikisi de ayni gevseklikten. Ayrinti:
+  docs/ayna-karar-toplantisi.md md. 8-10.
+  (3) DEPLOY.SH hazirlik penceresi 6 -> 12 dk. Saha olcumu: rejim
+  360. saniyede, dongunun TAM son turunda yerlesti (restart'ta
+  _prep_date silindigi icin 300 sembollük evren bastan cekiliyor).
+  15 sn gecikme yanlis alarm demekti. v4.41 tolerans kurali (olculen
+  degerin ~2 kati) uygulandi. Ayrica seans KAPALIYKEN yerlesmezse
+  "KOR" degil "maliyeti yok" yazilir - alarm yalniz maliyetli oldugu
+  yerde otsun.
 - 2026-08-30 (v4.48 + AYNA KAPISI HUKMU): iki kayit.
   (1) AYNA DONEMI HUKMU = (b) KARAR TOPLANTISI. 28 Agu kapisi
   olculdu: 29 karsilastirilan cift, 9 uyusmazlik, oran %31.0 >

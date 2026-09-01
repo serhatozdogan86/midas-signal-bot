@@ -88,7 +88,24 @@ fi
 # disi zararsiz; seans ici --force deploy'da yaniltici. Rejim yerlesene
 # kadar (en cok 6 dk) bekle ve durumu ACIKCA soyle - basarisizlik degil
 # bilgidir, cikis kodu degismez.
-for i in $(seq 1 24); do
+# v4.49 (1 Eyl SAHA OLCUMU): rejim 360. saniyede yerlesti - dongunun
+# TAM son turunda. 15 sn daha gecikse yanlis alarm basacakti. Sebep:
+# restart'ta _prep_date bellekten silindigi icin bot hazirligi bastan
+# kosuyor (300 sembollük evren + likidite filtresi). v4.41'in tolerans
+# kurali burada da uygulandi: olculen degerin ~2 kati -> 48 tur x 15 sn
+# = 12 dk. Ayrica seans KAPANDIKTAN sonraki deploy'da rejim gecikmesinin
+# maliyeti sifirdir (sonraki hazirlik yarin sabah) - o durum ayrica
+# soylenir ki 'KOR' cumlesi yalniz gercekten maliyetli oldugu yerde
+# okunsun.
+after_close=$("$VENV/python" - <<'PY'
+from app.services.market_calendar import MarketCalendar
+cal = MarketCalendar()
+now = cal.now_et()
+ses = cal.session_times(now.date())
+print("1" if ses and now >= ses[1] else "")
+PY
+)
+for i in $(seq 1 48); do
     regime=$(curl -sf "http://127.0.0.1:${PORT:-8100}/diag" \
         | "$VENV/python" -c "import json,sys; d=json.load(sys.stdin); print((d.get('regime') or {}).get('regime',''))" 2>/dev/null)
     if [ -n "$regime" ] && [ "$regime" != "UNKNOWN" ]; then
@@ -97,7 +114,12 @@ for i in $(seq 1 24); do
     fi
     sleep 15
 done
-echo "NOT: servis ayakta ama rejim 6 dk'da yerlesmedi (veri cekimi"
-echo "surebilir). Seans ICI deploy yaptiysan bot su an KOR - /diag'dan"
-echo "rejimi izle. Deploy tamam sayildi."
+if [ -n "$after_close" ]; then
+    echo "NOT: servis ayakta, rejim 12 dk'da yerlesmedi ama SEANS KAPALI -"
+    echo "maliyeti yok, sonraki hazirlik yarin acilistan once kosacak."
+else
+    echo "UYARI: servis ayakta ama rejim 12 dk'da yerlesmedi. Seans ICI"
+    echo "deploy yaptiysan bot su an KOR - /diag'dan rejimi izle."
+fi
+echo "Deploy tamam sayildi."
 exit 0

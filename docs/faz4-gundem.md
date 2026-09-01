@@ -22,6 +22,15 @@
 gunleri, bolge/risk orani, MFE/MAE, karartma-temiz mi. Cikti: zarar tek
 bir mekanizmaya mi (orn. kirilim kovalama dusen piyasada) yayilma mi.
 
+GUNCELLEME (1 Eyl): kohort yanlislandiktan sonra da BOZULMAYA devam
+etti - maksDD 8.90R (20 Agu) -> 12.47R, beklenti -0.384R, 48 kararda
+kazanma orani %14.6, net -16.42R. Son 11 kapanisin 10'u zarar (tek
+kazanc AAPL +1.95R). Yani seri tek bir talihsiz donem degil; F1'in
+sorusu "o 8 islem neden" degil, "bu kurulum neden kaybediyor" olarak
+genisliyor. F6 backtest tablosu (yedi stratejiden altisi negatif,
+motorun gunluk vekili -0.050R) ayni yone isaret ediyor - iki bagimsiz
+olcum.
+
 ### F2 — S2 Donchian'in kaderi
 Kohortta -8.40R (en zararli), S3'le 0.63 korelasyon + %76 ayni-gun
 (en az bagimsiz). ON-KARAR KURALI (simdiden): strategy_lab tarihsel

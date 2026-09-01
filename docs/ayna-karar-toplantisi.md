@@ -103,3 +103,71 @@ diye bıraktığı soru (tek dokunuş dolduruyor mu?) burada ters yönden,
 canlı ayna verisiyle yeniden karşımıza çıktı. İki deponun aynı soruyu
 farklı kanıtlarla sorduğu bir kesişme — `ikiz-depo-notu.md`'ye
 işlenecek (bulut oturumunun bybit'e yazma yetkisi yok).
+
+---
+
+## 8. YENİ DELİL (1 Eylül 2026 ölçümü) — üç parça
+
+### 8.1 Yeniden ölçüm: 38 çift, 9 uyuşmazlık, **%23,7**
+Kapı gününden (29 çift / %31,0) bu yana dokuz yeni çift geldi ve
+**hiçbiri uyuşmazlık üretmedi**. Sınıflar terminal durumlara bakar,
+yani eski çiftlerin sınıfı sonradan değişmez — pay sabit kaldı, payda
+büyüdü.
+
+**Bu, kapının hükmünü GERİ ALMAZ.** Eşik ön-kayıtlı tarihte ölçüldü,
+%31 çıktı, hüküm (b) verildi. "Şimdi ölçtük, altına düştü" demek tam
+olarak ön-kayıt disiplininin engellemek için var olduğu davranıştır
+(eşik altına düşene kadar ölçmeye devam etme). Toplantı açık kalır.
+
+Ama yeni sayı meşru bir delildir ve şunu söyler: %31'in bir kısmı
+küçük örneklem gürültüsüymüş, ve uyuşmazlıklar zamana yayılmıyor —
+belli bir döneme yığılmış görünüyor. İkisi ayrı tutulur.
+
+### 8.2 Uyuşmazlık tek bir şey değil, ÜÇ ayrı olay
+| grup | n | vakalar | şekil |
+|---|---:|---|---|
+| Ayna girdi, defter giremedi | 3 | ABBV, EQIX, NTRA | üçünde de ayna KAZANDI |
+| Defter girdi, ayna giremedi | 2 | DE, JNJ | JNJ'de defter kazandı |
+| İkisi de girdi, sonuç ayrıştı | 4 | GD, SHW, C, TER | **dördünde de ayna ZARAR** |
+
+**Üçüncü grup bu toplantının eksik yarısıydı.** Ayna sadece daha çok
+girmiyor, daha çok da kapatıyor: bizim "süre doldu" veya "belirsiz"
+diye bıraktığımız dört işlemi gerçekleşmiş zarara çeviriyor. Yani
+aynanın avantajı giriş tarafında, dezavantajı çıkış tarafında — ve
+ikisi de **aynı gevşeklikten** doğuyor. Bu, G2'nin (+6,96R → −171,91R)
+imzasının canlı veride görünmesidir.
+
+### 8.3 Kademe hâlâ 0 — "aynı oranda, farklı işlemlerde"
+Dolum oranı farkı 0,026 (defter 0,789 / ayna 0,816), fiyat avantajı
++0,004R (28 çift). config-lock'taki çözüm sahada doğrulandı.
+
+## 9. B adımının ölçüsü artık KODDA (1 Eyl)
+Toplantının önerilen ilk adımı — "fiyat bölgenin neresine kadar geldi?"
+— artık tahmin değil ölçüm:
+- `app/services/mirror_anatomy.py` → **nüfuz oranı**
+  (LONG: `(entry_max − dönem_en_düşük) / (entry_max − entry_min)`).
+  0,0 = bölgeye değmedi bile · 1,0 = **tam katetti** (defterin 2 Ağustos
+  dolum şartı) · >1,0 = ötesine geçti. Pencere, defterin dolum
+  penceresiyle birebir aynı (14 × 1s mum).
+- `tools/mirror_pair_anatomy.py` → salt-okur CLI, deploy gerektirmez.
+- **YORUM KURALI, sonuçlara bakılmadan yazıldı (1 Eyl):** medyan nüfuz
+  ≥ 0,85 → (a) model katılığı lehine kanıt, dolum kuralı KİLİT-3
+  gündemine; ≤ 0,50 → (b) ayna gevşekliği lehine, **defter değişmez**;
+  arada → hüküm yok, örnek artırılır.
+- Hükme yalnız "defterin kaçırdığı" vakalar girer (ABBV/EQIX/NTRA
+  ekseni); çıkış ayrışması (GD/SHW/C/TER) ayrı sayılır — yoksa "biz mi
+  kaçırdık" sorusunun paydası kirlenir.
+- 9 test, üçü mutasyonla kırıldı (mum yokken 0,0 uydurma, çıkış
+  ayrışmasını hükme katma, eşiği gevşetme).
+
+## 10. Toplantının değişen ağırlık merkezi
+Aynı gün ölçülen canlı karne bu tartışmayı yeniden çerçeveliyor:
+beklenen değer **−0,384R**, maksimum düşüş **12,47R** (yanlışlanma
+anında 8,90R'ydi — **derinleşiyor**), 48 kararda kazanma oranı %14,6,
+net −16,42R.
+
+Bu şu demek: "ayna daha çok girseydi daha çok kazanırdık" cümlesi,
+**kaybeden bir stratejinin daha çok işlem yapmasını önermek** olabilir.
+Dolum kuralı tartışması, stratejinin kendisinin negatif beklentili
+olduğu gerçeğinin önüne geçmemeli. Dolum modeli KİLİT-3'ün bir
+parçasıdır; asıl soru (F1/F7) neden kaybettiğimizdir.
