@@ -235,6 +235,14 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
   start/stop/enable`, env düzenleme, `git push`, emir/config değişikliği)
   onaya tabi KALIR. `ssh *` gibi geniş kalıplara kalıcı izin verilmez
   (içinden yazan komut da geçer).
+- **Salt-okur köprü (1 Eyl 2026):** VM'e her bakışta Serhat'a komut
+  yapıştırtmak 4.5'in kendi amacına aykırıydı. Çözüm `ops/local/vm-read.sh`:
+  içi SABİT komut listesi (dx/audit/diag + zarar/ayna/anatomi raporları +
+  sürüm/log), dışarıdan gelen metin uzak kabuğa GEÇMEZ. Kalıcı izin
+  **yalnız bu dosyaya** verilir, `ssh`'ın tamamına değil. Kurulum:
+  `cp ops/local/vm.env.example ops/local/vm.env` + doldur (vm.env git'e
+  girmez). Dar kalmasını `tests/test_vm_read_bridge.py` ölçer — köprüye
+  deploy/restart/pull dalı eklenirse test kırmızı yanar.
 - `--dangerously-skip-permissions` kullanılmaz. Gerekçe: onay anları bu
   hafta üç gerçek hatayı yakaladı (VERIFY env gösterimi, iptables kararı,
   gist kimliği); frenler ucuz, kazalar pahalı.
