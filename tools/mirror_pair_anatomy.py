@@ -84,9 +84,14 @@ def main() -> int:
     print("\n  nufuz: 1.00 = bolgeyi TAM katetti (defterin dolum sarti)")
     print("         0.00 = bolgenin yakin ucuna bile gelmedi")
     print(f"\n  defterin KACIRDIGI vaka : {ozet['kacirilan_vaka']}")
+    print(f"  aynanin KACIRDIGI vaka  : {ozet['ayna_kaciran_vaka']}")
+    print(f"  cikis ayrismasi         : {ozet['cikis_ayrismasi']}"
+          "  (ikisi de girdi, sonuc ayristi)")
     print(f"  medyan nufuz            : {ozet['medyan_nufuz']}")
-    print(f"  cikis ayrismasi (ayri)  : {ozet['cikis_ayrismasi']}")
     print(f"  ON-KAYITLI YORUM        : {ozet['hukum']}")
+    d = ozet["dayaniklilik"]
+    print(f"  DAYANIKLILIK            : {'saglam' if d['saglam'] else 'ZAYIF'}"
+          f" - {d['not']}")
     return 0
 
 

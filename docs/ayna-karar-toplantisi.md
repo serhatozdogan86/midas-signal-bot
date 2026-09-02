@@ -171,3 +171,48 @@ Bu şu demek: "ayna daha çok girseydi daha çok kazanırdık" cümlesi,
 Dolum kuralı tartışması, stratejinin kendisinin negatif beklentili
 olduğu gerçeğinin önüne geçmemeli. Dolum modeli KİLİT-3'ün bir
 parçasıdır; asıl soru (F1/F7) neden kaybettiğimizdir.
+
+## 11. B ADIMI SONUCU (1 Eylül 2026 VM ölçümü)
+
+Defterin kaçırdığı üç vakada fiyat, giriş bölgesine şu kadar girmiş:
+
+| sembol | nüfuz | okuma |
+|---|---:|---|
+| NTRA | 0,66 | bölgenin üçte ikisi |
+| EQIX | 0,852 | neredeyse tamamı |
+| ABBV | 0,97 | kıl payı kaldı |
+
+**Medyan 0,852 → ön-kayıtlı kural (a) diyor:** model katılığı lehine
+kanıt, dolum kuralı KİLİT-3 gündemine yazılır. Bugün hiçbir parametre
+değişmez.
+
+### Ama hükmün dayanıklılığı ZAYIF — bunu kendimiz ilan ediyoruz
+Eşik 0,85, medyan 0,852. Aradaki fark **0,002** ve üç sayının medyanı
+demek **tek gözlem** (EQIX) demek. EQIX'te fiyat yarım sent daha az
+girseydi aynı araç aynı kuralla "ARADA — hüküm yok" yazacaktı.
+
+Kural ön-kayıtlıydı ve dürüstçe uygulandı; hüküm geçerlidir. Ama
+"dayanak" diye sunulamaz. Zayıflığı burada ilan ediyoruz ki örnek
+sayısı artıp yön değişirse bu **fikir değiştirme değil**, önceden
+duyurulmuş bir kırılganlığın gerçekleşmesi olsun. Araç artık bu uyarıyı
+kendi çıktısında da basıyor (`dayaniklilik`: n < 7 veya eşiğe mesafe
+< 0,05 ise **ZAYIF**).
+
+### Yine de yönü tesadüf değil
+Üç vakanın hiçbiri "bölgeye ucundan değdi" değil — en düşüğü 0,66. Yani
+ayna bu üç işlemi havadan uydurmadı; fiyat gerçekten oraya gitti, biz
+"tam katetme" şartı aradığımız için almadık. Bu, 2 Ağustos'ta terk
+edilen "tek tık dolum" senaryosunun tersi.
+
+### Etiket düzeltmesi (v4.50)
+Araç önce "çıkış ayrışması: 6" diyordu; **doğrusu 4**. DE ve JNJ'de
+ayrışan şey çıkış değil, ters yönlü bir giriş: bu kez **ayna** giremedi.
+Kod artık üç kovayı ayrı sayıyor (defterin kaçırdığı 3 / aynanın
+kaçırdığı 2 / çıkış ayrışması 4). Hüküm etkilenmiyor (medyan yalnız ilk
+kovayı kullanır) ama madde 8.2'deki "çıkışta ayna 4/4 zarar yazdı"
+argümanı 4 üzerinden okunmalı — 6 değil.
+
+### Sıradaki adım
+Örnek sayısını artırmak. Kaçırılan vaka 3'ten 7-8'e çıkana kadar bu
+hüküm bir **yön işareti**, dayanak değil. Bu arada hiçbir parametre
+değişmiyor (Faz 4 zemin kuralı 1 zaten yasaklıyor).

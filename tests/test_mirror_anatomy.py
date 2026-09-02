@@ -95,3 +95,52 @@ def test_olculebilir_vaka_yoksa_hukum_yok():
     rows = anatomy_rows([_pair("GD", "EXPIRED", "CLOSED", reason="STOP",
                                lowest=100.0)])
     assert anatomy_summary(rows)["hukum"].startswith("HUKUM YOK")
+
+
+def test_aynanin_giremedigi_vaka_cikis_ayrismasi_sayilmaz():
+    """1 Eyl saha okumasi: DE/JNJ'de AYNA giremedi - bu bir cikis
+    ayrismasi DEGIL, ters yonlu giris ayrismasidir. Eski kod ikisini
+    tek torbaya atip 'cikis ayrismasi 6' diyordu; dogrusu 4."""
+    rows = anatomy_rows([
+        _pair("JNJ", "WIN", "CANCELLED", reason="WINDOW", lowest=100.0),
+        _pair("DE", "EXPIRED", "CANCELLED", reason="WINDOW", lowest=100.0),
+        _pair("GD", "EXPIRED", "CLOSED", reason="STOP", lowest=100.0),
+        _pair("TER", "EXPIRED", "CLOSED", reason="STOP", lowest=100.0),
+    ])
+    ozet = anatomy_summary(rows)
+    assert ozet["ayna_kaciran_vaka"] == 2      # JNJ, DE
+    assert ozet["cikis_ayrismasi"] == 2        # GD, TER
+    assert ozet["kacirilan_vaka"] == 0
+
+
+def test_dayaniklilik_kucuk_orneklemde_zayif_der():
+    """Hukum verilse bile n kucukse 'ZAYIF' damgasi vurulur - hukmu
+    degistirmez, yaninda durur (1 Eyl kirilganlik uyarisi)."""
+    rows = anatomy_rows([
+        _pair("A", "NOT_FILLED", "CLOSED", reason="TP", lowest=100.1),
+        _pair("B", "NOT_FILLED", "CLOSED", reason="TP", lowest=100.3),
+        _pair("C", "NOT_FILLED", "CLOSED", reason="TP", lowest=100.0),
+    ])
+    ozet = anatomy_summary(rows)
+    assert "MODEL KATILIGI" in ozet["hukum"]          # hukum verildi
+    assert ozet["dayaniklilik"]["saglam"] is False    # ama zayif
+    assert ozet["dayaniklilik"]["n"] == 3
+
+
+def test_dayaniklilik_esige_cok_yakinsa_zayif_der():
+    """Medyan esigin 0.002 ustundeyse (sahada tam bu oldu) hukum
+    verilir ama kirilgan oldugu SOYLENIR."""
+    rows = anatomy_rows([_pair(f"S{i}", "NOT_FILLED", "CLOSED", reason="TP",
+                               lowest=100.296) for i in range(8)])
+    ozet = anatomy_summary(rows)
+    assert ozet["medyan_nufuz"] == 0.852
+    assert ozet["dayaniklilik"]["n"] == 8
+    assert ozet["dayaniklilik"]["esige_mesafe"] == 0.002
+    assert ozet["dayaniklilik"]["saglam"] is False
+
+
+def test_dayaniklilik_yeterli_orneklem_ve_mesafede_saglam():
+    rows = anatomy_rows([_pair(f"S{i}", "NOT_FILLED", "CLOSED", reason="TP",
+                               lowest=100.0) for i in range(8)])
+    d = anatomy_summary(rows)["dayaniklilik"]
+    assert d["saglam"] is True and d["n"] == 8

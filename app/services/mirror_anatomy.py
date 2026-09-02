@@ -87,7 +87,16 @@ def anatomy_summary(rows: list[dict]) -> dict:
     # ayri sayilir ve ayri raporlanir.
     kacirilan = [r for r in rows
                  if r["defter"] == "DOLMADI" and r["nufuz"] is not None]
-    diger = [r for r in rows if r["defter"] != "DOLMADI"]
+    # v4.50 duzeltmesi (1 Eyl saha okumasi): eski kod "defter DOLMADI
+    # DEGIL" olan her seyi tek torbaya atip 'cikis ayrismasi' diyordu -
+    # oysa AYNANIN giremedigi vakalar (DE, JNJ) bir cikis ayrismasi
+    # DEGIL, ters yonlu bir GIRIS ayrismasidir. Yanlis etiket toplanti
+    # metnine "6 cikis ayrismasi" diye gececekti; dogrusu 4. Hukum
+    # degismiyor (medyan yalniz kacirilan kumeyi kullanir) ama sayinin
+    # kendisi bir argumandi: "cikista ayna 4/4 zarar yazdi".
+    ayna_kacirdi = [r for r in rows if r["ayna"] == "DOLMADI"]
+    cikis_ayrismasi = [r for r in rows
+                       if r["defter"] != "DOLMADI" and r["ayna"] != "DOLMADI"]
     med = None
     if kacirilan:
         v = sorted(r["nufuz"] for r in kacirilan)
@@ -106,6 +115,36 @@ def anatomy_summary(rows: list[dict]) -> dict:
     return {"label": "AYNA - karara girmez",
             "kacirilan_vaka": len(kacirilan),
             "medyan_nufuz": med,
-            "cikis_ayrismasi": len(diger),
+            "ayna_kaciran_vaka": len(ayna_kacirdi),
+            "cikis_ayrismasi": len(cikis_ayrismasi),
             "yorum_kurali": "1 Eyl 2026'da sonuclara bakilmadan yazildi",
-            "hukum": hukum}
+            "hukum": hukum,
+            "dayaniklilik": robustness(kacirilan, med)}
+
+
+def robustness(kacirilan: list[dict], med: float | None) -> dict:
+    """HUKMUN NE KADAR SAGLAM OLDUGU - hukmu DEGISTIRMEZ, yanina yazar.
+
+    Neden (1 Eyl, yerel oturum uyarisi): ilk saha kosumunda medyan 0.852
+    cikti, esik 0.85 - arada 0.002 var ve UC gozlemin medyani demek TEK
+    gozlem demek. Kural on-kayitliydi ve durustce uygulandi, ama boyle
+    bir hukmu "dayanak" diye sunmak yaniltici olurdu. Zayifligi hukmun
+    KENDISI ilan etsin: ileride ornek artip yon degisirse bu "fikir
+    degistirme" degil, zaten duyurulmus bir kirilganligin gerceklesmesi
+    olur. Esikler DEGISMEDI - burada yalniz mesafe ve n raporlanir.
+    """
+    n = len(kacirilan)
+    if med is None:
+        return {"n": n, "saglam": False, "not": "olculebilir vaka yok"}
+    mesafe = round(min(abs(med - 0.85), abs(med - 0.50)), 3)
+    saglam = n >= 7 and mesafe >= 0.05
+    if n < 7:
+        gerekce = (f"n={n} (>=7 olmali): medyan tek-iki gozleme dayaniyor, "
+                   "YON ISARETI - dayanak degil")
+    elif mesafe < 0.05:
+        gerekce = (f"medyan esige {mesafe} uzaklikta: kucuk bir oynamayla "
+                   "hukum degisir")
+    else:
+        gerekce = "orneklem ve esik mesafesi yeterli"
+    return {"n": n, "esige_mesafe": mesafe, "saglam": saglam,
+            "not": gerekce}
