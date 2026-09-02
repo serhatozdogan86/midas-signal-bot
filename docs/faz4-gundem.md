@@ -22,6 +22,22 @@
 gunleri, bolge/risk orani, MFE/MAE, karartma-temiz mi. Cikti: zarar tek
 bir mekanizmaya mi (orn. kirilim kovalama dusen piyasada) yayilma mi.
 
+OLCUM ALETI HAZIR (1 Eyl): app/services/loss_anatomy.py +
+tools/loss_anatomy.py (salt-okur, seans ici kosulabilir). Dort soru ve
+karar kurallari SONUCA BAKILMADAN yazildi:
+  Q1 GIRIS MI CIKIS MI - zararlarin MFE medyani (tasarim riski birimi):
+     >= 0.8R -> cikis/stop sorunu baskin (islemler calisti sonra geri
+     verildi); <= 0.3R -> giris/secim sorunu baskin (bastan yanlisti);
+     arasi -> karisik, tek hukum verilmez. Bu soru iki ZIT is listesi
+     uretir, o yuzden once o soruluyor.
+  Q2 setup kirilimi: n>=5 VE net-R<=-3.0 -> KILIT-3 roster incelemesine.
+  Q3 short: research-log hipotez 5'in 30 Tem on-kaydi AYNEN (net-R<0 VE
+     n>=20 -> short kapatma KILIT-3 gundemine).
+  Q4 rejim/seans fazi: yalniz RAPOR - karar kurali yazilmadi, yorum da
+     yapilmaz.
+Kucuk orneklemde hukum "YON ISARETI" damgasi alir (anatomi aletinin
+1 Eyl dersi: zayifligi hukmun kendisi ilan etsin).
+
 GUNCELLEME (1 Eyl): kohort yanlislandiktan sonra da BOZULMAYA devam
 etti - maksDD 8.90R (20 Agu) -> 12.47R, beklenti -0.384R, 48 kararda
 kazanma orani %14.6, net -16.42R. Son 11 kapanisin 10'u zarar (tek
