@@ -332,7 +332,7 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
    Alpaca bar sayfalaması (`download_bulk`/`_fetch_chunk` limitleri),
    fundamentals, Midas scrape. Finnhub takvimi (v4.40) ve bybit
    funding/kline kapatıldı; kalanlar açık.
-9. Araştırma-veri bütünlük raporu: bybit'in indiricisi satır/boşluk/
-   tekrar sayıyor (`tools/download_backtest_data.py`), midas'ın
-   `research/data.py`'ında karşılığı yok — taşınacak (24 Ağu).
+9. ~~Araştırma-veri bütünlük raporu~~ ✔ TAŞINDI (8 Eyl) —
+   `research/data.py::integrity` indirme sonrası gün aralığı, tekrar
+   eden gün ve sembol başına eksik gün sayar (`test_research_integrity.py`).
 10. SPK/ticarileşme: hukuk danışmanlığı gerekiyor (kod dışı)

@@ -18,6 +18,7 @@
 #   anatomi    ayna uyusmazlik anatomisi (nufuz orani)
 #   surum      calisan commit + servis durumu
 #   log        son 50 satir servis gunlugu
+#   rapor      hepsi tek atista (durum ritueli)
 #
 # NE YAPMAZ: deploy, restart, git pull/push, dosya silme, env duzenleme,
 # rasgele komut. Bunlarin hepsi ONAYA TABI kalir (4.5) ve deploy.sh ile
@@ -45,7 +46,7 @@ if [ -z "$VM_HOST" ] || [ -z "$VM_KEY" ]; then
 fi
 
 usage() {
-    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log}"
+    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor}"
     exit 2
 }
 [ $# -eq 1 ] || usage
@@ -61,6 +62,15 @@ case "$1" in
     anatomi) remote="cd $VM_DIR && python3 tools/mirror_pair_anatomy.py --db data/bot.db" ;;
     surum)   remote="cd $VM_DIR && git log --oneline -1 && systemctl is-active midas-signal-bot" ;;
     log)     remote="journalctl -u midas-signal-bot -n 50 --no-pager" ;;
+    # 8 Eyl: "durum?" ritualinin tek atisi. Alt komutlarin AYNISI, sabit
+    # sirayla - yeni yetki eklemez, yalnizca gidip-gelmeyi bitirir.
+    rapor)   remote="echo '=== AUDIT ==='; curl -sf http://127.0.0.1:$VM_PORT/audit; \
+echo; echo '=== DX ==='; curl -sf http://127.0.0.1:$VM_PORT/dx; \
+echo; echo '=== DIAG ==='; curl -sf http://127.0.0.1:$VM_PORT/diag; \
+echo; echo '=== SURUM ==='; cd $VM_DIR && git log --oneline -1; \
+echo '=== ZARAR ANATOMISI ==='; python3 tools/loss_anatomy.py --db data/bot.db; \
+echo '=== AYNA ==='; python3 tools/mirror_disagreement.py --db data/bot.db; \
+echo '=== AYNA ANATOMISI ==='; python3 tools/mirror_pair_anatomy.py --db data/bot.db" ;;
     *)       usage ;;
 esac
 

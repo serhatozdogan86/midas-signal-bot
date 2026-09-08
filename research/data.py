@@ -90,7 +90,54 @@ def download(years: int = 2) -> pd.DataFrame:
     BT_DIR.mkdir(parents=True, exist_ok=True)
     raw.to_pickle(PKL)
     print(f"yazildi: {PKL} ({len(raw)} gun, {len(got)} sembol)")
+    print_integrity(integrity(raw, sorted(got)))
     return raw
+
+
+def integrity(raw: pd.DataFrame, syms: list[str] | None = None) -> dict:
+    """VERI BUTUNLUK RAPORU - ikizden tasindi (acik kuyruk md. 9).
+
+    bybit'in indiricisi (tools/download_backtest_data.py) satir sayisi,
+    beklenen sayi, tekrar ve zaman bosluklarini SAYIYOR; midas'ta
+    karsiligi yoktu - yani "veri geldi" ile "veri TAM geldi" ayrimini
+    yapamiyorduk. Sessiz eksik veri bu depoda daha once gorulmus bir
+    hata sinifidir (Finnhub takvimi ~1500 satirda sessizce kirpiyordu,
+    v4.40). Ayni sinifi arastirma verisinde de goreme sansi olsun.
+
+    Doner: gun sayisi, sembol sayisi, tarih araligi, tekrar eden gun
+    sayisi, ve sembol basina eksik gun (NaN) sayilarindan en kotu 10'u.
+    HICBIR SEY DUZELTMEZ - yalnizca sayar ve raporlar (2.1).
+    """
+    idx = raw.index
+    tekrar = int(len(idx) - len(idx.unique()))
+    kapanis = raw["Close"] if "Close" in raw.columns else pd.DataFrame()
+    if syms:
+        kapanis = kapanis[[c for c in kapanis.columns if c in set(syms)]]
+    bosluk = {}
+    for c in kapanis.columns:
+        eksik = int(kapanis[c].isna().sum())
+        if eksik:
+            bosluk[c] = eksik
+    en_kotu = sorted(bosluk.items(), key=lambda kv: -kv[1])[:10]
+    return {"gun": int(len(idx)),
+            "sembol": int(kapanis.shape[1]) if len(kapanis.columns) else 0,
+            "ilk_gun": str(idx.min())[:10] if len(idx) else None,
+            "son_gun": str(idx.max())[:10] if len(idx) else None,
+            "tekrar_eden_gun": tekrar,
+            "eksik_gunu_olan_sembol": len(bosluk),
+            "en_cok_eksik": [{"sembol": s, "eksik_gun": n} for s, n in en_kotu]}
+
+
+def print_integrity(rapor: dict) -> None:
+    print("\nBUTUNLUK RAPORU (ikiz usulu - sayar, duzeltmez)")
+    print(f"  gun araligi   : {rapor['ilk_gun']} .. {rapor['son_gun']} "
+          f"({rapor['gun']} gun)")
+    print(f"  sembol        : {rapor['sembol']}")
+    print(f"  tekrar eden gun: {rapor['tekrar_eden_gun']}"
+          f"{'  <-- INCELE' if rapor['tekrar_eden_gun'] else ''}")
+    print(f"  eksik gunu olan sembol: {rapor['eksik_gunu_olan_sembol']}")
+    for r in rapor["en_cok_eksik"]:
+        print(f"    {r['sembol']:<8}{r['eksik_gun']:>5} gun eksik")
 
 
 def load() -> pd.DataFrame:

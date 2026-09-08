@@ -635,3 +635,20 @@ vardır; kontrol edilmeli).
 Özet: bu turda ikiz karşılaştırması üç şey verdi — biri bizde kusur
 (veri yolu), biri bizde kusur (evren kaynağı), biri onlarda eksik
 (kayma denetçisi). Kural 3b'nin iki yönlü çalıştığının örneği.
+
+## Bütünlük raporu bybit'ten taşındı (2026-09-08) — açık kuyruk md. 9 kapandı
+
+24 Ağustos'ta kaydedilen ters yönlü borç ödendi: bybit'in indiricisi
+(`tools/download_backtest_data.py`) satır/tekrar/boşluk sayıyor, midas'ta
+karşılığı yoktu. Artık `research/data.py::integrity` var — indirme
+bitince gün aralığı, **tekrar eden gün** ve sembol başına **eksik gün**
+sayılır, en kötü 10 sembol yazdırılır. Hiçbir şey düzeltmez, yalnız
+sayar (2.1).
+
+Gerekçe tek cümleyle: "veri geldi" ile "veri TAM geldi" ayrımını
+yapamıyorduk — ve bu, bu depoda daha önce gerçekleşmiş bir hata sınıfı
+(Finnhub takvimi ~1500 satırda sessizce kırpıyordu, v4.40; zararı
+ölçüldü, −3.35R).
+
+Kalan ikiz açığı: bu notun bybit kopyasına yazılması (bulut oturumunun
+o depoya yazma yetkisi yok — kuyruk md. 8'in bilinen sorunu).
