@@ -117,7 +117,27 @@ midas'a tasinmasi ACIK.
 
 ### F7 — Secim kurali (H-D): momentum agirlikli aday siralamasi
 Bulgu 1+3 birlesimi (tek kanitli edge 12-1 momentum; "tavan degil secim
-kurali belirleyici"). Karar kurali yazilacak, backtest research/'ta.
+kurali belirleyici").
+
+DUZENEK HAZIR (8 Eyl): research/portfolio.py - tavanli portfoy
+simulasyonu (gunluk <=6, eszamanli <=10; canli botla hizali, tavanlar
+DEGISTIRILMEZ). Iki dunya ayni islem havuzunda kiyaslanir: secim
+kurali VAR (momentum yuzdeligine gore siralama) / YOK (ilk-gelen).
+Elenen islem SILINMEZ, isaretlenir - kacan kazanc da olculebilsin
+(F4b refleksi).
+
+ON-KAYITLI KARAR KURALI (SONUCLARA BAKILMADAN, 8 Eyl): dordu birden
+saglanmadan KILIT-3 tasarimina GIRMEZ:
+  1. secilen islem >= 100 (yoksa hukum yok)
+  2. secimli net beklenti > taban (tavan var, secim yok)
+  3. isaret iki yari donemde de ayni (v3.19 usulu)
+  4. en az IKI stratejide iyilesme
+Kural 4 bilincli olarak sert: bulgu 3 TEK strateji (Donchian,
+-787R -> +11.8R) uzerinden dogmustu; burada sinanan sey o farkin
+genellenebilir olup olmadigi. Tek stratejide cikan iyilesme, o
+stratejinin kendine ozgu davranisi olabilir.
+KALAN: veri (research/_data) agi olan oturumda uretilecek; bulut
+oturumunun agi piyasa verisine kapali.
 
 ### F8 — Ayna donemi hukmu (28 Agu kapisi, on-kayitli esikler)
 v4.32-C esikleri ve hipotez 7 kurali aynen isler; Faz 4'e girdi olur

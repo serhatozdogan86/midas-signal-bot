@@ -200,3 +200,30 @@ ancak scrape VE cache birlikte çöktüğünde devreye girer: yani en kötü
 günde. O gün bayat listeyle çalışmak, "yedeğim var" sanıp yedeksiz
 kalmaktır. Bulgu, `research/data.py`'ın eksik sembolü ekrana yazdığı
 için yakalandı (ilke 2.1 işini yaptı).
+
+## F7 düzeneği: portföy katmanı + seçim kuralı (2026-09-08)
+**Sonuç YOK — düzenek kuruldu, karar kuralı önceden yazıldı.**
+
+Bulgu 3 ("portföy tavanı zararlı değil; seçim kuralı belirleyici —
+kaliteye göre seçim Donchian'ı −787R'den +11.8R'ye taşıdı") kapanmış bir
+analiz ortamında ölçülmüştü, yani **yeniden üretilemiyordu**. F6'da aynı
+dersi almıştık: ölçüm aleti yeniden üretilemiyorsa ölçüm de üretilemez.
+Artık depo içinde: `research/portfolio.py`.
+
+Ne yapıyor: harness'ın "her sinyale gir" dünyası yerine gerçek kısıtı
+uyguluyor — günlük ≤6 yeni giriş, eşzamanlı ≤10 açık pozisyon (canlı
+botla aynı; tavanlar **değiştirilmiyor**). Aynı işlem havuzunu iki
+dünyada koşuyor: adaylar 12-1 momentum yüzdeliğine göre **sıralanarak**
+seçildiğinde, ve sıralama olmadan (ilk-gelen). Elenen işlem silinmiyor,
+işaretleniyor — kaçan kazanç da ölçülebilsin.
+
+ÖN-KAYITLI KARAR KURALI (sonuçlara bakılmadan): dördü birden gerekli —
+(1) seçilen işlem ≥100, (2) seçimli beklenti > taban, (3) işaret iki
+yarı dönemde tutarlı, (4) **en az iki stratejide** iyileşme.
+
+Dördüncü şart bilerek sert: bulgu 3 tek strateji üzerinden doğmuştu.
+Tek stratejide çıkan fark, o stratejinin kendine özgü davranışı
+olabilir; genellenebilirliği ayrı bir sorudur ve şimdi soruluyor.
+
+9 test; üç mutasyon yakalandı (eşzamanlı tavanı devre dışı bırakma,
+sıralamayı yapmama, "iki strateji" şartını bire düşürme).
