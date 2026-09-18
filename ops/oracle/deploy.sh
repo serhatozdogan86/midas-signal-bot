@@ -23,7 +23,21 @@ PY
 fi
 
 # 2) Guncelle + bagimliliklar
-git pull --ff-only
+# v4.51 (18 Eyl SAHA VAKASI): GitHub kimlik bilgisi (token) suresi doldu;
+# git pull etkilesimsiz oturumda kullanici adi/parola soramayip TAKILDI.
+# Cikan hata ham git mesajiydi ve "neden deploy olmuyor" sorusu iki
+# oturum boyunca cevapsiz kaldi. Bundan sonra sebep ACIKCA yazilir.
+# ONEMLI: servis bu durumda ESKI SURUMLE calismaya devam eder - veri
+# kaybi veya duraksama YOKTUR, yalnizca yeni kod inmez.
+if ! git pull --ff-only; then
+    echo "RED: 'git pull' basarisiz - deploy iptal."
+    echo "EN SIK SEBEP: GitHub kimlik bilgisinin suresi dolmus."
+    echo "  kontrol : git config --get credential.helper ; ls -l ~/.git-credentials"
+    echo "  cozum   : yeni salt-OKUR token uretilip ~/.git-credentials'a"
+    echo "            yazilir (token SOHBETE YAZILMAZ - anayasa 2.7)."
+    echo "Servis ESKI surumle calismaya devam ediyor; acil durum yok."
+    exit 1
+fi
 "$VENV/pip" install -q -r requirements.txt
 
 # 3) Test kapisi (asilamaz - anayasa 2.6)

@@ -16,6 +16,24 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-09-18 (v4.51 + SAHA OLCUMU): iki kayit.
+  (1) DEPLOY TIKANIKLIGI TESHIS EDILDI: VM'de GitHub token'inin suresi
+  dolmus; git pull etkilesimsiz oturumda kimlik soramayip takiliyor.
+  Sonuc: 1 Eyl'den beri yeni kod INMEDI (VM d50e1dc/v4.48'de kaldi,
+  depo 2683468'de). Servis kesintisiz calisti - 17 gun uptime, audit
+  16/16, gist yedegi saglikli; yani ariza DEPLOY yolunda, botta degil.
+  deploy.sh artik pull basarisiz olunca sebebi ve cozumu ACIKCA yazar
+  ("servis ESKI surumle devam ediyor, acil durum yok"). Token sohbete
+  yazilmaz (2.7): yeni salt-OKUR token uretilip VM'de ~/.git-credentials
+  icine yerel oturum tarafindan yazilir.
+  (2) KOHORT BOZULMASI HIZLANDI (salt gozlem, karar yok): maksDD
+  8.90R (20 Agu) -> 12.47R (1 Eyl) -> 23.63R (18 Eyl); beklenti
+  -0.465R; kohortta 49 sonuclanan islem. AYRICA cikis laboratuvarinin
+  BES varyantinin TAMAMI negatif (-22.6R ... -64.3R) ve en iyisi hala
+  canli V0. Bu, F3'un "hangi cikis" sorusuna dogrudan veri: cikis
+  tasarimini degistirmek bu kohortu kurtarmiyor - sorun daha yukarida
+  (secim/giris) aranmali. F1 olcumu (MFE medyani) bunu dogrulayacak
+  ya da yanlislayacak; hukum o olcumden once verilmez.
 - 2026-09-01 (v4.49, SALT OLCUM + operasyon): uc kayit.
   (1) AYNA ANATOMI ALETI: karar toplantisinin B adimi kodlandi -
   app/services/mirror_anatomy.py (nufuz orani: fiyat giris bolgesine
