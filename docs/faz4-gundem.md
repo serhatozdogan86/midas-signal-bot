@@ -47,6 +47,18 @@ genisliyor. F6 backtest tablosu (yedi stratejiden altisi negatif,
 motorun gunluk vekili -0.050R) ayni yone isaret ediyor - iki bagimsiz
 olcum.
 
+ILK OLCUM SONUCU (18 Eyl, VM kosumu - ayrinti research-log):
+Q1 KARISIK cikti (medyan MFE iki esik arasinda) - kural geregi tek
+hukum YOK. Devami kodlandi: q1_arms iki kolu ayri sayar, okuma kurali
+kol paylari gorulmeden yazildi. Q2: breakout_retest 58 islem -11.39R
+(kazanma %24) + trend_pullback 20 islem -> ikisi de KILIT-3
+incelemesine. Q3: short n=0 (kapatilacak sey yok - soru "neden hic
+short dogmuyor"a dondu). Q4 gozlemi: OPENING_RANGE 14 islemde -12.24R
+(kazanma %7.1) -> karar kurali YOKTU, hipotez 10 olarak on-kayda
+alindi (n>=30). Veri boslugu: 25 islemin rejimi kayitli degil.
+EN RAHATSIZ EDICI CUMLE: yukselen piyasada, yalnizca LONG tarafta,
+-25.74R'deyiz - kayip "yanlis yone oynadik" ile aciklanamiyor.
+
 ### F2 — S2 Donchian'in kaderi
 Kohortta -8.40R (en zararli), S3'le 0.63 korelasyon + %76 ayni-gun
 (en az bagimsiz). ON-KARAR KURALI (simdiden): strategy_lab tarihsel

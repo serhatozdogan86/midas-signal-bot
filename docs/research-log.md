@@ -42,6 +42,7 @@ karar kuralı → sonuç → karar.
 | 7 | Gölge dolum zamanlaması sonucu değiştiriyor (FTNT vakası, 17 Ağu) | Ayna dönemi sonunda (28 Ağu + ≥20 çift): gölge/ayna sonuç UYUŞMAZLIĞI oranı ve yönü raporlanır; uyuşmazlık ≥ %25 ise dolum modeli karar toplantısına taşınır | AYNA ÖLÇÜYOR |
 | 8 | ATR iz-süren çıkış (V4) sabit-hedefli V0'ı geçer — ÖN-KAYIT 17 Ağu, perakende araştırması + "çıkış > giriş" bulgusu; iki botun bağımsız araştırması kesişti | V4 = hedefsiz, stop = izlenen en yüksek kapanış − 3.0×ATR(14), yalnız lehte yönde hareket eder, time-stop V0 ile aynı. exit_lab'e eklenir, V0-V3 ile AYNI sinyal kümesinde ölçülür. Karar v3.19 simetriği: V4 hem toplam net-R hem beklenti olarak V0'ı geçmeli VE işaret iki yarı dönemde tutarlı olmalı (60 işlem / 25 küme dolunca) | KODLANACAK (salt ölçüm) |
 | 9 | Volatilite sıkışması kırılımı (Squeeze, S6 adayı) pozitif beklenti taşır — ÖN-KAYIT 17 Ağu; TradingView'ın en beğenilen mekanizması + volatilite kümelenmesi literatürü; bybit araştırmasının da 1. tercihi | Tanım: BB(20,2) bantları KC(20,1.5) İÇİNE girince "sıkışık"; sıkışma ≥6 bar sürüp fiyat sıkışma aralığının üstünde kapatınca LONG tetik; stop aralığın alt ucu; RR/maliyet filtreleri mevcut kurallarla. Önce research/ 2y backtest: ≥100 işlem VE net beklenti > 0 VE iki yarı tutarlı VE tavansız kıyasta S1-S5 arasında ilk 3 → strategy_lab'e S6; aksi RED ve günlüğe | DÜZENEK HAZIR — VERİ BEKLİYOR (24 Ağu) |
+| 10 | Açılış aralığı (OPENING_RANGE) fazında doğan sinyaller sistematik olarak daha kötü — ÖN-KAYIT 18 Eyl; F1 raporunda 14 işlem −12,24R, kazanma %7,1 (toplam zararın ~yarısı tek fazdan) ama n küçük ve karar kuralı YOKTU | Faz başına net-R ve kazanma oranı; n ≥ 30 dolunca okunur. OPENING_RANGE net beklentisi diğer fazların ortalamasından **en az 0,30R düşük** VE kendi içinde negatif ise → KİLİT-3'te "açılış aralığında sinyal üretme" penceresi gündeme alınır (v3.9 açılış penceresi freninin GENİŞLETİLMESİ olarak). Aksi halde RED ve günlüğe. n < 30 iken yorum YAPILMAZ | VERİ BİRİKİYOR |
 | 2 | Momentum üst dilimindeki sinyaller daha iyi | mom_pct üst/alt yarı karşılaştırması, n≥40 | VERİ BİRİKİYOR |
 | 3 | Oynak hisselerdeki sinyaller daha iyi | atr_rank üst/alt yarı, n≥40 | VERİ BİRİKİYOR |
 | 4 | Absorbsiyon etiketi taşıyanlar daha iyi | etiketli vs etiketsiz, n≥30 | VERİ BİRİKİYOR |
@@ -227,3 +228,45 @@ olabilir; genellenebilirliği ayrı bir sorudur ve şimdi soruluyor.
 
 9 test; üç mutasyon yakalandı (eşzamanlı tavanı devre dışı bırakma,
 sıralamayı yapmama, "iki strateji" şartını bire düşürme).
+
+## F1 İLK ÖLÇÜM: "neden kaybediyoruz" (2026-09-18, VM koşumu)
+
+96 kapanan kayıt / 78 dolum / 39 ölçülebilir zarar.
+
+**Q1 (giriş mi çıkış mı) → KARIŞIK.** Medyan MFE ön-kayıtlı iki eşiğin
+arasında kaldı, yani kural gereği **tek hüküm verilmiyor**. Bu bir
+başarısızlık değil, beklenen sonuçlardan biri: zararlar tek cins değil.
+Bir kısmı hiç kâra geçmemiş, bir kısmı 1,5–3,9R'ye ulaşıp geri vermiş
+(CIEN, TMO, QCOM, DE, TGT). Ortalama bu iki cinsi tek sayıya eziyor.
+
+→ Devamı koda yazıldı: `q1_arms` iki kolu ayrı sayar (soğuk ≤0,3R /
+ara / sıcak ≥0,8R — **Q1'in kendi eşikleri, yeni eşik uydurulmadı**) ve
+**pay + toplam R** olmak üzere iki şarta birden bakar. Okuma kuralı kol
+payları görülmeden yazıldı (18 Eyl): sıcak pay ≥%40 VE zararın
+yarısından fazlasını taşıyorsa → iz süren çıkış/kısmi kâr tasarımı
+KİLİT-3 gündemine (F3 ile birleşir); pay ≤%20 → giriş/seçim baskın
+(F7 öne çıkar); arada → iki kol da ayrı madde, tek "suçlu" ilan
+edilmez.
+
+**Q2 setup:** breakout_retest 58 işlem −11,39R (kazanma %24);
+trend_pullback 20 işlem. İkisi de KİLİT-3 incelemesine bayraklandı.
+
+**Q3 short: n = 0.** Beklenen bulgu bu değildi. Short tarafı *zarar
+ettirmiyor* — **hiç işlem üretmiyor**. 78 dolumun tamamı LONG. Açık
+kuyruk md. 3'ün ("short kapatılsın mı") cevabı bu kohort için
+"kapatılacak bir şey yok"tur; soru **neden hiç short doğmadığına**
+dönüşür (rejim BULL → trend filtresi short'u geçirmiyor olabilir).
+
+**Bu tablonun en rahatsız edici cümlesi:** yükselen piyasada
+(rejim BULL, 53 işlem), yalnızca LONG tarafta, −25,74R'deyiz. Yani
+kaybı "yanlış yöne oynadık" veya "piyasa düştü" ile açıklayamıyoruz.
+
+**Veri boşluğu:** 25 işlemin rejimi kayıtlı değil (contract_json'da
+market_regime yok — muhtemelen alan eklenmeden önce doğan kayıtlar).
+Düzeltilmez, not düşülür; rejim kırılımı bu dipnotla okunur.
+
+**Q4 gözlemi ve yeni ön-kayıt:** OPENING_RANGE fazı 14 işlemde
+−12,24R, kazanma %7,1 — toplam zararın kabaca yarısı tek fazdan.
+Karar kuralı YOKTU, dolayısıyla bugün hüküm de yok. Hipotez 10 olarak
+ön-kayda alındı (n ≥ 30, eşik: diğer fazların ortalamasından ≥0,30R
+düşük VE kendi içinde negatif).

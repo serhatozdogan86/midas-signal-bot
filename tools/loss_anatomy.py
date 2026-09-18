@@ -24,8 +24,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.loss_anatomy import (breakdown, excursions,   # noqa: E402
-                                       q1_entry_or_exit, q2_setup_flags,
-                                       q3_short_verdict)
+                                       q1_arms, q1_entry_or_exit,
+                                       q2_setup_flags, q3_short_verdict)
 
 SIG_SQL = (
     "SELECT id, symbol, direction, outcome, r_multiple, fill_price, fill_ts, "
@@ -108,11 +108,13 @@ def main() -> int:
     zarar = [r for r in dolan if r.get("outcome") == "LOSS"]
     kazanc = [r for r in dolan if r.get("outcome") == "WIN"]
     q1 = q1_entry_or_exit(zarar)
+    kollar = q1_arms(zarar)
     q2 = q2_setup_flags(dolan)
     q3 = q3_short_verdict(dolan)
 
     if args.json:
-        print(json.dumps({"q1": q1, "q2_bayrakli_setuplar": q2, "q3_short": q3,
+        print(json.dumps({"q1": q1, "q1_kollar": kollar,
+                          "q2_bayrakli_setuplar": q2, "q3_short": q3,
                           "setup": breakdown(dolan, "setup_type"),
                           "rejim": breakdown(dolan, "market_regime"),
                           "faz": breakdown(dolan, "session_phase"),
@@ -132,6 +134,16 @@ def main() -> int:
         d = q1["dayaniklilik"]
         print(f"    DAYANIKLILIK     : "
               f"{'saglam' if d['saglam'] else 'ZAYIF'} - {d['not']}")
+    if "soguk" in kollar:
+        print("\n  Q1 DEVAMI - IKI KOL (KARISIK ciktiginda okunur)")
+        print(f"    soguk (MFE<=0.3R, hic calismadi) : "
+              f"{kollar['soguk']['n']:>3} islem  {kollar['soguk']['net_r']:>8.2f}R")
+        print(f"    ara   (0.3-0.8R)                 : "
+              f"{kollar['ara']['n']:>3} islem  {kollar['ara']['net_r']:>8.2f}R")
+        print(f"    sicak (MFE>=0.8R, calisip dondu) : "
+              f"{kollar['sicak']['n']:>3} islem  {kollar['sicak']['net_r']:>8.2f}R"
+              f"  (pay %{kollar['sicak']['pay_%']})")
+        print(f"    ON-KAYITLI HUKUM : {kollar['hukum']}")
     if zarar:
         print("    (MFE dagilimi, en iyiden kotuye)")
         for r in sorted(zarar, key=lambda x: -(x["mfe"] or -99))[:15]:

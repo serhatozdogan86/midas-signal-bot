@@ -91,6 +91,67 @@ def q1_entry_or_exit(losers: list[dict]) -> dict:
                         "dayanak degil")}}
 
 
+def q1_arms(losers: list[dict]) -> dict:
+    """Q1 'KARISIK' cikarsa devami - iki KOL ayri olculur.
+
+    18 Eyl saha kosumu: 39 olculebilir zararin medyan MFE'si esikler
+    ARASINDA kaldi, yani on-kayitli kural geregi tek hukum verilemez.
+    Bu beklenen bir sonuc: zararlar tek cins degil. Bazilari hic kara
+    gecmedi (giris hatasi), bazilari 1.5-3.9R'ye ulasip geri verdi
+    (CIEN, TMO, QCOM, DE, TGT). Ortalamaya bakmak bu iki cinsi tek
+    sayiya eziyor - o yuzden kollar ayrilir.
+
+    KOL TANIMI (Q1'in kendi esikleriyle AYNI - yeni esik uydurulmadi):
+      SOGUK kol : MFE <= 0.3R - islem hic calismadi
+      SICAK kol : MFE >= 0.8R - islem calisti, sonra geri verdi
+      ARA kol   : ikisinin arasi
+
+    ON-KAYITLI OKUMA KURALI (18 Eyl, kol paylari GORULMEDEN yazildi):
+      sicak kolun PAYI >= %40 VE sicak kolun toplam zarari, tum
+        zararin YARISINDAN buyukse -> iz suren cikis/kismi kar
+        tasarimi KILIT-3 gundemine (F3 ile birlesir)
+      sicak kolun payi <= %20 ise -> giris/secim baskin; cikis
+        tasarimi bu kohortu kurtarmaz (F7 one cikar)
+      arada ise -> iki kol da KILIT-3 gundemine ayri madde olarak
+        girer; tek bir "sucu" ilan edilmez
+    Not: bu kural ORTALAMA yerine PAY ve TOPLAM R'ye bakar, cunku
+    "kac islem" ile "kac R" farkli sorulardir ve karar ikisine birden
+    dayanmali.
+    """
+    v = [r for r in losers if r.get("mfe") is not None]
+    if not v:
+        return {"n": 0, "hukum": "HUKUM YOK - olculebilir zarar kaydi yok"}
+    soguk = [r for r in v if r["mfe"] <= 0.3]
+    sicak = [r for r in v if r["mfe"] >= 0.8]
+    ara = [r for r in v if 0.3 < r["mfe"] < 0.8]
+
+    def _r(kume: list[dict]) -> float:
+        return round(sum(x.get("r") or 0.0 for x in kume), 2)
+
+    toplam_r = _r(v)
+    pay = len(sicak) / len(v)
+    sicak_r = _r(sicak)
+    # "zararin yarisindan buyuk": toplam zarar negatif oldugu icin
+    # kiyas MUTLAK degerlerle yapilir (aksi halde isaret hatasi olur).
+    yarisindan_buyuk = abs(sicak_r) > abs(toplam_r) / 2 if toplam_r else False
+    if pay >= 0.40 and yarisindan_buyuk:
+        hukum = ("SICAK KOL BASKIN: iz suren cikis / kismi kar tasarimi "
+                 "KILIT-3 gundemine (F3 ile birlesir)")
+    elif pay <= 0.20:
+        hukum = ("GIRIS/SECIM BASKIN: cikis tasarimi bu kohortu "
+                 "kurtarmaz (F7 one cikar)")
+    else:
+        hukum = ("ARADA: iki kol da KILIT-3 gundemine AYRI madde olarak "
+                 "girer - tek bir 'suclu' ilan edilmez")
+    return {"n": len(v),
+            "soguk": {"n": len(soguk), "net_r": _r(soguk)},
+            "ara": {"n": len(ara), "net_r": _r(ara)},
+            "sicak": {"n": len(sicak), "net_r": sicak_r,
+                      "pay_%": round(100 * pay, 1)},
+            "toplam_r": toplam_r,
+            "hukum": hukum}
+
+
 def breakdown(rows: list[dict], key: str) -> list[dict]:
     """Bir alana gore kirilim: n, net-R, kazanma orani. Sirali (en
     zararlidan). Alan bos olan kayitlar '(bilinmiyor)' altinda toplanir -

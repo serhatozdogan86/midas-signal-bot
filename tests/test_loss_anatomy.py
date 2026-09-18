@@ -7,7 +7,7 @@ short kuralinin on-kayitli haliyle uygulanmasi.
 """
 from __future__ import annotations
 
-from app.services.loss_anatomy import (breakdown, excursions,
+from app.services.loss_anatomy import (breakdown, excursions, q1_arms,
                                        q1_entry_or_exit, q2_setup_flags,
                                        q3_short_verdict)
 
@@ -101,3 +101,46 @@ def test_q3_long_kayitlari_short_hukmune_karismaz():
                + [{"direction": "SHORT", "r": 1.0} for _ in range(20)])
     r = q3_short_verdict(karisik)
     assert r["n"] == 20 and r["net_r"] == 20.0
+
+
+# --- Q1 devami: iki kol (18 Eyl saha kosumu 'KARISIK' verdi) ---------
+
+def _z(mfe: float, r: float = -1.0) -> dict:
+    return {"mfe": mfe, "r": r}
+
+
+def test_kollar_q1_esikleriyle_ayni_sinirlari_kullanir():
+    """Yeni esik UYDURULMADI: soguk <=0.3, sicak >=0.8 - Q1'in kendi
+    sinirlari. 0.3 ve 0.8 sinirlari KENDI kollarina dahildir."""
+    k = q1_arms([_z(0.3), _z(0.31), _z(0.79), _z(0.8)])
+    assert k["soguk"]["n"] == 1
+    assert k["ara"]["n"] == 2
+    assert k["sicak"]["n"] == 1
+
+
+def test_sicak_kol_baskinsa_cikis_tasarimi_gundeme():
+    """Pay >= %40 VE sicak kolun zarari toplamin yarisindan buyuk."""
+    k = q1_arms([_z(1.5, -2.0), _z(2.0, -2.0), _z(1.2, -2.0),
+                 _z(0.1, -0.5), _z(0.0, -0.5)])
+    assert k["sicak"]["pay_%"] == 60.0
+    assert "SICAK KOL BASKIN" in k["hukum"]
+
+
+def test_sicak_kol_kucukse_giris_baskin():
+    z = [_z(0.05, -1.0) for _ in range(9)] + [_z(1.5, -1.0)]
+    k = q1_arms(z)
+    assert k["sicak"]["pay_%"] == 10.0
+    assert "GIRIS/SECIM BASKIN" in k["hukum"]
+
+
+def test_pay_yetse_de_R_yetmezse_tek_suclu_ilan_edilmez():
+    """Kural IKI sarta birden bakar: sicak kol islem sayisinda buyuk
+    ama zararin yarisindan azini tasiyorsa hukum 'ARADA'dir.
+    Gerekce: 'kac islem' ile 'kac R' farkli sorulardir."""
+    k = q1_arms([_z(1.5, -0.2), _z(1.6, -0.2), _z(0.0, -5.0)])
+    assert k["sicak"]["pay_%"] > 40
+    assert "ARADA" in k["hukum"]
+
+
+def test_kol_raporu_olculebilir_kayit_yoksa_hukum_vermez():
+    assert q1_arms([{"mfe": None}])["hukum"].startswith("HUKUM YOK")

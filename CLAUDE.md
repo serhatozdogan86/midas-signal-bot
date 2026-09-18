@@ -312,7 +312,9 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 
 1. Kohort dolunca çıkış varyantı kararı (V0 vs V1/V2/V3)
 2. `mom_pct` / `atr_rank` üst-alt dilim analizi (n≥40)
-3. Short tarafının kapatılıp kapatılmayacağı (veri negatif eğilimli)
+3. Short tarafı: 18 Eyl ölçümü **n = 0** — kapatılacak bir şey YOK,
+   78 dolumun tamamı LONG. Soru dönüştü: *neden hiç short doğmuyor?*
+   (rejim BULL + trend filtresi hipotezi; research-log F1 ölçümü)
 4. Finnhub timeout'larının da WARNING'e indirilmesi (5xx yapıldı)
 5. Alpaca kağıt hesap "ayna" katmanı — adım 1+2 tamam (iskelet,
    izolasyon kilitleri, emir döngüsü sahte istemciyle; v4.19/v4.24).
