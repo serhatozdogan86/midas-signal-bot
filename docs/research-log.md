@@ -317,3 +317,45 @@ tamamı negatif. F6'nın "yedide altısı negatif" tablosuyla aynı şekil.
 Yani ≥0,8R kâra ulaşıp **stop'a kadar** geri verdiler — kısmi kâr veya
 iz süren stop bunları kurtarırdı. Ama (2) gereği o karşı-olgu ölçüldü
 ve kazandırmadı; tek tek vakaların çekiciliğine kapılmıyoruz.
+
+## F7 İLK KOŞUM (2026-09-21) — hüküm eksik uygulanmıştı, tamamlandı
+
+İlk koşumun çıktısı "ADAY" dedi. **O hüküm geçersiz sayılmalı** — çünkü
+dört şartın yalnız ikisi (örneklem + iki-strateji) hesaplanıyordu;
+2. şart (tabana üstünlük) ve 3. şart (iki yarı tutarlılığı) hiç
+ölçülmüyor, "ayrıntıya bak" deniyordu. Kural doğruydu, **uygulaması
+eksikti**; yerel oturum bunu doğru tespit etti.
+
+Tamamlandı (21 Eyl): `compare` artık iki yarı dönemin farkını da
+döndürür, `verdict_f7` dördünü birden ölçer ve "ADAY" diye bir ara
+sonuç YOK — ya geçer ya RED.
+
+**Koşul 2'nin okunuşu — belirsizliği açıkça ilan ediyorum.** 8 Eylül
+metni "seçimli beklenti > taban" diyor ama çok stratejili kurulumda
+*hangi* beklenti olduğu yazılmamış. 21 Eylül'de sabitlenen okuma:
+**strateji başına farkların ortalaması > 0**. Gerekçe: tek bir
+stratejiyi (örneğin kendi vekilimizi) seçip sonucu istenen yöne çevirme
+imkânı kalmasın. Alternatif okuma (iyileşen sayısı > kötüleşen sayısı)
+da her koşumda **ayrıca raporlanır** — böylece "hangi okumayla geçerdi"
+sessizce seçilemez.
+
+### İlk koşumun ham verisi (hüküm yeniden koşulacak)
+- İyileşen: 2 KESİTSEL MOMENTUM, 3 RSI2, 4 REZİDÜEL STATARB
+- Kötüleşen: 1 DONCHIAN belirgin şekilde (−34,5 → −71 R)
+- Botun kendi vekili: −0,057 → −0,040 R (iyileşti ama **hâlâ negatif**)
+- Tek pozitif kalem: KESİTSEL MOMENTUM +0,070 (tabanı −0,075)
+- Yanlılık hatırlatması: evren bugünkü listeden, hayatta kalma
+  yanlılığı tüm LONG tarafını yukarı çekiyor. **Buna rağmen** tablo
+  çoğunlukla negatif.
+
+### İkinci kusur: araştırma evreni yine canlı evren değildi
+Koşum "evren: statik yedek liste" diyerek kendi kusurunu bildirdi.
+Sebep: `research/data.py` canlı evren önbelleğini okuyor ama o dosya
+**sunucuda** yaşıyor; backtest ise **yerel makinede** koşuyor ve orada
+bulunmayınca yedeğe düşüyor. 24 Ağustos'ta "düzelttim" dediğim şey,
+ölçümün fiilen koştuğu yerde çalışmıyormuş.
+
+Çözüm: köprüye `evren` komutu eklendi —
+`./ops/local/vm-read.sh evren > data/universe_cache.json` ile canlı
+liste yerele alınır, sonra backtest koşulur. Bir sonraki F7 koşumu bu
+sırayla yapılacak ve hüküm o koşumdan okunacak.

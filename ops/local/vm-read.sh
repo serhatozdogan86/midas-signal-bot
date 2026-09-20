@@ -20,6 +20,7 @@
 #   log        son 50 satir servis gunlugu
 #   rapor      hepsi tek atista (durum ritueli)
 #   deploylog  son deploy gunlugu (SABIT yol, yalnizca son 200 satir)
+#   evren      canli evren onbellegi (arastirma kosumlari icin)
 #
 # NE YAPMAZ: deploy, restart, git pull/push, dosya silme, env duzenleme,
 # rasgele komut. Bunlarin hepsi ONAYA TABI kalir (4.5) ve deploy.sh ile
@@ -47,7 +48,7 @@ if [ -z "$VM_HOST" ] || [ -z "$VM_KEY" ]; then
 fi
 
 usage() {
-    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor|deploylog}"
+    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor|deploylog|evren}"
     exit 2
 }
 [ $# -eq 1 ] || usage
@@ -67,6 +68,13 @@ case "$1" in
     # burada yazili - cagiran secemez, yani "rasgele dosya oku"
     # kapisi acilmaz. Yalniz OKUR (tail), yazmaz.
     deploylog) remote="tail -n 200 /tmp/midas-deploy.log" ;;
+    # 21 Eyl: arastirma evreni sorunu. research/data.py canli
+    # evren onbellegini okur ama o dosya SUNUCUDA yasiyor;
+    # backtest YEREL makinede kosuyor ve orada bulunmayinca
+    # sessizce statik yedek listeye dusuyordu (F7 kosumu
+    # boyle yapildi). Artik canli liste kopruden alinabilir:
+    #   ./ops/local/vm-read.sh evren > data/universe_cache.json
+    evren)   remote="cat $VM_DIR/data/universe_cache.json" ;;
     # 8 Eyl: "durum?" ritualinin tek atisi. Alt komutlarin AYNISI, sabit
     # sirayla - yeni yetki eklemez, yalnizca gidip-gelmeyi bitirir.
     rapor)   remote="echo '=== AUDIT ==='; curl -sf http://127.0.0.1:$VM_PORT/audit; \

@@ -67,13 +67,21 @@ def main() -> int:
                   f"{m['beklenti_R']:>11.3f}{m['toplam_R']:>11.1f}")
 
     v = verdict_f7(sonuc)
-    print("\n=== F7 ON-KAYITLI KARAR (8 Eyl'de yazildi) ===")
+    print("\n=== F7 ON-KAYITLI KARAR (kural 8 Eyl, dort sart) ===")
     for k, ok in v["kosullar"].items():
         print(f"  [{'X' if ok else ' '}] {k}")
-    print(f"  iyilesen stratejiler : {v['iyilesen_stratejiler'] or '(yok)'}")
+    print(f"  iyilesen   : {v['iyilesen_stratejiler'] or '(yok)'}")
+    print(f"  kotulesen  : {v['kotulesen_stratejiler'] or '(yok)'}")
+    print(f"  ortalama fark : {v['ortalama_fark_R']:+.4f} R/islem")
+    t = v["tutarlilik"]
+    print(f"  yari tutarliligi : {t['tutarli']}/{t['olculen']} iyilesen "
+          "stratejide iki yari ayni yonde")
     print(f"  toplam secilen islem : {v['toplam_secilen']}")
     print(f"  KARAR : {v['karar']}")
-    print(f"\n  NOT: {v['not']}")
+    d = v["okuma_duyarliligi"]
+    print(f"\n  OKUMA DUYARLILIGI (kosul 2): ortalama={d['kosul2_ortalama_fark']}"
+          f" / cogunluk={d['kosul2_cogunluk_iyilesme']}")
+    print(f"  {d['not']}")
     print("  HATIRLATMA: evren BUGUNKU liste - hayatta kalma yanliligi")
     print("  tum LONG stratejileri yukari yanli (harness ilkesi 6).")
     return 0

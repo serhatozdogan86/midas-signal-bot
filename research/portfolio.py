@@ -76,38 +76,95 @@ def apply_portfolio(trades: pd.DataFrame, rank: pd.DataFrame | None = None,
 
 def compare(trades: pd.DataFrame, rank: pd.DataFrame,
             label: str = "") -> dict:
-    """Ayni islem havuzunda iki dunya: secim kurali VAR / YOK."""
-    from research.harness import metrics
+    """Ayni islem havuzunda iki dunya: secim kurali VAR / YOK.
+
+    21 Eyl eklemesi: kosul 3 (yari-donem tutarliligi) icin YARILAR da
+    buradan doner. Ilk surumde bu hesap hic yapilmiyordu ve verdict_f7
+    "ayrintiya bak" deyip birakiyordu - yani dort sartli kuralin yarisi
+    olculmuyordu. Kural degismedi, EKSIK UYGULAMA tamamlandi.
+    """
+    from research.harness import halves, metrics
     secimli = apply_portfolio(trades, rank)
     tabani = apply_portfolio(trades, None)
-    a = metrics(secimli[secimli["secildi"]], f"{label} secimli")
-    b = metrics(tabani[tabani["secildi"]], f"{label} taban")
-    return {"secimli": a, "taban": b,
-            "elenen_secimli": int((~secimli["secildi"]).sum()),
-            "elenen_taban": int((~tabani["secildi"]).sum())}
+    s_alinan = secimli[secimli["secildi"]]
+    t_alinan = tabani[tabani["secildi"]]
+    a = metrics(s_alinan, f"{label} secimli")
+    b = metrics(t_alinan, f"{label} taban")
+    out = {"secimli": a, "taban": b,
+           "elenen_secimli": int((~secimli["secildi"]).sum()),
+           "elenen_taban": int((~tabani["secildi"]).sum())}
+    if len(s_alinan) >= 2 and len(t_alinan) >= 2:
+        sy1, sy2 = halves(s_alinan)
+        ty1, ty2 = halves(t_alinan)
+        # Tutarlilik: secimin TABANA USTUNLUGU her iki yarida da ayni
+        # yonde mi? ("secimli pozitif mi" degil - F7'nin sorusu
+        # "secim fark yaratiyor mu", "strateji karli mi" degil.)
+        f1 = sy1.get("beklenti_R", 0) - ty1.get("beklenti_R", 0)
+        f2 = sy2.get("beklenti_R", 0) - ty2.get("beklenti_R", 0)
+        out["yarilar"] = {"ilk_fark": round(f1, 3), "ikinci_fark": round(f2, 3),
+                          "tutarli": bool((f1 > 0) == (f2 > 0))}
+    return out
 
 
 def verdict_f7(karsilastirmalar: dict[str, dict]) -> dict:
-    """F7 hukmu - kural yukarida, SONUCLARA BAKILMADAN yazildi.
-    karsilastirmalar: {strateji_adi: compare(...) ciktisi}."""
-    iyilesen, toplam_secilen = [], 0
+    """F7 hukmu - DORT sart da olculur (21 Eyl'de tamamlandi).
+
+    ILK SURUMUN EKSIGI (21 Eyl saha kosumunda goruldu): yalniz kosul 1
+    ve 4 hesaplaniyordu; 2 ve 3 icin "ayrintiya bak" deniyordu. Boyle
+    bir hukum "ADAY" der ve karar gercekte hic verilmez. Kural
+    DEGISMEDI - 8 Eyl'de yazilan dort sart aynen; eksik olan UYGULAMAYDI.
+
+    KOSUL 2'NIN OKUNMASI - burada bir belirsizlik vardi ve acikca
+    yaziyorum: 8 Eyl metni "secimli net beklenti > taban" diyor ama
+    COK STRATEJILI kurulumda "hangi beklenti" belirtilmemis. 21 Eyl'de
+    sabitlenen okuma: STRATEJI BASINA farklarin ORTALAMASI > 0, yani
+    "secim ortalamada yardim ediyor mu". Tek bir strateji secilerek
+    (orn. yalniz bizim vekil) sonucu istenen yone cevirmek mumkun
+    olmasin diye ortalama kullaniliyor.
+    Duyarlilik: alternatif okumalar da RAPORLANIR (okuma_duyarliligi),
+    boylece "hangi okumayla gecerdi" sessizce secilemez.
+
+    KOSUL 3: secimin TABANA USTUNLUGU iki yari donemde de ayni yonde
+    olmali (compare() hesaplar). Sart, iyilesen stratejilerin
+    COGUNLUGUNDA saglanmali - tek bir stratejinin tutarliligi tum
+    kurali tasiyamaz (kosul 4'un ayni gerekcesi).
+    """
+    iyilesen, kotulesen, toplam_secilen, farklar = [], [], 0, []
+    tutarli_sayisi = eslenen = 0
     for ad, k in karsilastirmalar.items():
         s, t = k["secimli"], k["taban"]
         if not s.get("islem") or not t.get("islem"):
             continue
         toplam_secilen += s["islem"]
-        if s["beklenti_R"] > t["beklenti_R"]:
-            iyilesen.append(ad)
+        fark = s["beklenti_R"] - t["beklenti_R"]
+        farklar.append(fark)
+        (iyilesen if fark > 0 else kotulesen).append(ad)
+        y = k.get("yarilar")
+        if fark > 0 and y is not None:
+            eslenen += 1
+            tutarli_sayisi += 1 if y["tutarli"] else 0
+    ort_fark = round(sum(farklar) / len(farklar), 4) if farklar else 0.0
     kosul = {
-        "secilen islem >= 100": bool(toplam_secilen >= 100),
-        "en az 2 stratejide iyilesme": bool(len(iyilesen) >= 2),
+        "1. secilen islem >= 100": bool(toplam_secilen >= 100),
+        "2. secim ortalamada yardim ediyor": bool(ort_fark > 0),
+        "3. iyilesenlerin cogunlugu iki yarida tutarli":
+            bool(eslenen and tutarli_sayisi * 2 > eslenen),
+        "4. en az 2 stratejide iyilesme": bool(len(iyilesen) >= 2),
     }
+    gecti = all(kosul.values())
     return {"iyilesen_stratejiler": iyilesen,
+            "kotulesen_stratejiler": kotulesen,
             "toplam_secilen": toplam_secilen,
+            "ortalama_fark_R": ort_fark,
+            "tutarlilik": {"olculen": eslenen, "tutarli": tutarli_sayisi},
             "kosullar": kosul,
-            "not": ("Yari-donem tutarliligi (kosul 3) ve taban ustunlugu "
-                    "strateji basina compare() ciktisindan okunur; hukum "
-                    "ancak DORT kosul birden saglanirsa 'KILIT-3 tasarimina "
-                    "girer' olur."),
-            "karar": ("ADAY: dort kosul icin ayrinti incelenmeli"
-                      if all(kosul.values()) else "RED - on sartlar dolmadi")}
+            "okuma_duyarliligi": {
+                "kosul2_ortalama_fark": bool(ort_fark > 0),
+                "kosul2_cogunluk_iyilesme":
+                    bool(len(iyilesen) > len(kotulesen)),
+                "not": ("Kosul 2'nin iki mesru okunusu; hukum ORTALAMA "
+                        "okumasiyla verilir (21 Eyl'de sabitlendi), digeri "
+                        "seffaflik icin raporlanir."),
+            },
+            "karar": ("KILIT-3 TASARIMINA GIRER (dort sart da saglandi)"
+                      if gecti else "RED - dort sartin hepsi saglanmadi")}

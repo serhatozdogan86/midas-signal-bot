@@ -148,8 +148,22 @@ Kural 4 bilincli olarak sert: bulgu 3 TEK strateji (Donchian,
 -787R -> +11.8R) uzerinden dogmustu; burada sinanan sey o farkin
 genellenebilir olup olmadigi. Tek stratejide cikan iyilesme, o
 stratejinin kendine ozgu davranisi olabilir.
-KALAN: veri (research/_data) agi olan oturumda uretilecek; bulut
-oturumunun agi piyasa verisine kapali.
+ILK KOSUM (21 Eyl) IKI KUSUR ACIGA CIKARDI - ikisi de duzeltildi:
+ (a) HUKUM EKSIK UYGULANMISTI: dort sartin yalniz ikisi hesaplaniyor,
+     2 ve 3 icin "ayrintiya bak" deniyordu; cikti "ADAY" diyor ve karar
+     fiilen hic verilmiyordu. compare() artik yari-donem farkini da
+     dondurur, verdict_f7 dordunu birden olcer, "ADAY" ara sonucu YOK.
+     Kosul 2'nin cok-stratejili okunusu belirsizdi: strateji basina
+     farklarin ORTALAMASI olarak sabitlendi (21 Eyl) ve alternatif
+     okuma her kosumda ayrica raporlanir.
+ (b) ARASTIRMA EVRENI YINE CANLI EVREN DEGILDI: data.py canli onbellegi
+     okuyor ama o dosya SUNUCUDA; backtest YEREL makinede kosuyor ve
+     sessizce statik yedege dusuyor. 24 Agu'daki duzeltme, olcumun
+     fiilen kostugu yerde calismiyormus. Kopruye 'evren' komutu eklendi.
+ILK KOSUMUN HAM VERISI (hukum yeniden kosulacak): iyilesen 3 strateji
+(kesitsel momentum, RSI2, rezidüel), DONCHIAN belirgin KOTULESTI
+(-34.5 -> -71R), botun kendi vekili -0.057 -> -0.040 (iyilesti ama
+hala negatif). Ayrinti research-log.
 
 ### F8 — Ayna donemi hukmu (28 Agu kapisi, on-kayitli esikler)
 v4.32-C esikleri ve hipotez 7 kurali aynen isler; Faz 4'e girdi olur

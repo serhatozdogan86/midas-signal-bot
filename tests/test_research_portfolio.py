@@ -82,7 +82,7 @@ def test_f7_hukmu_tek_stratejide_iyilesmeyi_kabul_etmez():
                 "taban": {"islem": 150, "beklenti_R": 0.02}}}
     v = verdict_f7(k)
     assert v["iyilesen_stratejiler"] == ["S1"]
-    assert v["kosullar"]["en az 2 stratejide iyilesme"] is False
+    assert v["kosullar"]["4. en az 2 stratejide iyilesme"] is False
     assert v["karar"].startswith("RED")
 
 
@@ -92,7 +92,7 @@ def test_f7_kucuk_orneklemde_red():
          "S2": {"secimli": {"islem": 40, "beklenti_R": 0.3},
                 "taban": {"islem": 40, "beklenti_R": 0.1}}}
     v = verdict_f7(k)
-    assert v["kosullar"]["secilen islem >= 100"] is False
+    assert v["kosullar"]["1. secilen islem >= 100"] is False
     assert v["karar"].startswith("RED")
 
 
@@ -104,8 +104,10 @@ def test_f7_on_sartlar_dolunca_aday_der_ama_hukum_vermez():
          "S2": {"secimli": {"islem": 150, "beklenti_R": 0.1},
                 "taban": {"islem": 150, "beklenti_R": 0.02}}}
     v = verdict_f7(k)
-    assert v["karar"].startswith("ADAY")
-    assert "DORT kosul" in v["not"]
+    # yarilar verilmedigi icin kosul 3 olculemez -> RED (sessizce
+    # gecmez: olculemeyen sart SAGLANMIS sayilmaz, 2.2 refleksi)
+    assert v["kosullar"]["3. iyilesenlerin cogunlugu iki yarida tutarli"] is False
+    assert v["karar"].startswith("RED")
 
 
 # --- compare() butunu: secim gercekten fark yaratiyor mu? ------------
@@ -149,3 +151,64 @@ def test_siralama_yanlis_yondeyse_taban_kazanir():
     t, rank = _havuz(kazanan_ust=False)
     k = compare(t, rank, label="T")
     assert k["secimli"]["beklenti_R"] < k["taban"]["beklenti_R"]
+
+
+# --- dort sartin tamami (21 Eyl: eksik uygulama tamamlandi) ----------
+
+def _k(secimli_b, taban_b, islem=200, y1=None, y2=None):
+    d = {"secimli": {"islem": islem, "beklenti_R": secimli_b},
+         "taban": {"islem": islem, "beklenti_R": taban_b}}
+    if y1 is not None:
+        d["yarilar"] = {"ilk_fark": y1, "ikinci_fark": y2,
+                        "tutarli": (y1 > 0) == (y2 > 0)}
+    return d
+
+
+def test_dort_sart_saglaninca_kilit3e_girer():
+    v = verdict_f7({"A": _k(0.20, 0.05, y1=0.1, y2=0.2),
+                    "B": _k(0.10, 0.02, y1=0.05, y2=0.09)})
+    assert all(v["kosullar"].values())
+    assert v["karar"].startswith("KILIT-3")
+
+
+def test_yarilar_tutarsizsa_red():
+    """Iyilesme tek yaridan geliyorsa kural GECMEZ - v3.19 usulu."""
+    v = verdict_f7({"A": _k(0.20, 0.05, y1=0.4, y2=-0.1),
+                    "B": _k(0.10, 0.02, y1=0.3, y2=-0.2)})
+    assert v["kosullar"]["4. en az 2 stratejide iyilesme"] is True
+    assert v["kosullar"]["3. iyilesenlerin cogunlugu iki yarida tutarli"] is False
+    assert v["karar"].startswith("RED")
+
+
+def test_ortalama_negatifse_red_iki_strateji_iyilesse_bile():
+    """21 Eyl saha vakasinin sekli: bazi stratejiler iyilesirken
+    baskalari COK kotulesebilir. Kosul 2 ortalamaya bakar; iki
+    stratejide iyilesme tek basina yetmez."""
+    v = verdict_f7({"A": _k(0.05, 0.01, y1=0.02, y2=0.06),
+                    "B": _k(0.04, 0.01, y1=0.02, y2=0.04),
+                    "C": _k(-0.50, -0.10, y1=-0.3, y2=-0.5)})
+    assert v["kosullar"]["4. en az 2 stratejide iyilesme"] is True
+    assert v["ortalama_fark_R"] < 0
+    assert v["kosullar"]["2. secim ortalamada yardim ediyor"] is False
+    assert v["karar"].startswith("RED")
+
+
+def test_okuma_duyarliligi_iki_okumayi_da_raporlar():
+    """Kosul 2'nin iki mesru okunusu ayri ayri gorunur - 'hangi
+    okumayla gecerdi' sessizce secilemesin."""
+    v = verdict_f7({"A": _k(0.05, 0.01, y1=0.02, y2=0.06),
+                    "B": _k(0.04, 0.01, y1=0.02, y2=0.04),
+                    "C": _k(-0.50, -0.10, y1=-0.3, y2=-0.5)})
+    d = v["okuma_duyarliligi"]
+    assert d["kosul2_ortalama_fark"] is False      # ortalama negatif
+    assert d["kosul2_cogunluk_iyilesme"] is True   # 2 iyilesen > 1 kotulesen
+
+
+def test_compare_yarilari_uretir():
+    """compare() artik yari-donem farkini da dondurur (kosul 3'un
+    girdisi). Ilk surumde bu hesap HIC yapilmiyordu."""
+    from research.portfolio import compare
+    t, rank = _havuz(kazanan_ust=True)
+    k = compare(t, rank, label="T")
+    assert "yarilar" in k
+    assert k["yarilar"]["tutarli"] is True
