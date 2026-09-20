@@ -16,6 +16,30 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-09-20 (v4.52 + F1 IKI KOL OLCUMU): uc kayit.
+  (1) F1 SONUCU: 39 olculebilir zarar, medyan MFE 0.44R. Kollar:
+  soguk (<=0.3R) 15, ara 16, sicak (>=0.8R) 8. ON-KAYITLI HUKUM
+  "ARADA" - iki kol da KILIT-3 gundemine ayri madde. KIRILGANLIK
+  ILAN EDILIYOR: sicak kol payi %20.5, kuralin "giris baskin" esigi
+  <=%20 - fark TEK ISLEM (7/39 olsaydi hukum degisirdi). Ayna
+  anatomisindeki 0.002 sinir vakasinin ikinci ornegi.
+  YON ISARETI (hukum degil): sicak kol zararlarin en fazla BESTE BIRI;
+  cikis laboratuvarinin BES varyanti da negatif (karsi-olgu zaten
+  olculmus); F6'da yediden altisi negatif. Ucu birden ayni yone
+  bakiyor - kayip esas olarak bir CIKIS sorunu degil, agirlik
+  secim/giris tarafina kayiyor -> F7 one alinir.
+  Q2: trend_pullback -14.35R VE breakout_retest -11.39R, IKISI DE
+  bayrakli - "su setup bozuk" degil, roster'in tamami negatif.
+  (2) DEPLOY GUNLUGU SABIT YOLA ALINDI (v4.52): 18 Eyl'de deploy arka
+  planda kosturuldu, gunlugu kosuma ozel bir /tmp adindaydi ve ertesi
+  gun OKUNAMADI (kopru yalnizca sabit komut calistirir - 4.5). Sonuc:
+  hafta sonu atlama satirinin sahada calistigi DOGRULANAMADI.
+  deploy.sh artik /tmp/midas-deploy.log'a da yazar, kopruye salt-okur
+  'deploylog' komutu eklendi (sabit yol, tail, test kilitli).
+  (3) YEREL SAAT GUVENILMEZ: 20 Eyl'de yerel makine Cuma 23:23'u,
+  sunucu Pazar'i gosterdi. Seans penceresi kararinin yerel saate
+  dayanmadigini hatirlatir - mekanik guvence deploy.sh'in KENDI
+  takvim kilidi (2.5); yerel saat yalniz bilgilendirici.
 - 2026-09-18 (v4.51 + SAHA OLCUMU): iki kayit.
   (1) DEPLOY TIKANIKLIGI TESHIS EDILDI: VM'de GitHub token'inin suresi
   dolmus; git pull etkilesimsiz oturumda kimlik soramayip takiliyor.

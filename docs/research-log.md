@@ -270,3 +270,50 @@ Düzeltilmez, not düşülür; rejim kırılımı bu dipnotla okunur.
 Karar kuralı YOKTU, dolayısıyla bugün hüküm de yok. Hipotez 10 olarak
 ön-kayda alındı (n ≥ 30, eşik: diğer fazların ortalamasından ≥0,30R
 düşük VE kendi içinde negatif).
+
+## F1 İKİ KOL ÖLÇÜMÜ (2026-09-20, VM koşumu) — hüküm ARADA, ama sınırda
+
+39 ölçülebilir zarar, medyan MFE **0,44R**:
+
+| kol | işlem | okuma |
+|---|---:|---|
+| soğuk (MFE ≤ 0,3R) | 15 | hiç çalışmadı |
+| ara (0,3–0,8R) | 16 | kıpırdadı, tutmadı |
+| **sıcak (MFE ≥ 0,8R)** | **8** | çalıştı, hepsini geri verdi |
+
+**ÖN-KAYITLI HÜKÜM: ARADA** — iki kol da KİLİT-3 gündemine ayrı madde
+olarak girer, tek "suçlu" ilan edilmez.
+
+### Hükmün kırılganlığını kendimiz ilan ediyoruz
+Sıcak kolun payı **%20,5** (8/39); kuralın "giriş/seçim baskın" eşiği
+**≤%20**. Aradaki fark **tek bir işlem**: 7/39 olsaydı (%17,9) hüküm
+"GİRİŞ/SEÇİM BASKIN" çıkacaktı. Kural ön-kayıtlıydı ve dürüstçe
+uygulandı — hüküm geçerlidir — ama dayanak diye sunulamaz. Bu, ayna
+anatomisindeki 0,002'lik sınır vakasının ikinci örneği; ölçü tasarımı
+eşiğe yakın sonuçlar üretmeye yatkın, örneklem büyüyene kadar hükümler
+**yön işareti** sayılacak.
+
+### Yön işareti nereyi gösteriyor
+Hüküm "arada" olsa da üç bağımsız ölçüm aynı yöne bakıyor:
+1. Sıcak kol, zararların en fazla **beşte biri** (8/39, ~8R / 25,74R).
+   Yani mükemmel bir çıkış tasarımı bile kaybın çoğunu kurtaramaz.
+2. Çıkış laboratuvarının **beş varyantı da negatif** (−22,6 … −64,3R),
+   en iyisi hâlâ canlı V0. "Kârı koru" (V1 kısmi kâr), "stop'u genişlet"
+   (V2), "hedefi kaldır" (V3), "iz sür" (V4) — hepsi ölçüldü, hiçbiri
+   kurtarmadı. Sıcak kolun karşı-olgusu **zaten ölçülmüş**.
+3. F6 backtest tablosu: yedi stratejiden altısı negatif, motorun günlük
+   vekili −0,050R.
+
+Sonuç cümlesi (hüküm değil, yön): **kayıp esas olarak bir çıkış sorunu
+değil.** Ağırlık seçim/giriş tarafına kayıyor → F7 öne alınır.
+
+### Q2: bayrak tek setupta değil, HEPSİNDE
+trend_pullback −14,35R ve breakout_retest −11,39R — ikisi de KİLİT-3
+incelemesine gitti. Yani "şu bir setup bozuk" diyemiyoruz; roster'ın
+tamamı negatif. F6'nın "yedide altısı negatif" tablosuyla aynı şekil.
+
+### Sıcak kolun kimliği
+8 işlemin hepsi tam −1R: CTVA, SHW, CIEN, TMO, QCOM, DE, TGT, PSX.
+Yani ≥0,8R kâra ulaşıp **stop'a kadar** geri verdiler — kısmi kâr veya
+iz süren stop bunları kurtarırdı. Ama (2) gereği o karşı-olgu ölçüldü
+ve kazandırmadı; tek tek vakaların çekiciliğine kapılmıyoruz.

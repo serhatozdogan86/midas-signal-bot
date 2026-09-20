@@ -19,6 +19,7 @@
 #   surum      calisan commit + servis durumu
 #   log        son 50 satir servis gunlugu
 #   rapor      hepsi tek atista (durum ritueli)
+#   deploylog  son deploy gunlugu (SABIT yol, yalnizca son 200 satir)
 #
 # NE YAPMAZ: deploy, restart, git pull/push, dosya silme, env duzenleme,
 # rasgele komut. Bunlarin hepsi ONAYA TABI kalir (4.5) ve deploy.sh ile
@@ -46,7 +47,7 @@ if [ -z "$VM_HOST" ] || [ -z "$VM_KEY" ]; then
 fi
 
 usage() {
-    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor}"
+    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor|deploylog}"
     exit 2
 }
 [ $# -eq 1 ] || usage
@@ -62,6 +63,10 @@ case "$1" in
     anatomi) remote="cd $VM_DIR && python3 tools/mirror_pair_anatomy.py --db data/bot.db" ;;
     surum)   remote="cd $VM_DIR && git log --oneline -1 && systemctl is-active midas-signal-bot" ;;
     log)     remote="journalctl -u midas-signal-bot -n 50 --no-pager" ;;
+    # 20 Eyl: deploy gunlugu SABIT yoldan okunur. Dosya adi
+    # burada yazili - cagiran secemez, yani "rasgele dosya oku"
+    # kapisi acilmaz. Yalniz OKUR (tail), yazmaz.
+    deploylog) remote="tail -n 200 /tmp/midas-deploy.log" ;;
     # 8 Eyl: "durum?" ritualinin tek atisi. Alt komutlarin AYNISI, sabit
     # sirayla - yeni yetki eklemez, yalnizca gidip-gelmeyi bitirir.
     rapor)   remote="echo '=== AUDIT ==='; curl -sf http://127.0.0.1:$VM_PORT/audit; \

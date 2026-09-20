@@ -9,6 +9,17 @@ cd "$(dirname "$0")/../.."
 FORCE="${1:-}"
 VENV=".venv/bin"
 
+# v4.52 (20 Eyl): deploy gunlugu SABIT bir dosyaya da yazilir.
+# Gerekce: 18 Eyl'de deploy arka planda kosturuldu, gunlugu /tmp icinde
+# o kosuma ozel bir ada yazildi ve ertesi gun OKUNAMADI - salt-okur
+# kopru yalnizca sabit komutlar calistirir (4.5), rasgele dosya
+# okuyamaz. Sonuc: "deploy ne dedi" sorusu cevapsiz kaldi ve hafta sonu
+# atlama satirinin sahada calistigi DOGRULANAMADI. Sabit yol, koprunun
+# 'deploylog' komutuyla okunabilir.
+DEPLOY_LOG="${DEPLOY_LOG:-/tmp/midas-deploy.log}"
+exec > >(tee -a "$DEPLOY_LOG") 2>&1
+echo "=== deploy $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+
 # 1) Seans kilidi - botun KENDI takvimiyle (tatiller dahil)
 if [ "$FORCE" != "--force" ]; then
     if ! "$VENV/python" - <<'PY'

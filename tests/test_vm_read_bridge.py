@@ -83,3 +83,16 @@ def test_ornek_env_dosyasi_var_ve_sir_icermez():
 
 def test_gercek_env_dosyasi_gitignore_da():
     assert "ops/local/vm.env" in Path(".gitignore").read_text(encoding="utf-8")
+
+
+def test_deploylog_sabit_yoldan_yalniz_okur(kaynak):
+    """20 Eyl: deploy gunlugu koprude okunabilir oldu - ama dosya adi
+    BETIKTE yazili. 'Rasgele dosya oku' kapisi acilmamali; komut tail
+    (okur), cat disinda bir yazma/silme fiili tasimamali."""
+    satir = [l for l in kaynak.splitlines() if l.strip().startswith("deploylog)")]
+    assert satir, "deploylog dali yok"
+    s = satir[0]
+    assert "/tmp/midas-deploy.log" in s          # sabit yol
+    assert "tail" in s
+    for tehlike in ("$1", "$@", "$*", ">", "rm ", "mv "):
+        assert tehlike not in s, f"deploylog dalinda tehlikeli ifade: {tehlike}"
