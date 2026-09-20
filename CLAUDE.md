@@ -275,8 +275,13 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
    (NW t=3.3, iki alt dönemde tutarlı).
 2. **Çıkış tasarımı girişten daha belirleyici**: aynı girişlerle sabit
    hedefi kaldırmak +48.5R → +151.5R; süre 4→10 gün +314.9R.
-3. Portföy tavanı zararlı değil; **seçim kuralı** belirleyici (kaliteye
-   göre seçim, Donchian'ı −787R'den +11.8R'ye taşıdı).
+3. ~~Seçim kuralı belirleyici~~ **YANLIŞLANDI (21 Eyl 2026).** Eski
+   iddia ("kaliteye göre seçim Donchian'ı −787R'den +11.8R'ye taşıdı")
+   kapanmış bir analiz ortamından geliyordu ve **yeniden üretilemedi**.
+   Tam evren + ön-kayıtlı kuralla (F7): ortalama fayda +0.0037R/işlem,
+   yarı-dönem tutarlılığı 2/4 → **RED**. Portföy tavanının zararsızlığı
+   ayrı bir iddiadır ve bu koşumda sınanmadı. Ayrıntı research-log
+   "F7 HÜKÜM". Ders: yeniden üretilemeyen ölçüm bulgu değildir.
 4. Reddedilenler: Kalman (trend ve çift işlem), Wyckoff (spring/no-supply),
    SMC likidite avı, 52-hafta zirvesi, rezidüel stat-arb, order book
    (veri yok).

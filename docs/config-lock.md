@@ -16,6 +16,26 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-09-21 (F7 HUKMU + BULGU 3 DUZELTMESI): secim kurali RED.
+  Baglayici kosum (1627/1628 sembol, eksik %0.1): dort sarttan ucu
+  gecti, YARI TUTARLILIGI 2/4 ile kaldi. Ortalama fayda +0.0037R/islem.
+  Kosul 2 bu sefer IKI okunusta da gecti - RED yoruma degil, yoruma
+  KAPALI tutarlilik sartina dayaniyor. Momentum agirlikli secim
+  KILIT-3 tasarimina GIRMEZ.
+  UC KOSUM: ADAY (statik evren) -> GIRER (kirpik evren) -> RED (tam
+  evren). Ayni kural, ayni kod; secimin etkisi olcum gurultusunun
+  icinde kaliyor - oynakligin kendisi bulgudur.
+  BULGU 3 YANLISLANDI: CLAUDE.md §5'teki "secim kurali belirleyici;
+  kaliteye gore secim Donchian'i -787R -> +11.8R tasidi" iddiasi
+  YENIDEN URETILEMEDI (kapanmis analiz ortamindan geliyordu). Tam
+  evrende Donchian -158.1 -> -118.1: iyilesiyor ama NEGATIF kaliyor.
+  Anayasa §5 madde 3 duzeltildi. F6'nin dersinin ikinci ornegi:
+  yeniden uretilemeyen olcum BULGU DEGILDIR.
+  DURUM: Faz 4'un uc buyuk kurtarma hipotezi de dustu - cikis tasarimi
+  (exit_lab bes varyant negatif), yeni strateji (F6 squeeze RED, 8461
+  islemle dogrulandi) ve secim kurali (F7 RED). KILIT-3 onerisi bu
+  tabloyla yazilacak; "ayni kurulum + kucuk ayar" secenegi ARTIK
+  VERIYLE DESTEKLENMIYOR.
 - 2026-09-20 (v4.52 + F1 IKI KOL OLCUMU): uc kayit.
   (1) F1 SONUCU: 39 olculebilir zarar, medyan MFE 0.44R. Kollar:
   soguk (<=0.3R) 15, ara 16, sicak (>=0.8R) 8. ON-KAYITLI HUKUM

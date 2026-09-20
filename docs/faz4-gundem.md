@@ -127,7 +127,22 @@ butunluk raporu; backtest evreni UniverseProvider'dan). Kayit
 ikiz-depo-notu.md 24 Agu bolumunde; bybit'in butunluk raporunun
 midas'a tasinmasi ACIK.
 
-### F7 — Secim kurali (H-D): momentum agirlikli aday siralamasi
+### F7 — Secim kurali ✔ KAPANDI: RED (21 Eyl)
+BAGLAYICI KOSUM (1627/1628 sembol, eksik %0.1): dort sarttan ucu gecti,
+YARI TUTARLILIGI 2/4 ile kaldi -> momentum agirlikli secim KILIT-3
+tasarimina GIRMEZ. Ortalama fayda +0.0037R/islem (sifira yakin) ve
+kosul 2 bu sefer IKI okunusta da gecti - yani RED, yorum tercihine
+degil, yoruma kapali tutarlilik sartina dayaniyor.
+UC KOSUMUN GIDIS GELISI BULGUNUN KENDISI: ADAY (statik evren) ->
+GIRER (kirpik evren) -> RED (tam evren). Ayni kural, ayni kod. Secimin
+etkisi olcum gurultusunun icinde kaliyor.
+BULGU 3 DUZELTILDI (CLAUDE.md §5): "secim kurali belirleyici; Donchian
+-787R -> +11.8R" iddiasi YENIDEN URETILEMEDI. Tam evrende Donchian
+-158.1 -> -118.1 (iyilesiyor ama negatif kaliyor). F6'nin dersinin
+ikinci ornegi: yeniden uretilemeyen olcum bulgu degildir.
+Ayrinti: research-log "F7 HUKUM".
+
+### F7 (eski basligin devami - tasarim notlari)
 Bulgu 1+3 birlesimi (tek kanitli edge 12-1 momentum; "tavan degil secim
 kurali belirleyici").
 

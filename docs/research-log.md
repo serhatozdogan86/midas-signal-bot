@@ -411,3 +411,56 @@ içindi.
 - RSI2'de taban seçimliden **iyi** — yani seçim orada zarar veriyor.
 - S6 Squeeze yine RED (8461 işlem): iki yarıda da tutarlı biçimde
   negatif. F6 hükmü daha büyük örneklemle **doğrulandı**.
+
+## F7 HÜKÜM: seçim kuralı **RED** (2026-09-21, bağlayıcı koşum)
+
+Üçüncü koşum veri kapısını geçti: **1627/1628 sembol** (eksik %0,1 —
+tek sembol TUM, gerçekten borsadan çıkmış). Eşik %2'ydi, hüküm
+**bağlayıcıdır**.
+
+| strateji | seçimli | taban |
+|---|---:|---:|
+| 0 bizim vekil | **+0,025** | −0,012 |
+| 1 Donchian | −0,049 | −0,065 |
+| 2 kesitsel momentum | −0,048 | −0,017 |
+| 3 RSI2 | −0,009 | **+0,027** |
+| 4 rezidüel | −0,022 | −0,075 |
+| 5 52h zirve | −0,035 | −0,039 |
+| 6 squeeze | −0,076 | −0,059 |
+
+**Ön-kayıtlı dört şarttan üçü geçti, biri kaldı:**
+- [X] ≥100 işlem · [X] ortalamada yardım (+0,0037R) · [ ] **yarı
+  tutarlılığı 2/4** · [X] en az 2 stratejide iyileşme (4 iyileşti)
+
+**KARAR: RED.** Momentum ağırlıklı seçim kuralı KİLİT-3 tasarımına
+GİRMEZ.
+
+### Neden bu RED güvenilir
+- Koşul 2 bu sefer **iki okunuşta da** geçti (ortalama ve çoğunluk) —
+  yani hüküm, 21 Eylül'de sabitlediğim yorum tercihine bağlı değil.
+  RED'i getiren şart, yoruma açık olmayan tutarlılık şartı.
+- Veri tam; kırpılma yok.
+- Marj zaten sıfıra yakındı (+0,0037R/işlem).
+
+### Üç koşumun gidiş gelişi, bulgunun kendisidir
+ADAY (statik evren) → GİRER (kırpık evren) → **RED** (tam evren).
+Aynı kural, aynı kod. Bu oynaklık tesadüf değil: seçim kuralının etkisi
+ölçüm gürültüsünün içinde kalıyor. Bir etki ancak kendi ölçüm
+gürültüsünden büyükse etkidir.
+
+### BULGU 3 DÜZELTİLDİ (CLAUDE.md §5)
+Depo anayasasında "seçim kuralı belirleyici — kaliteye göre seçim
+Donchian'ı −787R'den +11,8R'ye taşıdı" yazıyordu. Bu iddia
+**yeniden üretilemedi**. Tam evrenle, aynı tavanlarla, ön-kayıtlı
+kuralla ölçüldüğünde Donchian −158,1 → −118,1 (iyileşiyor ama
+**negatif kalıyor**) ve genel hüküm RED. Eski rakam kapanmış bir analiz
+ortamından geliyordu — F6'da öğrendiğimiz dersin ikinci örneği:
+**yeniden üretilemeyen ölçüm, bulgu değildir.**
+
+### Yan kayıtlar
+- Botun kendi vekili tek pozitif satır (−0,012 → +0,025). Tek strateji
+  kuralı taşımaz (şart 4'ün gerekçesi) ve en çok hayatta kalma
+  yanlılığı taşıyan kalem de bu.
+- RSI2'de seçim **zarar veriyor** (taban +0,027 → seçimli −0,009).
+- S6 Squeeze 8461 işlemle yine negatif: F6'nın RED hükmü büyük
+  örneklemle doğrulandı.
