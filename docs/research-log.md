@@ -359,3 +359,55 @@ bulunmayınca yedeğe düşüyor. 24 Ağustos'ta "düzelttim" dediğim şey,
 `./ops/local/vm-read.sh evren > data/universe_cache.json` ile canlı
 liste yerele alınır, sonra backtest koşulur. Bir sonraki F7 koşumu bu
 sırayla yapılacak ve hüküm o koşumdan okunacak.
+
+## F7 İKİNCİ KOŞUM (2026-09-21) — hüküm "GEÇTİ" çıktı, **bağlayıcı saymıyorum**
+
+Canlı evrenle (1628 sembol istendi) koşuldu ve dört şart da sağlandı:
+"KİLİT-3 TASARIMINA GİRER". Buna rağmen bu hükmü **geçersiz** kabul
+ediyorum. Üç bağımsız sebep:
+
+**1. Veri kırpık — ve rastgele değil.** 114 sembol Yahoo hız sınırı
+yüzünden düştü (%7). Düşenler istek sırasının sonundan: JNJ, LOW, UPS,
+T, ABT, NKE gibi büyük isimler. Bu, bu deponun daha önce yaşadığı
+"sağlayıcı sessizce kırpıyor" sınıfının aynısı (Finnhub takvimi, v4.40,
+ölçülen zarar −3,35R). Eksik veri "engel yok" demek değildir (2.2).
+
+**2. Hüküm koşumdan koşuma DEĞİŞİYOR.** Aynı kural, aynı kod, iki
+farklı evren:
+
+| | 1. koşum (statik, 170) | 2. koşum (canlı, 1513) |
+|---|---|---|
+| İyileşen | momentum, RSI2, rezidüel | **vekil, Donchian, rezidüel** |
+| KESİTSEL MOMENTUM | **+0,070** | **−0,040** |
+| Donchian | kötüleşti | iyileşti |
+
+Aynı strateji, aynı 282 işlem, **işaret değişti**. Bir hüküm evren
+seçimine bu kadar duyarlıysa, o hüküm bir olgu değil bir gürültü
+örneklemesidir.
+
+**3. Marj sıfıra yakın ve alternatif okuma kaybediyor.** Ortalama fark
+**+0,0053 R/işlem**. Koşul 2'nin diğer meşru okunuşuyla (iyileşen
+sayısı > kötüleşen sayısı) kural **KALIRDI**: 3 iyileşen / 4 kötüleşen.
+21 Eylül'de "her koşumda ikisini de raporla" dediğimiz an tam da bunun
+içindi.
+
+### Bunun üzerine yapılanlar (v4.53)
+- **Mekanizma düzeltildi, eşikle oynanmadı:** indirme artık 200'lük
+  parçalar + bekleme ile yapılıyor, eksikler 50'lik parçalarla **bir kez
+  daha** deneniyor.
+- **Bağlayıcılık kapısı:** bütünlük raporu artık `istenen/alınan` ve
+  eksik oranını da yazıyor; **eksik > %2 ise hüküm BAĞLAYICI DEĞİL**
+  damgası basılıyor ve `f7` bunu çıktısına yansıtıyor.
+  Eşiğin kırpık koşumdan **sonra** eklendiğini açıkça yazıyorum — ama
+  bu eşik bir **GEÇTİ**'yi engelliyor, yani lehimize seçilmiş olamaz.
+- Bir hata daha yakalandı: `integrity` içinde döngü değişkeni parametreyi
+  gölgeliyordu; "sembol hiç gelmedi" ile "sembolün bazı günleri boş"
+  sayıları birbirini eziyordu. Testle kilitlendi.
+
+### Ham verinin yine de söylediği (yön işareti, hüküm değil)
+- Botun kendi vekili seçimle −0,022 → **+0,024**; toplam −33 → +35R.
+  Tek olumlu sinyal bu ve **en çok hayatta kalma yanlılığı taşıyan**
+  kalem de bu (evren bugünkü liste).
+- RSI2'de taban seçimliden **iyi** — yani seçim orada zarar veriyor.
+- S6 Squeeze yine RED (8461 işlem): iki yarıda da tutarlı biçimde
+  negatif. F6 hükmü daha büyük örneklemle **doğrulandı**.

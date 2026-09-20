@@ -19,11 +19,12 @@ sectigimiz.
 """
 from __future__ import annotations
 
+import json
 import sys
 
 import pandas as pd
 
-from research.data import BENCH, load
+from research.data import BENCH, INTEGRITY_JSON, load
 from research.portfolio import compare, verdict_f7
 
 TRADES_PKL = "research/_data/trades.pkl"
@@ -67,6 +68,24 @@ def main() -> int:
                   f"{m['beklenti_R']:>11.3f}{m['toplam_R']:>11.1f}")
 
     v = verdict_f7(sonuc)
+    # VERI KAPISI (21 Eyl): kirpik veriyle uretilen hukum BAGLAYICI
+    # DEGILDIR. Esik ve gerekce research/data.py::integrity'de yazili;
+    # burada yalnizca okunur ve hukmun basina/sonuna damga vurulur.
+    # Bu kapi, kirpik kosumda dort sarti da GECEN bir sonucu
+    # gecersiz kildi - yani lehimize secilmis olamaz.
+    baglayici = True
+    try:
+        rapor = json.loads(INTEGRITY_JSON.read_text())
+        baglayici = bool(rapor.get("baglayici", True))
+        if not baglayici:
+            print(f"\n  >>> VERI KIRPIK: {rapor['eksik_sembol']}/"
+                  f"{rapor['istenen_sembol']} sembol eksik "
+                  f"(%{rapor['eksik_orani'] * 100:.1f}). Hukum BAGLAYICI "
+                  "DEGIL - once veriyi tamamla.")
+    except (OSError, ValueError, KeyError):
+        print("\n  NOT: butunluk raporu okunamadi - veri tamligi "
+              "DOGRULANMADI (hukmu baglayici sayma).")
+        baglayici = False
     print("\n=== F7 ON-KAYITLI KARAR (kural 8 Eyl, dort sart) ===")
     for k, ok in v["kosullar"].items():
         print(f"  [{'X' if ok else ' '}] {k}")
@@ -77,7 +96,8 @@ def main() -> int:
     print(f"  yari tutarliligi : {t['tutarli']}/{t['olculen']} iyilesen "
           "stratejide iki yari ayni yonde")
     print(f"  toplam secilen islem : {v['toplam_secilen']}")
-    print(f"  KARAR : {v['karar']}")
+    damga = "" if baglayici else "   [BAGLAYICI DEGIL - VERI KIRPIK]"
+    print(f"  KARAR : {v['karar']}{damga}")
     d = v["okuma_duyarliligi"]
     print(f"\n  OKUMA DUYARLILIGI (kosul 2): ortalama={d['kosul2_ortalama_fark']}"
           f" / cogunluk={d['kosul2_cogunluk_iyilesme']}")

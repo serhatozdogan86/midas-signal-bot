@@ -58,3 +58,24 @@ def test_yalniz_istenen_semboller_sayilir():
 def test_bos_tablo_cokmez():
     r = integrity(pd.DataFrame())
     assert r["gun"] == 0 and r["sembol"] == 0 and r["ilk_gun"] is None
+
+
+def test_eksik_oran_esigi_baglayiciligi_belirler():
+    """21 Eyl: hiz sinirindan 114/1628 sembol dustu (%7) ve o veriyle
+    F7 dort sarti da GECTI. Esik bir PASS'i engelledigi icin lehe
+    secilmis olamaz - kayit acik olsun diye test de boyle yazildi."""
+    d = _raw(gun=3)
+    temiz = integrity(d, istenen=100, eksik=["X", "Y"])          # %2
+    assert temiz["eksik_orani"] == 0.02 and temiz["baglayici"] is True
+    kirpik = integrity(d, istenen=100, eksik=["X"] * 7)          # %7
+    assert kirpik["eksik_orani"] == 0.07 and kirpik["baglayici"] is False
+
+
+def test_eksik_sayimi_gun_bosluklariyla_karismaz():
+    """'Sembol hic gelmedi' ile 'sembolun bazi gunleri bos' AYRI
+    sayilir. (Ilk yazimda ayni degisken adi kullanildigi icin ikisi
+    birbirini eziyordu - 21 Eyl'de yakalandi.)"""
+    d = _raw(gun=10, nan_sayisi=3)
+    r = integrity(d, istenen=50, eksik=["YOK1", "YOK2"])
+    assert r["eksik_sembol"] == 2              # hic gelmeyen
+    assert r["eksik_gunu_olan_sembol"] == 1    # gunu eksik olan
