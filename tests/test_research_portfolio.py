@@ -106,3 +106,46 @@ def test_f7_on_sartlar_dolunca_aday_der_ama_hukum_vermez():
     v = verdict_f7(k)
     assert v["karar"].startswith("ADAY")
     assert "DORT kosul" in v["not"]
+
+
+# --- compare() butunu: secim gercekten fark yaratiyor mu? ------------
+
+def _havuz(kazanan_ust: bool) -> tuple:
+    """30 gun x 8 aday. kazanan_ust=True ise momentum siralamasinda
+    USTTE olanlar kazaniyor; False ise tam tersi."""
+    gunler = pd.bdate_range("2026-01-05", periods=30)
+    satirlar, rank_satir = [], {}
+    for g in gunler:
+        for j in range(8):
+            iyi = (j >= 5) if kazanan_ust else (j < 3)
+            satirlar.append({"entry_date": g,
+                             "exit_date": g + pd.Timedelta(days=2),
+                             "symbol": f"S{j}",
+                             "r_net": 1.0 if iyi else -0.5, "bars_held": 2})
+        # yuksek j = yuksek yuzdelik (alfabetik sira ile TERS)
+        rank_satir[g] = {f"S{j}": (j + 1) / 8 for j in range(8)}
+    return pd.DataFrame(satirlar), pd.DataFrame(rank_satir).T
+
+
+def test_secim_kurali_taban_ile_ayni_sonucu_vermez():
+    """20 Eyl dersi: ilk duman testimde siralama alfabetik sirayla
+    ORTUSUYORDU, iki dunya ayni kumeyi secti ve fark sifir cikti -
+    'kural var' sanmak tuzagi. Seri artik bilerek ters kuruluyor:
+    momentumun USTundekiler kazaniyor ama alfabetik olarak SONdalar."""
+    from research.portfolio import compare
+    t, rank = _havuz(kazanan_ust=True)
+    k = compare(t, rank, label="T")
+    assert k["secimli"]["islem"] == k["taban"]["islem"]      # ayni tavan
+    assert k["secimli"]["beklenti_R"] > k["taban"]["beklenti_R"]
+    assert k["secimli"]["beklenti_R"] > 0 > k["taban"]["beklenti_R"]
+
+
+def test_siralama_yanlis_yondeyse_taban_kazanir():
+    """Simetri sinavi: secim kurali her zaman iyi degildir. Kazananlar
+    siralamanin ALTINDAYSA momentumla secmek ZARAR ettirir - alet bunu
+    da gosterebilmeli, yoksa yalniz istedigimizi gosteren bir ayna
+    olurdu."""
+    from research.portfolio import compare
+    t, rank = _havuz(kazanan_ust=False)
+    k = compare(t, rank, label="T")
+    assert k["secimli"]["beklenti_R"] < k["taban"]["beklenti_R"]
