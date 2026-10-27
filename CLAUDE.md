@@ -83,7 +83,7 @@ Bu eşikler sonuçlara bakılarak değiştirilmez.
 
 ### 2.4 Ölçüm etiketleri karara karışmaz
 `smc_tags`, `mom_pct`, `atr_pct/atr_rank`, çıkış laboratuvarı, strateji
-laboratuvarı — hepsi **salt ölçüm**. `signal_engine` ve diğer karar
+laboratuvarı, **tema radarı** (v4.54) — hepsi **salt ölçüm**. `signal_engine` ve diğer karar
 modülleri bunları import etmez; testlerle kilitli. Bozma.
 
 ### 2.5 Deploy penceresi
@@ -165,6 +165,9 @@ app/
     universe.py         Midas scrape + likidite filtresi
     gist_backup.py      GitHub Gist yedekleme/geri yükleme
     alpaca_mirror.py    AYNA adım 1 (salt ölçüm; dolum doğrulama, karara girmez)
+    theme_radar.py      TEMA RADARI (v4.54, salt ölçüm): 18 tema ETF'inin SPY'a
+                        göre göreli gücü; açılış öncesi günde bir, kendi
+                        Telegram bayrağı (THEME_RADAR_TELEGRAM), /theme-radar
   integrations/         finnhub, alpaca, yfinance, telegram, gist
 docs/
   config-lock.md        KİLİT + tüm karar gerekçeleri (tarihli)
@@ -268,7 +271,9 @@ Serhat'ın makinesinde/VM'de koşan Claude oturumları izinleri şöyle kurar:
 - Strateji laboratuvarı: S1 momentum, S2 Donchian, S3 hacimli kırılım,
   S4 RSI(2), S5 momentum+geniş çıkış — tavanlı ve tavansız
 - Öz-denetim 13/13 temiz
-- Telegram: **uyarılar açık, sinyaller kapalı** (gölge mod disiplini)
+- Telegram: **uyarılar açık, sinyaller kapalı** (gölge mod disiplini).
+  27 Eki eki: **tema radarı açık** (ayrı bayrak; işlem sinyali değil,
+  tema bilgisi — Serhat'ın bilinçli kararı, bkz. config-lock 2026-10-27)
 
 ### Ölçülmüş bulgular (tekrar tartışılmadan önce research-log.md'yi oku)
 1. Tek istatistiksel sağlam giriş edge'i: **12-1 kesitsel momentum**

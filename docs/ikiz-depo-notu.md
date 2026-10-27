@@ -652,3 +652,32 @@ yapamıyorduk — ve bu, bu depoda daha önce gerçekleşmiş bir hata sınıfı
 
 Kalan ikiz açığı: bu notun bybit kopyasına yazılması (bulut oturumunun
 o depoya yazma yetkisi yok — kuyruk md. 8'in bilinen sorunu).
+
+## Tema radarı (v4.54) — yeni ölçüm aleti, ikiz kontrolü (2026-10-27)
+
+Anayasa 2.3 gereği yeni ölçüm aleti ikizde kontrol edildi.
+
+### Ortak iskelete dokunuyor mu? — HAYIR
+`app/services/theme_radar.py` yeni ve bağımsız bir modül; ortak iskelet
+parçalarını (karar hattı, gölge defter, gist, telegram istemcisi)
+DEĞİŞTİRMEDİ. Scheduler'a yalnız yeni bir kanal (`_send_radar`, kendi
+bayrağı ve sayaçları) ve açılış-öncesi tek kosum eklendi. Bu yüzden
+ikizde "aynı kusur var mı" testi yazılacak bir mekanizma değişikliği
+yok.
+
+### İkizde karşılığı — YOK, uyarlanabilir (açık fikir, kusur değil)
+bybit'te ETF/SPY yok. Karşılığı "kripto sektör sepetlerinin (AI, L2,
+DeFi, meme...) BTC'ye göre göreli gücü" olur. Tasarım (ön-kayıtlı
+kurallar, fail-closed, kesinti başına tek uyarı, ayrı kanal) doğrudan
+taşınabilir; sepet tanımı kripto tarafında ayrıca kararlaştırılmalı.
+
+### Taşınabilir ders (ikiz için kontrol edilmeli)
+İlk canlı denemede tek bir sembol Yahoo rate-limit'ine takıldı, aynı
+chunk'ın geri kalanı geldi. `YFinanceClient` yalnız chunk TAMAMEN boş
+dönerse tekrar dener — tekil kayıp sessizce "veri yok" olur. bybit
+kline indiricisinde "bir sembol düştü, diğerleri geldi" durumunun nasıl
+ele alındığı kontrol edilmeli (sağlayıcı tavanı taraması, kuyruk md. 8b
+ile aynı aile).
+
+Kalan ikiz açığı: bu notun bybit kopyasına yazılması (bulut oturumunun
+o depoya yazma yetkisi yok — kuyruk md. 8'in bilinen sorunu).

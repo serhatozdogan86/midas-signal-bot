@@ -16,6 +16,33 @@ kilit-oncesi sinyaller (30 Tem oncesi ~14 adet) ayri kohorttur ve
 - Evren: Midas scrape + min 3$ / 5M$ gunluk dolar hacmi
 
 ## Tarihli notlar
+- 2026-10-27 (v4.54 TEMA RADARI - Serhat istegi): yeni SALT OLCUM aleti
+  (app/services/theme_radar.py). Bu bir MOTOR DEGISIKLIGI DEGILDIR:
+  hicbir filtre, esik, giris/cikis, izleme listesi veya golge defter
+  etkilenmez; KILIT kapsami ve go-live sayaci aynen devam eder.
+  Ne: 18 tema ETF'inin (THEME_RADAR_ETFS) SPY'a gore goreli gucu.
+  Gunde bir kez, hazirliktan sonra SEANS DISINDA (acilis ~45 dk once)
+  kosar. Telegram: kendi bayragi THEME_RADAR_TELEGRAM (golge modun
+  TELEGRAM_ENABLED=false karari islem sinyalleri icindir; radar mesaji
+  islem sinyali degil, tema bilgisidir - Serhat bilerek istedi).
+  ON-KAYITLI KURALLAR (sonuca bakilarak degistirilmez):
+  bilesik RS = 0.5xRS20 + 0.3xRS60 + 0.2xRS120 (gun; SPY'a gore yuzde
+  puan); ISINIYOR = ilk 3 + RS cizgisi 60g zirvede + kapanis > SMA50 +
+  hacim(10g)/hacim(50g) >= 1.2 + sicak degil + son 14 gunde isaret yok;
+  SOGUYOR = sicak tema SMA50 alti kapanis (bir kez); haftalik siralama
+  ISO haftasinin ilk basarili kosumunda.
+  FAIL-CLOSED (2.2 istisnasi GEREKMEDI): SPY yok/bayat, gecerli ETF <
+  yarisi -> siralama ve isaret yok, kesinti basina TEK uyari; tekil ETF
+  eksik/bayat/>2 gun delikli -> "veri yok" listesi. Sicak temanin
+  verisi gelmezse SOGUYOR hukmu verilmez (veri yok != soguma).
+  Ilk canli deneme (27 Eki, 26 Eki kapanisi): GRID tek basina Yahoo
+  rate-limit'ine takildi (YFRateLimitError), chunk'in geri kalani geldi.
+  YFinanceClient yalniz chunk TAMAMEN bos donerse tekrar dener -> tekil
+  kayip sessizce DATA_MISSING olur. Radar eksikler icin TEK tekrar yapar.
+  Ana taramadaki ayni sinif (tekil sembol kaybi) bilgi olarak not
+  edildi; motor tarafinda DEGISIKLIK YAPILMADI (kilit).
+  Izolasyon: strategies/*, signal_tracker, universe radari import edemez;
+  tarama/izleme/dispatch fonksiyonlari ona dokunamaz (AST testleri).
 - 2026-09-21 (F7 HUKMU + BULGU 3 DUZELTMESI): secim kurali RED.
   Baglayici kosum (1627/1628 sembol, eksik %0.1): dort sarttan ucu
   gecti, YARI TUTARLILIGI 2/4 ile kaldi. Ortalama fayda +0.0037R/islem.

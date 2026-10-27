@@ -21,6 +21,7 @@
 #   rapor      hepsi tek atista (durum ritueli)
 #   deploylog  son deploy gunlugu (SABIT yol, yalnizca son 200 satir)
 #   evren      canli evren onbellegi (arastirma kosumlari icin)
+#   tema       /theme-radar - tema radari son siralama + sicak temalar (v4.54)
 #
 # NE YAPMAZ: deploy, restart, git pull/push, dosya silme, env duzenleme,
 # rasgele komut. Bunlarin hepsi ONAYA TABI kalir (4.5) ve deploy.sh ile
@@ -48,7 +49,7 @@ if [ -z "$VM_HOST" ] || [ -z "$VM_KEY" ]; then
 fi
 
 usage() {
-    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor|deploylog|evren}"
+    echo "kullanim: vm-read.sh {durum|audit|diag|zarar|ayna|anatomi|surum|log|rapor|deploylog|evren|tema}"
     exit 2
 }
 [ $# -eq 1 ] || usage
@@ -75,6 +76,9 @@ case "$1" in
     # boyle yapildi). Artik canli liste kopruden alinabilir:
     #   ./ops/local/vm-read.sh evren > data/universe_cache.json
     evren)   remote="cat $VM_DIR/data/universe_cache.json" ;;
+    # 27 Eki (v4.54): tema radari salt-okuma ucu. Yalniz GET; radari
+    # KOSTURAN yonetim ucu (/theme-radar/run) bilerek burada YOK.
+    tema)    remote="curl -sf http://127.0.0.1:$VM_PORT/theme-radar" ;;
     # 8 Eyl: "durum?" ritualinin tek atisi. Alt komutlarin AYNISI, sabit
     # sirayla - yeni yetki eklemez, yalnizca gidip-gelmeyi bitirir.
     rapor)   remote="echo '=== AUDIT ==='; curl -sf http://127.0.0.1:$VM_PORT/audit; \

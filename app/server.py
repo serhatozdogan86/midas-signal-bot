@@ -582,6 +582,35 @@ def create_app(store: StateStore, scheduler: Scheduler,
             json.dumps([d.contract_dict() for d in results], indent=2),
             mimetype="application/json")
 
+    @app.get("/theme-radar")
+    def theme_radar_view():
+        """v4.54 TEMA RADARI - son siralama + sicak temalar (salt okuma).
+        Kosum yoksa pending doner; eski sonuc canli gibi sunulmaz:
+        rapordaki 'asof' verinin hangi kapanisa ait oldugunu soyler."""
+        radar = getattr(scheduler, "_theme_radar", None)
+        if radar is None:
+            return jsonify({"error": "theme radar disabled"}), 404
+        summary = radar.summary()
+        if not summary.get("report"):
+            return jsonify({"pending": True,
+                            "note": "ilk kosum hazirliktan sonra, acilis "
+                                    "oncesinde yapilir",
+                            "universe": summary["universe"]})
+        return jsonify(summary)
+
+    @app.get("/theme-radar/run")
+    def theme_radar_run():
+        """Yonetim ucu (ADMIN_TOKEN). ?dry=1 -> durum degismez, mesaj
+        gitmez. Aksi halde gercek kosum: yalniz YENI isaretler gider
+        (sicak liste + haftalik damga tekrar bildirimi engeller).
+        Seans icinde kullanmayin: yfinance indirmesi tarama kilidini alir."""
+        if not _admin_ok():
+            return _admin_denied()
+        today = scheduler._calendar.now_et().date()
+        if request.args.get("dry") in ("1", "true", "yes"):
+            return jsonify(scheduler.preview_theme_radar(today))
+        return jsonify(scheduler.run_theme_radar(today, send=True))
+
     _qcache: dict = {}
 
     @app.get("/data-compare")

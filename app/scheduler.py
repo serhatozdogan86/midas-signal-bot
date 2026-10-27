@@ -81,6 +81,23 @@ class Scheduler:
             settings=settings,
             db=(tracker._db if tracker is not None else None))
         self._params = settings.strategy_params
+        # v4.54 TEMA RADARI (27 Eki 2026): tema ETF'lerinin SPY'a gore
+        # goreli gucu. SALT OLCUM - motor/izleme listesi/defter bunu
+        # okumaz; yalniz kendi Telegram kanalina metin uretir.
+        self._theme_radar = None
+        self._radar_date: date | None = None
+        self._radar_sent = 0
+        self._radar_fail = 0
+        self._radar_muted = 0
+        if getattr(settings, "THEME_RADAR_ENABLED", False):
+            from app.services.theme_radar import RadarParams, ThemeRadar
+            self._theme_radar = ThemeRadar(
+                settings.THEME_RADAR_ETFS,
+                RadarParams(top_n=settings.THEME_RADAR_TOP_N,
+                            vol_ratio_min=settings.THEME_RADAR_VOL_RATIO_MIN,
+                            cooldown_days=settings.THEME_RADAR_COOLDOWN_DAYS,
+                            max_bar_age_days=settings.MAX_DAILY_BAR_AGE_DAYS),
+                db=(tracker._db if tracker is not None else None))
 
         self._last_coarse = 0.0
         self._last_fine = 0.0
@@ -181,6 +198,10 @@ class Scheduler:
             self.run_gap_watch(today)
         if now_et >= prep_dt and self._prep_date != today:
             self.run_prep(today)
+        # v4.54 TEMA RADARI: hazirliktan SONRA ve yalniz SEANS DISINDA
+        # (normalde hazirlikla ayni tick, acilistan ~45 dk once). Seans
+        # ici tarama akisini asla bloklamaz; hatasi tick'i dusurmez.
+        self._maybe_theme_radar(now_et, today, open_dt, close_dt)
         if open_dt <= now_et < close_dt:
             self._deadman_check(now_et, open_dt, today)
             if time.time() - self._last_coarse >= self._settings.COARSE_SCAN_INTERVAL_SEC:
@@ -1633,7 +1654,110 @@ class Scheduler:
             "failed": self._tg_fail,
             "last_ok_age_min": (round((time.time() - self._tg_last_ok) / 60)
                                 if self._tg_last_ok else None),
+            # v4.54 tema radari kanali (ayri sayac: uyari kanalinin
+            # saglik olcusunu kirletmesin)
+            "radar_on": bool(getattr(self._settings,
+                                     "THEME_RADAR_TELEGRAM", False)),
+            "radar_sent": getattr(self, "_radar_sent", 0),
+            "radar_failed": getattr(self, "_radar_fail", 0),
         }
+
+    # ------------------------------------------------- v4.54 tema radari
+    def _maybe_theme_radar(self, now_et, today, open_dt, close_dt) -> None:
+        """Gunde bir kez; hazirliktan sonra ve SEANS DISINDA.
+
+        Neden seans disi: yfinance indirmesi geri cekilmede ~90 sn
+        surebilir - 'agir isi seans icinde tick'te kosturma' dersi
+        (anayasa 6, haber ucu vakasi). Restart sonrasi ayni gun TEKRAR
+        kosmaz: son kosum tarihi meta'da (tekrar bildirim olmasin)."""
+        radar = getattr(self, "_theme_radar", None)
+        if radar is None or getattr(self, "_radar_date", None) == today:
+            return
+        if self._prep_date != today or open_dt <= now_et < close_dt:
+            return
+        if radar.last_run_date() == today:
+            self._radar_date = today
+            return
+        try:
+            self.run_theme_radar(today, send=True)
+        except Exception:
+            log.exception(kv(event="theme_radar_error"))
+            self._radar_date = today     # gunde bir deneme; tick dongusu dusmez
+
+    _RADAR_RETRY_WAIT_SEC = 5.0
+
+    def _radar_daily(self, radar) -> dict:
+        """Radar ETF'leri + SPY gunluk barlari (kapanmis). Hata -> {} ->
+        rapor 'no_benchmark' olur ve TEK uyari gider (2.2: sessiz kalma).
+
+        Eksik kalan semboller icin TEK tekrar: 27 Eki ilk canli denemede
+        GRID tek basina Yahoo rate-limit'ine takildi (YFRateLimitError),
+        ayni chunk'taki digerleri geldi. YFinanceClient yalniz chunk
+        TAMAMEN bos donerse tekrar dener; tekil kayip sessizce 'veri yok'
+        olurdu. Bir tekrar sonra hala yoksa 'veri yok' olarak raporlanir
+        (doldurma/tahmin yok)."""
+        period = getattr(self._settings, "THEME_RADAR_PERIOD", "1y")
+        try:
+            fetched = dict(self._md.get_daily_bulk(radar.symbols, period=period))
+        except Exception:
+            log.exception(kv(event="theme_radar_fetch_error"))
+            return {}
+        missing = [s for s in radar.symbols if s not in fetched]
+        if missing and fetched:
+            try:
+                time.sleep(self._RADAR_RETRY_WAIT_SEC)
+                fetched.update(self._md.get_daily_bulk(missing, period=period))
+            except Exception:
+                log.exception(kv(event="theme_radar_retry_error"))
+            log.info(kv(event="theme_radar_retry", missing=len(missing),
+                        still_missing=sum(1 for s in missing
+                                          if s not in fetched)))
+        return {s: k.closed_only() for s, k in fetched.items()}
+
+    def run_theme_radar(self, today, send: bool = True) -> dict:
+        """Radar kosumu. Tarama kilidi alinir: yfinance indirmesi /scan
+        ucunun tarama indirmesiyle ayni anda kosmasin (v4.22 dersi)."""
+        radar = getattr(self, "_theme_radar", None)
+        if radar is None:
+            return {"error": "theme radar disabled"}
+        if not self._scan_gate.acquire(blocking=False):
+            log.warning(kv(event="theme_radar_busy"))
+            return {"busy": True}
+        try:
+            self._radar_date = today
+            messages = radar.run(self._radar_daily(radar), today)
+        finally:
+            self._scan_gate.release()
+        sent = sum(1 for text in messages if send and self._send_radar(text))
+        rep = radar.last_report or {}
+        return {"status": rep.get("status"), "asof": rep.get("asof"),
+                "messages": len(messages), "sent": sent}
+
+    def preview_theme_radar(self, today) -> dict:
+        """Durumu DEGISTIRMEDEN hesap (yonetim ucu ?dry=1)."""
+        radar = getattr(self, "_theme_radar", None)
+        if radar is None:
+            return {"error": "theme radar disabled"}
+        if not self._scan_gate.acquire(blocking=False):
+            return {"busy": True}
+        try:
+            return radar.preview(self._radar_daily(radar), today)
+        finally:
+            self._scan_gate.release()
+
+    def _send_radar(self, text: str) -> bool:
+        """TEMA RADARI kanali. Mesaj islem sinyali DEGIL -> golge modun
+        TELEGRAM_ENABLED=false kararina tabi degil; kendi bayragi var
+        (THEME_RADAR_TELEGRAM). Sayaclar ayri tutulur."""
+        if not getattr(self._settings, "THEME_RADAR_TELEGRAM", False):
+            self._radar_muted = getattr(self, "_radar_muted", 0) + 1
+            return False
+        ok = self._notifier.send(text)
+        if ok:
+            self._radar_sent = getattr(self, "_radar_sent", 0) + 1
+        else:
+            self._radar_fail = getattr(self, "_radar_fail", 0) + 1
+        return ok
 
     def _send(self, text: str) -> bool:
         """SINYAL / ozet mesajlari - golge modda susturulabilir."""

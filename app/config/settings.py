@@ -240,6 +240,25 @@ class Settings(BaseSettings):
     # Adim 2 (emir dongusu) kurulup dogrulanana kadar KAPALI kalir.
     ALPACA_MIRROR_ENABLED: bool = False
 
+    # v4.54 TEMA RADARI (27 Eki 2026, Serhat istegi): tema ETF'lerinin
+    # SPY'a gore goreli gucu (app/services/theme_radar.py). SALT OLCUM -
+    # motora, izleme listesine, golge deftere, kohorta KARISMAZ.
+    # Telegram mesajlari islem sinyali DEGIL; golge modun TELEGRAM_ENABLED
+    # kararindan bagimsiz, kendi bayragiyla gider. Kurallar on-kayitli
+    # (config-lock.md 2026-10-27): sonuca bakilarak esik oynatilmaz.
+    THEME_RADAR_ENABLED: bool = True
+    THEME_RADAR_TELEGRAM: bool = True
+    THEME_RADAR_ETFS: str = (
+        "SMH:Yari iletken,IGV:Yazilim,GRID:Akilli sebeke,URA:Uranyum,"
+        "NLR:Nukleer,REMX:Nadir toprak,COPX:Bakir madencileri,"
+        "GDX:Altin madencileri,BOTZ:Robotik ve AI,ITA:Savunma,UFO:Uzay,"
+        "QTUM:Kuantum,ARKG:Genomik,XBI:Biyoteknoloji,CIBR:Siber guvenlik,"
+        "XLE:Enerji,TAN:Gunes enerjisi,XLU:Elektrik/kamu hizmeti")
+    THEME_RADAR_TOP_N: int = 3            # ISINIYOR icin siralama tavani
+    THEME_RADAR_VOL_RATIO_MIN: float = 1.2  # hacim(10g)/hacim(50g) alt siniri
+    THEME_RADAR_COOLDOWN_DAYS: int = 14   # ayni temaya tekrar ISINIYOR araligi
+    THEME_RADAR_PERIOD: str = "1y"        # 121 hizali bar icin yeterli
+
     @property
     def regime_symbols(self) -> list[str]:
         return [s.strip().upper() for s in self.REGIME_SYMBOLS.split(",") if s.strip()]
